@@ -61,14 +61,154 @@ const INITIAL_STAGES: PipelineStage[] = [
 
 // ─── SERVICE ──────────────────────────────────────────────────────────────────
 
-const REQUEST_TIMEOUT_MS = 6 * 60 * 1000;
+type ServiceMode = "mock" | "live";
+let _mode: ServiceMode = "mock";
+export const getServiceMode = () => _mode;
+export const setServiceMode = (m: ServiceMode) => { _mode = m; };
+
+function delay(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+function buildMockResponse(candidates: CandidateInput[], enablePairing = false, decisionMode = "best_fit", scenario = SCENARIOS[0]): PipelineResponse {
+  // Per-candidate base scores — these reflect each person's actual profile strengths
+  const BASE_SCORES: Record<string, { wfs: number; risk: number; outcome: number; conf: number; exec_risk: number; cult_risk: number; time_risk: number; adapt: number; }> = {
+    "c1": { wfs: 7.8, risk: 7.6, outcome: 7.5, conf: 0.82, exec_risk: 20, cult_risk: 15, time_risk: 18, adapt: 78 }, // Alexandra — high fit, low risk
+    "c2": { wfs: 7.0, risk: 6.2, outcome: 7.8, conf: 0.76, exec_risk: 36, cult_risk: 45, time_risk: 28, adapt: 68 }, // Marcus — high outcome, high risk
+    "c3": { wfs: 6.6, risk: 7.0, outcome: 6.6, conf: 0.70, exec_risk: 28, cult_risk: 25, time_risk: 23, adapt: 72 }, // Priya — balanced, steady
+  };
+
+  // Scenario modifiers — different scenarios favour different profiles
+  type ScoreBoost = { wfs?: number; risk?: number; outcome?: number; conf?: number; exec_risk?: number; cult_risk?: number; time_risk?: number; adapt?: number; };
+  const SCENARIO_BOOST: Record<string, Record<string, ScoreBoost>> = {
+    "Post-merger integration with cultural clash risk":   { c1: { wfs: 0.4, outcome: 0.2 }, c2: { cult_risk: 10 }, c3: { wfs: 0.1 } },
+    "Rapid scaling in a new geographic market":          { c2: { wfs: 0.6, outcome: 0.5 }, c1: { wfs: -0.2 }, c3: {} },
+    "Digital transformation in a legacy enterprise":     { c1: { wfs: 0.2 }, c2: { wfs: 0.3, outcome: 0.3 }, c3: { wfs: 0.1 } },
+    "Crisis turnaround with limited runway":             { c2: { wfs: 0.5, outcome: 0.6 }, c1: { wfs: -0.1 }, c3: { wfs: -0.2 } },
+    "Greenfield product launch in competitive market":   { c2: { wfs: 0.7, outcome: 0.8 }, c1: { wfs: -0.3 }, c3: { wfs: 0.1 } },
+  };
+
+  const boosts = SCENARIO_BOOST[scenario] ?? {};
+
+  const rawEvals = candidates.map((c, i) => {
+    const base = BASE_SCORES[c.id] ?? { wfs: 7.0 - i*0.4, risk: 6.8 - i*0.4, outcome: 7.0 - i*0.4, conf: 0.78 - i*0.05, exec_risk: 24 + i*8, cult_risk: 20 + i*8, time_risk: 20 + i*5, adapt: 74 - i*4 };
+    const b = boosts[c.id] ?? {};
+    const wfs       = parseFloat(((base.wfs       + (b.wfs       ?? 0))).toFixed(2));
+    const risk      = parseFloat(((base.risk      + (b.risk      ?? 0))).toFixed(2));
+    const outcome   = parseFloat(((base.outcome   + (b.outcome   ?? 0))).toFixed(2));
+    const conf      = parseFloat(((base.conf      + (b.conf      ?? 0))).toFixed(2));
+    const exec_risk = base.exec_risk + (b.exec_risk ?? 0);
+    const cult_risk = base.cult_risk + (b.cult_risk ?? 0);
+    return { c, i, wfs, risk, outcome, conf, exec_risk, cult_risk, time_risk: base.time_risk, adapt: base.adapt };
+  });
+
+  // Sort by the chosen decision mode to determine rank
+  // Use explicit sort functions instead of dynamic key indexing (avoids TS2536)
+  const getSortValue = (e: typeof rawEvals[0]) =>
+    decisionMode === "best_fit" ? e.wfs :
+    decisionMode === "lowest_risk" ? e.risk :
+    e.outcome;
+  const sortLabel = decisionMode === "best_fit" ? "weighted fit" :
+    decisionMode === "lowest_risk" ? "risk-adjusted" : "expected outcome";
+
+  const sorted = [...rawEvals].sort((a, b) => getSortValue(b) - getSortValue(a));
+  const rankMap = new Map(sorted.map((e, rank) => [e.c.id, rank]));
+  const winner = sorted[0];
+
+  const evals: CandidateEvaluation[] = rawEvals.map(({ c, wfs, risk, outcome, conf, exec_risk, cult_risk, time_risk, adapt }) => {
+    const rank = rankMap.get(c.id)! + 1;
+    const isWinner = rank === 1;
+    return {
+      candidate_id: c.id, candidate_name: c.name, rank,
+      weighted_fit_score: wfs,
+      risk_adjusted_score: risk,
+      expected_outcome_score: outcome,
+      overall_confidence: conf,
+      strategic_labels: c.id === "c1" ? ["Proven Integrator", "Low Risk"] : c.id === "c2" ? ["High Velocity", "High Upside"] : ["Coalition Builder", "Steady Ramp"],
+      winner_reason: isWinner ? `Strongest ${sortLabel} score for this scenario and decision mode.` : undefined,
+      trade_off_note: rank === 2 ? (c.id === "c2" ? "High upside but elevated execution and cultural risk." : "Strong stability but lower ceiling under this scenario.") : undefined,
+      criteria_scores: {
+        domain_expertise:            { score: c.id === "c1" ? 8.5 : c.id === "c2" ? 7.0 : 6.5, confidence: 0.85, evidence: "From candidate profile", reasoning: "Assessed from background" },
+        transformation_leadership:   { score: c.id === "c1" ? 7.5 : c.id === "c2" ? 7.8 : 7.2, confidence: 0.78, evidence: "From candidate profile", reasoning: "Assessed from background" },
+        operational_execution:       { score: c.id === "c1" ? 7.8 : c.id === "c2" ? 9.0 : 6.5, confidence: 0.80, evidence: "From candidate profile", reasoning: "Assessed from background" },
+        stakeholder_management:      { score: c.id === "c1" ? 8.0 : c.id === "c2" ? 6.0 : 8.5, confidence: 0.75, evidence: "From candidate profile", reasoning: "Assessed from background" },
+        crisis_management:           { score: c.id === "c1" ? 7.0 : c.id === "c2" ? 8.5 : 7.0, confidence: 0.70, evidence: "From candidate profile", reasoning: "Assessed from background" },
+        innovation_digital:          { score: c.id === "c1" ? 7.2 : c.id === "c2" ? 8.0 : 6.8, confidence: 0.72, evidence: "From candidate profile", reasoning: "Assessed from background" },
+        strategic_scalability:       { score: c.id === "c1" ? 7.5 : c.id === "c2" ? 8.2 : 7.0, confidence: 0.76, evidence: "From candidate profile", reasoning: "Assessed from background" },
+      },
+      strengths: c.id === "c1" ? ["Data-driven", "Cross-functional alignment", "Post-merger experience"] : c.id === "c2" ? ["Execution velocity", "Founder mindset", "Scaling experience"] : ["Stakeholder trust", "Ambiguity navigation", "Long-term thinking"],
+      weaknesses: c.id === "c1" ? ["May over-index on process"] : c.id === "c2" ? ["Cultural integration risk"] : ["Slower execution pace"],
+      risk_profile: { execution_risk: exec_risk/100, culture_risk: cult_risk/100, time_risk: time_risk/100, adaptability_risk: (100-adapt)/100, confidence_risk: (1-conf), opportunity_cost_risk: (exec_risk+cult_risk+time_risk)/300 },
+      outcome_model: {
+        expected_execution_success: parseFloat((1 - exec_risk/100*0.7).toFixed(2)),
+        scenario_fit: parseFloat((wfs/10).toFixed(2)),
+        adaptability_score: adapt/100,
+        likely_outcome: c.id === "c1" ? "Strong integration with KPI gains within 18 months" : c.id === "c2" ? "Fast early results, cultural friction risk in Q2–Q3" : "Steady execution, strong by month 12",
+        strategic_label: c.id === "c1" ? "Safe Bet" : c.id === "c2" ? "High Upside, High Risk" : "Steady Builder",
+        expected_outcome_score: outcome,
+      },
+    };
+  }).sort((a, b) => a.rank - b.rank);
+
+  return {
+    pipeline_steps: INITIAL_STAGES.map(s => ({ ...s, status: "completed", summary: `${s.label} completed.`, duration_ms: 800 + Math.random() * 1200 })),
+    role_analysis: { title: "Strategic Leadership Role", key_requirements: ["Executive presence", "Change management", "Data literacy", "Stakeholder alignment"], complexity: "High" },
+    scenario_analysis: { scenario, key_pressures: ["Speed of integration", "Cultural alignment", "Retention risk"], weight_rationale: `${scenario} analysis complete.` },
+    candidate_evaluations: evals,
+    bias_confidence_reviews: candidates.map((c, i) => ({ candidate_id: c.id, candidate_name: c.name, overall_confidence: rawEvals.find(e => e.c.id === c.id)!.conf, bias_flags: c.id === "c2" ? [{ type: "Halo Effect", severity: "low", description: "Strong founder narrative may inflate scores" }] : [], recommend_human_review: i === 2 })),
+    decision_result: { recommended_candidate_id: winner.c.id, recommended_candidate_name: winner.c.name, decision_mode: decisionMode, scenario, final_label: "Recommended Hire", key_reason: `Highest ${sortLabel} score for "${scenario}".`, overall_confidence: winner.conf, executive_interpretation: `${winner.c.name} presents the strongest profile under the "${decisionMode}" decision mode for this scenario.` },
+    trade_offs: [
+      { title: "Execution Speed vs Stability", description: `Choosing ${winner.c.name} optimizes for ${sortLabel} — other candidates may outperform in different modes.`, type: "sacrifice", severity: "low" },
+      { title: "Cultural Integration", description: "Lower cultural clash risk improves 12-month retention probability.", type: "gain", severity: "medium" },
+      { title: "Opportunity Cost", description: `${sorted[1]?.c.name ?? "Runner-up"} may outperform ${winner.c.name} in a different scenario or decision mode.`, type: "opportunity_cost", severity: "medium" },
+    ],
+    adaptability_profiles: candidates.map((c) => {
+      const e = rawEvals.find(r => r.c.id === c.id)!;
+      return { candidate_name: c.name, adaptability_score: e.adapt, best_scenario: c.id === "c1" ? "Post-merger integration" : c.id === "c2" ? "Rapid scaling / Greenfield launch" : "Digital transformation", worst_scenario: c.id === "c1" ? "Greenfield product launch" : c.id === "c2" ? "Legacy cultural integration" : "Crisis turnaround", resilience_note: c.id === "c1" ? "Highly resilient; adapts strategy to constraints" : c.id === "c2" ? "Strong in growth; struggles in structured legacy environments" : "Consistent across scenarios but limited ceiling" };
+    }),
+    pairing_result: enablePairing && sorted.length >= 2 ? {
+      best_pair: {
+        pair: [sorted[0].c.name, sorted[1].c.name] as [string, string],
+        pair_score: 8.2,
+        explanation: `Strong complementarity — ${sorted[0].c.name} and ${sorted[1].c.name} cover different strength dimensions. Together they offset each other's weaknesses for this scenario.`,
+        scenario_coverage: 0.85,
+        complementarity: 0.80,
+        overlap_risk: 0.20,
+        conflict_risk: 0.15,
+        execution_cohesion: 0.78,
+        pair_adaptability: 0.75,
+      },
+      top_pairs: sorted.length >= 3 ? [{
+        pair: [sorted[0].c.name, sorted[2].c.name] as [string, string],
+        pair_score: 7.4,
+        explanation: `${sorted[0].c.name} and ${sorted[2].c.name} offer stability but lower upside. Complementary in stakeholder management, weaker on execution speed.`,
+      }] : [],
+    } : undefined,
+    agent_outputs: [
+      { agent_name: "Role Agent", agent_role: "Extracts criteria and weights from role description (LLM)", inputs: ["Role title", "Role description"], outputs: ["Criteria list", "Baseline weights"], summary: "Identified 7 core criteria with weights adjusted for scenario context." },
+      { agent_name: "Decision Agent", agent_role: `Ranks candidates by ${decisionMode}`, inputs: ["All evaluations", "Decision mode"], outputs: ["Ranked list", "Explanations"], summary: `${winner.c.name} ranked #1 under "${decisionMode}" mode for "${scenario}". Ranking is deterministic from mock scores.` },
+    ],
+    executive_summary: { recommendation: `Hire ${winner.c.name}`, reason: `Highest ${sortLabel} score for the selected scenario and decision mode.`, trade_off: `${sorted[1]?.c.name ?? "Runner-up"} may outperform in a different scenario or decision mode.`, opportunity_cost: `${sorted[1]?.c.name ?? "Runner-up"} has higher upside in scenarios favoring a different decision mode.`, adaptability: `${winner.c.name} shows the strongest profile for the current configuration.`, alternative: `If you switch to "${decisionMode === "best_fit" ? "lowest_risk" : "best_fit"}" mode, re-evaluate ${sorted[1]?.c.name ?? "runner-up"}.` },
+  };
+}
+
+async function runMock(candidates: CandidateInput[], enablePairing: boolean, decisionMode: string, scenario: string, onStage: (s: PipelineStage[]) => void): Promise<PipelineResponse> {
+  const stages = INITIAL_STAGES.filter(s => enablePairing || s.id !== "pairing").map(s => ({ ...s }));
+  for (let i = 0; i < stages.length; i++) {
+    stages[i].status = "running"; onStage([...stages]);
+    await delay(600 + Math.random() * 700);
+    stages[i].status = "completed"; stages[i].summary = `${stages[i].label} completed.`; stages[i].duration_ms = Math.round(700 + Math.random() * 1200);
+    onStage([...stages]);
+    await delay(100);
+  }
+  return buildMockResponse(candidates, enablePairing, decisionMode, scenario);
+}
 
 async function runLive(
   request: { role: { title: string; description: string }; scenario: string; decision_mode: string; candidates: CandidateInput[]; options: { enable_pair_simulation: boolean }; },
   onStage: (s: PipelineStage[]) => void
 ): Promise<PipelineResponse> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  // 10-minute hard timeout — pipeline should never take longer than this
+  const timeout = setTimeout(() => controller.abort(), 10 * 60 * 1000);
 
   try {
     const res = await fetch(`${BACKEND_URL}/api/decision/stream`, {
@@ -85,65 +225,50 @@ async function runLive(
     const decoder = new TextDecoder();
     let buffer = "";
     let currentEvent = "";
+    let result: PipelineResponse | null = null;
 
     while (true) {
       const { done, value } = await reader.read();
 
       if (done) {
+        if (result) return result;
         throw new Error("Stream ended before pipeline completed.");
       }
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
+      buffer = lines.pop()!; // keep incomplete last line for next chunk
 
       for (const line of lines) {
-        if (!line) {
-          currentEvent = "";
-          continue;
-        }
-        if (line.startsWith(": ")) continue;
+        if (line.startsWith(": ")) continue; // SSE comment / heartbeat — ignore
         if (line.startsWith("event: ")) {
           currentEvent = line.slice(7).trim();
           continue;
         }
         if (line.startsWith("data: ")) {
           const raw = line.slice(6);
-          let data: unknown;
+          if (currentEvent === "error") {
+            let msg = "Pipeline error.";
+            try { msg = JSON.parse(raw).message || msg; } catch { msg = raw; }
+            reader.cancel();
+            throw new Error(msg);
+          }
           try {
-            data = JSON.parse(raw);
-          } catch {
-            continue;
-          }
-
-          if (currentEvent === "error" && typeof data === "object" && data && "message" in data) {
-            const message = typeof (data as { message?: unknown }).message === "string"
-              ? (data as { message: string }).message
-              : "Pipeline error.";
-            await reader.cancel();
-            throw new Error(message);
-          }
-
-          if (currentEvent === "stage_update" && Array.isArray(data)) {
-            onStage(data as PipelineStage[]);
-            currentEvent = "";
-            continue;
-          }
-
-          if (currentEvent === "complete" && data && typeof data === "object") {
-            await reader.cancel();
-            return data as PipelineResponse;
-          }
-
-          currentEvent = "";
+            const data = JSON.parse(raw);
+            if (currentEvent === "stage_update" || Array.isArray(data)) {
+              onStage(data);
+            } else if (currentEvent === "complete" || data.candidate_evaluations) {
+              result = data;
+            }
+          } catch { /* malformed data line — skip */ }
+          currentEvent = ""; // reset after consuming the data line
+          continue;
+        }
+        if (line === "") {
+          currentEvent = ""; // blank line = end of SSE event block
         }
       }
     }
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error("Pipeline request timed out after 3 minutes. Please try again.");
-    }
-    throw err;
   } finally {
     clearTimeout(timeout);
   }
@@ -560,8 +685,15 @@ export default function Index() {
   const [enablePairing, setEnablePairing] = useState(false);
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [response, setResponse] = useState<PipelineResponse | null>(null);
+  const [mode, setMode] = useState<ServiceMode>("mock");
   const [error, setError] = useState<string | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  const toggleMode = () => {
+    const next: ServiceMode = mode === "mock" ? "live" : "mock";
+    setServiceMode(next);
+    setMode(next);
+  };
 
   const handleRun = useCallback(async () => {
     setPhase("running");
@@ -573,7 +705,9 @@ export default function Index() {
     setStages(initStages);
 
     try {
-      const result = await runLive({ role, scenario, decision_mode: decisionMode, candidates, options: { enable_pair_simulation: enablePairing } }, setStages);
+      const result = mode === "live"
+        ? await runLive({ role, scenario, decision_mode: decisionMode, candidates, options: { enable_pair_simulation: enablePairing } }, setStages)
+        : await runMock(candidates, enablePairing, decisionMode, scenario, setStages);
       setResponse(result);
       setPhase("results");
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
@@ -581,7 +715,7 @@ export default function Index() {
       setError(err instanceof Error ? err.message : String(err));
       setPhase("eval");
     }
-  }, [role, scenario, decisionMode, candidates, enablePairing]);
+  }, [role, scenario, decisionMode, candidates, enablePairing, mode]);
 
   return (
     <div className="min-h-screen bg-[#0d0f14] text-white">
@@ -593,6 +727,18 @@ export default function Index() {
             <span className="text-white/20 text-xs ml-2">v3</span>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={toggleMode}
+              className={cn(
+                "text-[10px] px-3 py-1.5 rounded-full font-semibold border transition-all cursor-pointer",
+                mode === "live"
+                  ? "bg-emerald-400/10 text-emerald-400 border-emerald-400/30 hover:bg-emerald-400/20"
+                  : "bg-amber-400/10 text-amber-400 border-amber-400/30 hover:bg-amber-400/20"
+              )}
+              title={mode === "mock" ? "Switch to Live Mode (requires node server.mjs on port 3001)" : "Switch to Mock Mode"}
+            >
+              {mode === "live" ? "⚡ Live Mode" : "🎭 Mock Mode"}
+            </button>
             {phase !== "landing" && (
               <button onClick={() => { setPhase("landing"); setResponse(null); setError(null); setStages([]); }}
                 className="text-xs text-white/30 hover:text-white/60 transition-colors">
@@ -609,7 +755,7 @@ export default function Index() {
           <div className="rounded-xl border border-red-400/20 bg-red-400/5 p-4">
             <p className="text-sm text-red-300 font-semibold">⚠️ Pipeline Error</p>
             <p className="text-xs text-white/50 mt-1">{error}</p>
-            {(error?.includes("port 3001") || error?.includes("fetch") || error?.includes("NetworkError") || error?.includes("Failed to fetch")) && (
+            {mode === "live" && (error?.includes("port 3001") || error?.includes("fetch") || error?.includes("NetworkError") || error?.includes("Failed to fetch")) && (
               <p className="text-xs text-white/30 mt-2">
                 Is <code className="text-amber-400 bg-amber-400/10 px-1 rounded">node server.mjs</code> running in a separate terminal on port 3001?
               </p>
