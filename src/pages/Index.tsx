@@ -200,26 +200,367 @@ function ScoreBar({ value, max = 10, color = "#f59e0b" }: { value: number; max?:
   );
 }
 
+
+function MiniMetricCard({
+  title,
+  value,
+  subtitle,
+}: {
+  title: string;
+  value: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">{title}</div>
+      <div className="mt-2 text-2xl font-bold text-white">{value}</div>
+      <div className="mt-1 text-xs leading-relaxed text-white/50">{subtitle}</div>
+    </div>
+  );
+}
+
+function LogicStep({
+  index,
+  title,
+  description,
+}: {
+  index: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-black">
+          {index}
+        </div>
+        <div className="text-sm font-semibold text-white">{title}</div>
+      </div>
+      <p className="text-sm leading-relaxed text-white/55">{description}</p>
+    </div>
+  );
+}
+
+function PhilosophyCard({
+  question,
+  answer,
+}: {
+  question: string;
+  answer: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="text-sm font-semibold text-white">{question}</div>
+      <p className="mt-2 text-sm leading-relaxed text-white/55">{answer}</p>
+    </div>
+  );
+}
+
+function AlgorithmRow({
+  label,
+  left,
+  right,
+  colorClass,
+}: {
+  label: string;
+  left: string;
+  right: string;
+  colorClass: string;
+}) {
+  return (
+    <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-white">{label}</span>
+        <span className="text-right text-[11px] text-white/40">{left} → {right}</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+        <div className={cn("h-full rounded-full", colorClass)} />
+      </div>
+    </div>
+  );
+}
+
 // ─── PHASE COMPONENTS ─────────────────────────────────────────────────────────
 
 function Landing({ onStart }: { onStart: () => void }) {
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-6 gap-8">
-      <div className="space-y-3">
-        <div className="text-xs font-semibold tracking-widest text-amber-400 uppercase">Decision Intelligence Platform</div>
-        <h1 className="text-5xl font-bold tracking-tight">
-          <span className="text-amber-400">ScenarioRank</span> <span className="text-white">AI</span>
-        </h1>
-        <p className="text-white/50 max-w-lg mx-auto text-base leading-relaxed">
-          A multi-agent pipeline that scores candidates against real leadership scenarios — deterministic math, LLM interpretation.
-        </p>
+    <div className="min-h-screen bg-[#0A0A0B] text-white">
+      <div className="mx-auto max-w-7xl px-6 py-10 md:px-10 lg:px-12">
+        <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-400">
+              Executive Decision Intelligence
+            </div>
+            <div className="mt-1 text-sm text-white/45">
+              ScenarioRank AI · Leadership evaluation under changing business conditions
+            </div>
+          </div>
+
+          <button
+            onClick={onStart}
+            className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-bold text-black transition hover:bg-amber-300"
+          >
+            Start Evaluation
+          </button>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div className="space-y-6">
+            <div className="inline-flex rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-300">
+              Hiring is not a resume problem. It is a decision problem.
+            </div>
+
+            <div className="space-y-4">
+              <h1 className="max-w-4xl text-4xl font-bold leading-tight md:text-6xl">
+                Make leadership decisions people can <span className="text-amber-400">trust</span>.
+              </h1>
+
+              <p className="max-w-2xl text-base leading-relaxed text-white/60 md:text-lg">
+                ScenarioRank AI helps executives evaluate candidates using scenario simulation,
+                weighted criteria, risk-adjusted scoring, projected outcomes, and leadership-pair
+                analysis — so the final recommendation is not just persuasive, but explainable.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={onStart}
+                className="rounded-xl bg-amber-400 px-6 py-3 text-sm font-bold text-black transition hover:bg-amber-300"
+              >
+                Evaluate Candidates Now
+              </button>
+              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/55">
+                Best Fit · Risk-Adjusted Choice · Best Outcome
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <MiniMetricCard
+                title="Decision Logic"
+                value="Scenario-aware"
+                subtitle="The same candidate can rank differently when the business context changes."
+              />
+              <MiniMetricCard
+                title="Trust Layer"
+                value="Explainable"
+                subtitle="Every recommendation is backed by criteria scores, risks, trade-offs, and reasoning."
+              />
+              <MiniMetricCard
+                title="Leadership Lens"
+                value="Not isolated"
+                subtitle="Because strong leaders can fail inside weak pairings and weak combinations create organizational drag."
+              />
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/8 to-white/3 p-6 shadow-2xl shadow-black/30">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-white/40">Recommendation Preview</div>
+                <div className="mt-1 text-lg font-semibold text-white">Decision Stack</div>
+              </div>
+              <div className="rounded-full bg-emerald-400/15 px-3 py-1 text-[11px] font-semibold text-emerald-300">
+                Live reasoning
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <AlgorithmRow
+                label="Weighted Fit Score"
+                left="Candidate evidence"
+                right="Scenario priorities"
+                colorClass="w-[78%] bg-amber-400"
+              />
+              <AlgorithmRow
+                label="Risk-Adjusted Score"
+                left="Fit"
+                right="Execution / culture / confidence penalties"
+                colorClass="w-[62%] bg-blue-400"
+              />
+              <AlgorithmRow
+                label="Expected Outcome"
+                left="Adaptability + fit"
+                right="Projected scenario success"
+                colorClass="w-[70%] bg-emerald-400"
+              />
+              <AlgorithmRow
+                label="Pair Simulation"
+                left="Leader A + Leader B"
+                right="Complementarity / conflict / cohesion"
+                colorClass="w-[58%] bg-violet-400"
+              />
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-white/10 bg-black/25 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-white/40">Final Question</div>
+              <div className="mt-2 text-sm leading-relaxed text-white/70">
+                <span className="font-semibold text-white">Who should we choose</span> is only part
+                of the decision. The harder question is:
+                <span className="text-amber-300"> who is strongest for this context, with what risk,
+                and at what opportunity cost?</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-20 grid gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-400">
+              The hard truth about hiring
+            </div>
+            <h2 className="text-3xl font-bold leading-tight md:text-4xl">
+              The strongest-looking candidate is not always the strongest decision.
+            </h2>
+            <p className="max-w-xl text-sm leading-relaxed text-white/60 md:text-base">
+              Most hiring decisions fail because they optimize for a static profile in a dynamic
+              environment. A great operator may underperform in transformation. A visionary leader
+              may create execution risk in a crisis. A strong individual may still form a weak
+              leadership combination.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <PhilosophyCard
+              question="Is the best resume always the best hire?"
+              answer="No. We evaluate candidates against business conditions, not just credentials. The model changes recommendations when scenario priorities shift."
+            />
+            <PhilosophyCard
+              question="Should we optimize for fit, risk, or future outcome?"
+              answer="Different situations demand different decision modes. That is why the system supports Best Fit, Risk-Adjusted Choice, and Best Outcome."
+            />
+            <PhilosophyCard
+              question="What if the environment changes after the hire?"
+              answer="Scenario simulation reveals who is robust versus who is highly context-dependent, helping decision-makers plan for uncertainty."
+            />
+            <PhilosophyCard
+              question="Do leaders succeed in isolation?"
+              answer="No. Leadership pairing matters. Pair simulation tests complementarity, cohesion, and conflict risk to identify stronger combinations."
+            />
+          </div>
+        </div>
+
+        <div className="mt-20">
+          <div className="max-w-2xl space-y-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-400">
+              How the logic works
+            </div>
+            <h2 className="text-3xl font-bold md:text-4xl">We do not ask one prompt for one answer.</h2>
+            <p className="text-sm leading-relaxed text-white/60 md:text-base">
+              We decompose the decision into structured steps so executives can inspect the logic,
+              not just the conclusion.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <LogicStep
+              index="01"
+              title="Role Analysis"
+              description="We extract what success really requires from the role and define weighted criteria instead of treating every attribute equally."
+            />
+            <LogicStep
+              index="02"
+              title="Scenario Adjustment"
+              description="We shift priorities based on the chosen business context, because crisis, transformation, and scaling do not reward the same leadership profile."
+            />
+            <LogicStep
+              index="03"
+              title="Candidate Evaluation"
+              description="Each candidate is scored across the criteria, then translated into weighted fit, confidence, risks, and projected outcome."
+            />
+            <LogicStep
+              index="04"
+              title="Decision Synthesis"
+              description="We generate an explainable recommendation, trade-offs, and optional leadership-pair insight so the final decision is transparent."
+            />
+          </div>
+        </div>
+
+        <div className="mt-20 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <Card className="border-amber-400/20 bg-amber-400/5">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-400">
+              Trust through structure
+            </div>
+            <h3 className="mt-3 text-2xl font-bold text-white">We make judgment visible.</h3>
+            <p className="mt-3 text-sm leading-relaxed text-white/65">
+              Trust does not come from saying “AI recommended this.” Trust comes from showing how
+              the recommendation was constructed: what mattered most, how risks were penalized, what
+              outcome was projected, and where trade-offs remain.
+            </p>
+
+            <div className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-white/40">Core scoring logic</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3 font-mono text-xs leading-relaxed text-white/75">
+                Weighted Fit = Σ(score × scenario weight)
+                <br />
+                Risk-Adjusted Choice = Fit − execution risk − culture risk − confidence penalty
+                <br />
+                Best Outcome = fit + adaptability + projected execution success
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <div className="text-xs uppercase tracking-[0.18em] text-white/40">Decision Mode</div>
+              <div className="mt-2 text-lg font-semibold text-white">Best Fit</div>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">
+                Selects the candidate whose profile best matches the scenario-weighted criteria.
+              </p>
+            </Card>
+
+            <Card>
+              <div className="text-xs uppercase tracking-[0.18em] text-white/40">Decision Mode</div>
+              <div className="mt-2 text-lg font-semibold text-white">Risk-Adjusted Choice</div>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">
+                Penalizes execution, culture, timing, and confidence risk so decision-makers can
+                prefer stability when the cost of being wrong is high.
+              </p>
+            </Card>
+
+            <Card>
+              <div className="text-xs uppercase tracking-[0.18em] text-white/40">Decision Mode</div>
+              <div className="mt-2 text-lg font-semibold text-white">Best Outcome</div>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">
+                Optimizes for projected scenario success by combining fit, adaptability, and
+                downside risk.
+              </p>
+            </Card>
+
+            <Card>
+              <div className="text-xs uppercase tracking-[0.18em] text-white/40">Leadership Pairing</div>
+              <div className="mt-2 text-lg font-semibold text-white">Best Pair</div>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">
+                Tests whether the strongest individual decision is also part of the strongest
+                leadership combination.
+              </p>
+            </Card>
+          </div>
+        </div>
+
+        <div className="mt-20 rounded-3xl border border-white/10 bg-gradient-to-r from-amber-400/10 via-white/5 to-white/5 p-8 md:p-10">
+          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-400">
+                Built for hard decisions
+              </div>
+              <h2 className="mt-3 text-3xl font-bold md:text-4xl">
+                When the cost of a wrong hire is high, intuition is not enough.
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/60 md:text-base">
+                Use structured evaluation, scenario-aware ranking, and explainable trade-offs to
+                make leadership decisions with more confidence.
+              </p>
+            </div>
+
+            <button
+              onClick={onStart}
+              className="rounded-2xl bg-amber-400 px-7 py-4 text-sm font-bold text-black transition hover:bg-amber-300"
+            >
+              Start Evaluation
+            </button>
+          </div>
+        </div>
       </div>
-      <button
-        onClick={onStart}
-        className="px-8 py-3 rounded-xl bg-amber-400 text-black font-bold text-sm hover:bg-amber-300 transition-all"
-      >
-        Start Evaluation →
-      </button>
     </div>
   );
 }
@@ -391,14 +732,31 @@ function EvalForm({
         </div>
       </Card>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => setEnablePairing(!enablePairing)}
-          className={cn("w-9 h-5 rounded-full transition-all relative", enablePairing ? "bg-amber-400" : "bg-white/20")}
-        >
-          <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", enablePairing ? "left-4" : "left-0.5")} />
-        </button>
-        <span className="text-sm text-white/60">Enable pair simulation</span>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="flex items-start gap-4">
+          <button
+            onClick={() => setEnablePairing(!enablePairing)}
+            className={cn(
+              "mt-0.5 h-6 w-11 rounded-full transition-all relative shrink-0",
+              enablePairing ? "bg-amber-400" : "bg-white/20"
+            )}
+          >
+            <span
+              className={cn(
+                "absolute top-1 h-4 w-4 rounded-full bg-white transition-all",
+                enablePairing ? "left-6" : "left-1"
+              )}
+            />
+          </button>
+
+          <div className="space-y-1">
+            <div className="text-sm font-semibold text-white">Simulate leadership pairing</div>
+            <p className="text-xs leading-relaxed text-white/50">
+              Leaders don’t work in isolation — find the best pair for this scenario by testing
+              complementarity, cohesion, and conflict risk.
+            </p>
+          </div>
+        </div>
       </div>
 
       <button
