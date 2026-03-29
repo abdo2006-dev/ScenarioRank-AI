@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScenarioRank AI — System Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080a0f;
+  --bg2:#0d1018;
+  --bg3:#141820;
+  --amber:#f59e0b;
+  --amber2:#fbbf24;
+  --amber-dim:rgba(245,158,11,0.12);
+  --amber-line:rgba(245,158,11,0.25);
+  --teal:#2dd4bf;
+  --teal-dim:rgba(45,212,191,0.10);
+  --green:#4ade80;
+  --green-dim:rgba(74,222,128,0.10);
+  --red:#f87171;
+  --red-dim:rgba(248,113,113,0.10);
+  --blue:#60a5fa;
+  --blue-dim:rgba(96,165,250,0.10);
+  --white:rgba(255,255,255,0.92);
+  --muted:rgba(255,255,255,0.45);
+  --faint:rgba(255,255,255,0.12);
+  --border:rgba(255,255,255,0.07);
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'DM Sans',sans-serif;
+  --display:'Bebas Neue',sans-serif;
+}
+html{scroll-behavior:smooth;scroll-snap-type:y mandatory}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);overflow-x:hidden;line-height:1.6}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--amber-line);border-radius:2px}
+
+/* ── NAV ── */
+#sidenav{position:fixed;right:24px;top:50%;transform:translateY(-50%);z-index:100;display:flex;flex-direction:column;gap:10px}
+.nav-dot{width:8px;height:8px;border-radius:50%;border:1px solid var(--amber-line);cursor:pointer;transition:all .3s;background:transparent}
+.nav-dot.active{background:var(--amber);border-color:var(--amber);transform:scale(1.3)}
+.nav-dot:hover{border-color:var(--amber);background:var(--amber-dim)}
+.nav-label{position:absolute;right:18px;white-space:nowrap;font-size:10px;font-family:var(--mono);color:var(--muted);opacity:0;pointer-events:none;transition:opacity .2s;top:50%;transform:translateY(-50%)}
+.nav-dot:hover .nav-label{opacity:1}
+
+/* ── SECTIONS ── */
+section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:column;justify-content:center;padding:60px 80px;max-width:1200px;margin:0 auto;width:100%;position:relative}
+@media(max-width:900px){section{padding:40px 24px}}
+
+/* ── SECTION LABELS ── */
+.section-tag{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--amber);text-transform:uppercase;margin-bottom:12px;opacity:.8}
+.section-title{font-family:var(--display);font-size:clamp(36px,5vw,68px);line-height:1;color:var(--white);letter-spacing:.02em}
+.section-sub{color:var(--muted);font-size:15px;max-width:600px;margin-top:12px;line-height:1.7}
+
+/* ── HERO ── */
+#s0{justify-content:center;align-items:flex-start}
+.hero-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--amber);text-transform:uppercase;margin-bottom:20px}
+.hero-title{font-family:var(--display);font-size:clamp(64px,10vw,130px);line-height:.95;letter-spacing:.01em;background:linear-gradient(135deg,#fff 30%,rgba(255,255,255,.5));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-accent{color:var(--amber);-webkit-text-fill-color:var(--amber)}
+.hero-desc{margin-top:28px;font-size:17px;color:var(--muted);max-width:520px;line-height:1.7}
+.hero-meta{margin-top:36px;display:flex;gap:28px;flex-wrap:wrap}
+.hero-pill{padding:6px 16px;border:1px solid var(--border);border-radius:100px;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.05em}
+.hero-pill.amber{border-color:var(--amber-line);color:var(--amber)}
+.hero-bg{position:absolute;right:-100px;top:50%;transform:translateY(-50%);width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(245,158,11,.06) 0%,transparent 70%);pointer-events:none}
+
+/* ── GRID UTILITIES ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:800px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px}
+.card.amber-glow{border-color:var(--amber-line);box-shadow:0 0 30px rgba(245,158,11,.06)}
+.card-label{font-family:var(--mono);font-size:10px;letter-spacing:.15em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+.card-title{font-size:15px;font-weight:600;color:var(--white)}
+.card-body{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.6}
+
+/* ── JSON BLOCKS ── */
+.json-wrap{background:#05070d;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.json-header{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--bg3)}
+.json-dot{width:8px;height:8px;border-radius:50%}
+.json-filename{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.json-body{padding:16px;font-family:var(--mono);font-size:12px;line-height:1.7;overflow-x:auto;max-height:340px;overflow-y:auto}
+.json-body::-webkit-scrollbar{width:3px;height:3px}
+.json-body::-webkit-scrollbar-thumb{background:var(--border)}
+.k{color:#7dd3fc}
+.v{color:#86efac}
+.n{color:#fcd34d}
+.s{color:#f9a8d4}
+.c{color:var(--muted);font-style:italic}
+.hi{color:var(--amber);font-weight:500}
+
+/* ── PIPELINE FLOW ── */
+.pipeline{display:flex;align-items:stretch;gap:0;margin:32px 0;overflow-x:auto;padding-bottom:8px}
+.pipe-agent{flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 14px;text-align:center;cursor:pointer;transition:all .25s;position:relative}
+.pipe-agent:hover,.pipe-agent.active{border-color:var(--amber);background:var(--amber-dim)}
+.pipe-agent.active{box-shadow:0 0 20px rgba(245,158,11,.12)}
+.pipe-icon{font-size:22px;margin-bottom:8px}
+.pipe-name{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--white);letter-spacing:.05em}
+.pipe-role{font-size:11px;color:var(--muted);margin-top:4px}
+.pipe-mode{font-size:10px;margin-top:6px;padding:2px 8px;border-radius:100px;display:inline-block}
+.pipe-mode.llm{background:rgba(96,165,250,.12);color:var(--blue);border:1px solid rgba(96,165,250,.2)}
+.pipe-mode.det{background:rgba(74,222,128,.10);color:var(--green);border:1px solid rgba(74,222,128,.2)}
+.pipe-arrow{display:flex;align-items:center;color:var(--amber-line);font-size:18px;padding:0 4px;flex-shrink:0}
+
+/* ── STEP PANELS ── */
+.step-panel{display:none}
+.step-panel.active{display:block}
+.step-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:start;margin-top:24px}
+@media(max-width:900px){.step-grid{grid-template-columns:1fr}}
+.transform-arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 0;gap:8px}
+.transform-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;writing-mode:vertical-rl;text-orientation:mixed}
+.transform-line{width:2px;flex:1;background:linear-gradient(to bottom,transparent,var(--amber),transparent)}
+@media(max-width:900px){
+  .transform-arrow{flex-direction:row;writing-mode:horizontal-tb;padding:8px 0}
+  .transform-label{writing-mode:horizontal-tb}
+  .transform-line{width:100%;height:2px;background:linear-gradient(to right,transparent,var(--amber),transparent)}
+}
+
+/* ── WEIGHT BARS ── */
+.weight-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.weight-label{font-family:var(--mono);font-size:11px;color:var(--muted);width:190px;flex-shrink:0}
+.weight-bar-bg{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.weight-bar{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.weight-val{font-family:var(--mono);font-size:11px;color:var(--white);width:40px;text-align:right;flex-shrink:0}
+.weight-delta{font-family:var(--mono);font-size:10px;width:36px;text-align:right;flex-shrink:0}
+.delta-pos{color:var(--amber)}
+.delta-neg{color:var(--muted)}
+
+/* ── CANDIDATE CARDS ── */
+.cand-row{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;display:flex;gap:16px;align-items:center;transition:border-color .2s}
+.cand-row.winner{border-color:var(--amber-line);background:rgba(245,158,11,.04)}
+.cand-rank{font-family:var(--display);font-size:28px;color:var(--amber);width:36px;flex-shrink:0;line-height:1}
+.cand-rank.dim{color:var(--faint)}
+.cand-info{flex:1}
+.cand-name{font-weight:600;font-size:14px;color:var(--white)}
+.cand-label{font-family:var(--mono);font-size:10px;color:var(--amber);margin-top:2px}
+.cand-scores{display:flex;gap:20px;flex-wrap:wrap}
+.score-item{text-align:center}
+.score-val{font-family:var(--display);font-size:22px;color:var(--white)}
+.score-val.amber{color:var(--amber)}
+.score-key{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+
+/* ── RISK GRID ── */
+.risk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.risk-cell{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.risk-cell.low{border-color:rgba(74,222,128,.2)}
+.risk-cell.med{border-color:rgba(251,191,36,.2)}
+.risk-cell.high{border-color:rgba(248,113,113,.2)}
+.risk-val{font-family:var(--display);font-size:26px}
+.risk-val.low{color:var(--green)}
+.risk-val.med{color:var(--amber2)}
+.risk-val.high{color:var(--red)}
+.risk-key{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
+
+/* ── CODE SNIPPET ── */
+.code-wrap{background:#020408;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.code-header{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3)}
+.code-file{font-family:var(--mono);font-size:11px;color:var(--amber)}
+.code-lang{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.code-body{padding:16px;font-family:var(--mono);font-size:12px;line-height:1.8;overflow-x:auto;tab-size:2}
+.ck{color:#c792ea}
+.cf{color:#82aaff}
+.cs{color:#c3e88d}
+.cm{color:#546e7a;font-style:italic}
+.co{color:#89ddff}
+.cn{color:#f78c6c}
+
+/* ── WHY MATTERS ── */
+.why-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px}
+@media(max-width:700px){.why-grid{grid-template-columns:1fr}}
+.why-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px}
+.why-num{font-family:var(--display);font-size:56px;color:var(--amber-dim);line-height:1;margin-bottom:8px}
+.why-title{font-size:16px;font-weight:600;color:var(--white)}
+.why-body{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.7}
+
+/* ── FORMULA BOX ── */
+.formula{background:#020408;border:1px solid var(--amber-line);border-radius:8px;padding:14px 18px;font-family:var(--mono);font-size:13px;color:var(--amber2);margin:12px 0;line-height:1.8}
+.formula span{color:var(--muted);font-size:11px}
+
+/* ── DIVIDER ── */
+.div-line{height:1px;background:var(--border);margin:24px 0}
+
+/* ── BADGES ── */
+.badge{display:inline-block;padding:3px 10px;border-radius:100px;font-family:var(--mono);font-size:10px;letter-spacing:.05em}
+.badge-amber{background:var(--amber-dim);color:var(--amber);border:1px solid var(--amber-line)}
+.badge-blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(96,165,250,.2)}
+.badge-green{background:var(--green-dim);color:var(--green);border:1px solid rgba(74,222,128,.2)}
+.badge-teal{background:var(--teal-dim);color:var(--teal);border:1px solid rgba(45,212,191,.2)}
+
+/* ── TICK LIST ── */
+.tick-list{list-style:none;margin-top:12px}
+.tick-list li{display:flex;gap:10px;margin-bottom:8px;font-size:13px;color:var(--muted);line-height:1.5}
+.tick-list li::before{content:"→";color:var(--amber);flex-shrink:0;font-family:var(--mono)}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+.fade-up{animation:fadeUp .6s ease both}
+.fade-up-1{animation-delay:.1s}
+.fade-up-2{animation-delay:.2s}
+.fade-up-3{animation-delay:.3s}
+.fade-up-4{animation-delay:.4s}
+
+/* ── PROGRESS BAR ── */
+#progress{position:fixed;top:0;left:0;height:2px;background:var(--amber);z-index:200;transition:width .1s linear}
+
+/* ── SECTION COUNTER ── */
+.step-counter{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:6px}
+
+/* ── IO LABEL ── */
+.io-label{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px;padding:4px 10px;border-radius:4px;display:inline-block}
+.io-in{background:var(--blue-dim);color:var(--blue)}
+.io-out{background:var(--green-dim);color:var(--green)}
+
+/* ── SCROLLABLE SECTION WRAPPER ── */
+.section-content{width:100%}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- SIDE NAV -->
+<div id="sidenav">
+  <div class="nav-dot active" onclick="scrollTo(0)" data-label="Intro"></div>
+  <div class="nav-dot" onclick="scrollTo(1)" data-label="Data Source"></div>
+  <div class="nav-dot" onclick="scrollTo(2)" data-label="Architecture"></div>
+  <div class="nav-dot" onclick="scrollTo(3)" data-label="Role Agent"></div>
+  <div class="nav-dot" onclick="scrollTo(4)" data-label="Scenario Agent"></div>
+  <div class="nav-dot" onclick="scrollTo(5)" data-label="Scoring Agent"></div>
+  <div class="nav-dot" onclick="scrollTo(6)" data-label="Risk & Outcome"></div>
+  <div class="nav-dot" onclick="scrollTo(7)" data-label="Decision Agent"></div>
+  <div class="nav-dot" onclick="scrollTo(8)" data-label="Final Output"></div>
+  <div class="nav-dot" onclick="scrollTo(9)" data-label="Why It Matters"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S0: HERO -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s0">
+  <div class="hero-bg"></div>
+  <div class="section-content fade-up">
+    <div class="hero-eyebrow">BMW Hackathon 2025 · System Architecture Demo</div>
+    <div class="hero-title">Scenario<span class="hero-accent">Rank</span><br>AI</div>
+    <div class="hero-desc">A multi-agent decision intelligence system that evaluates leadership candidates against real business scenarios — using deterministic math and LLM reasoning in a traceable, auditable pipeline.</div>
+    <div class="hero-meta">
+      <span class="hero-pill amber">7-Stage Agent Pipeline</span>
+      <span class="hero-pill">Node.js + Anthropic Claude</span>
+      <span class="hero-pill">React + TypeScript</span>
+      <span class="hero-pill">Deterministic Scoring Engine</span>
+    </div>
+  </div>
+  <div style="position:absolute;bottom:32px;left:80px;font-family:var(--mono);font-size:11px;color:var(--muted)">scroll to explore ↓</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S1: DATA SOURCE -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s1">
+  <div class="section-content">
+    <div class="section-tag fade-up">01 — Data Source</div>
+    <div class="section-title fade-up fade-up-1">Where the<br>data comes from</div>
+    <div class="section-sub fade-up fade-up-2">All inputs are user-supplied at runtime. No hidden dataset. The system accepts structured candidate profiles, a role definition, and a business scenario — then generates all evaluation data through the pipeline.</div>
+
+    <div class="grid-2" style="margin-top:32px">
+      <!-- Candidate Input -->
+      <div class="fade-up fade-up-2">
+        <div class="io-label io-in">Input — Candidate Profile</div>
+        <div class="json-wrap">
+          <div class="json-header">
+            <div class="json-dot" style="background:#f87171"></div>
+            <div class="json-dot" style="background:#fbbf24"></div>
+            <div class="json-dot" style="background:#4ade80"></div>
+            <div class="json-filename">candidate_input.json</div>
+          </div>
+          <div class="json-body">{
+  <span class="k">"id"</span>: <span class="s">"c1"</span>,
+  <span class="k">"name"</span>: <span class="hi">"Alexandra Chen"</span>,
+  <span class="k">"description"</span>: <span class="s">"15 years in enterprise SaaS,
+    led 3 post-merger integrations at Fortune
+    500 companies. Known for data-driven
+    decision making and cross-functional
+    alignment. MBA from Wharton."</span>
+}
+<span class="c">// No scores, no weights, no criteria.
+// Just a name and a text description.
+// All evaluation happens inside the pipeline.</span></div>
+        </div>
+      </div>
+
+      <!-- Role Input -->
+      <div class="fade-up fade-up-3">
+        <div class="io-label io-in">Input — Role Definition</div>
+        <div class="json-wrap">
+          <div class="json-header">
+            <div class="json-dot" style="background:#f87171"></div>
+            <div class="json-dot" style="background:#fbbf24"></div>
+            <div class="json-dot" style="background:#4ade80"></div>
+            <div class="json-filename">pipeline_request.json</div>
+          </div>
+          <div class="json-body">{
+  <span class="k">"role"</span>: {
+    <span class="k">"title"</span>: <span class="hi">"VP of People & Culture"</span>,
+    <span class="k">"description"</span>: <span class="s">"Senior leader to oversee
+      talent strategy, DEI, and org health
+      through post-merger integration."</span>
+  },
+  <span class="k">"scenario"</span>: <span class="hi">"Rapid scaling in a new geographic market"</span>,
+  <span class="k">"decision_mode"</span>: <span class="s">"best_fit"</span>,
+  <span class="k">"candidates"</span>: <span class="v">[ ...5 candidate objects ]</span>,
+  <span class="k">"options"</span>: {
+    <span class="k">"enable_pair_simulation"</span>: <span class="n">true</span>
+  }
+}</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;padding:16px 20px;background:var(--amber-dim);border:1px solid var(--amber-line);border-radius:10px;display:flex;gap:16px;align-items:flex-start">
+      <span style="color:var(--amber);font-size:18px;flex-shrink:0">⚡</span>
+      <div>
+        <div style="font-weight:600;font-size:14px;color:var(--amber)">No pre-loaded dataset. Every evaluation is live.</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">The system generates all criteria weights, scores, risk profiles, and rankings dynamically at runtime. The same pipeline produces a different ranking when the scenario or decision mode changes.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S2: ARCHITECTURE OVERVIEW -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s2">
+  <div class="section-content">
+    <div class="section-tag fade-up">02 — Architecture</div>
+    <div class="section-title fade-up fade-up-1">Seven-stage<br>agent pipeline</div>
+    <div class="section-sub fade-up fade-up-2">Each stage is a separate function with a defined input contract, processing logic, and output contract. Stages run sequentially. Earlier outputs become later inputs.</div>
+
+    <div class="pipeline fade-up fade-up-2" id="pipelineNav">
+      <div class="pipe-agent active" onclick="selectAgent(0)" id="pa0">
+        <div class="pipe-icon">📋</div>
+        <div class="pipe-name">Role Agent</div>
+        <div class="pipe-role">Extracts criteria & weights</div>
+        <div class="pipe-mode llm">LLM</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-agent" onclick="selectAgent(1)" id="pa1">
+        <div class="pipe-icon">🎯</div>
+        <div class="pipe-name">Scenario Agent</div>
+        <div class="pipe-role">Adjusts weight vector</div>
+        <div class="pipe-mode llm">LLM</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-agent" onclick="selectAgent(2)" id="pa2">
+        <div class="pipe-icon">📊</div>
+        <div class="pipe-name">Scoring Agent</div>
+        <div class="pipe-role">Scores 7 criteria per candidate</div>
+        <div class="pipe-mode llm">LLM ×N</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-agent" onclick="selectAgent(3)" id="pa3">
+        <div class="pipe-icon">🛡️</div>
+        <div class="pipe-name">Bias Review</div>
+        <div class="pipe-role">Flags low confidence</div>
+        <div class="pipe-mode det">Deterministic</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-agent" onclick="selectAgent(4)" id="pa4">
+        <div class="pipe-icon">📈</div>
+        <div class="pipe-name">Outcome Model</div>
+        <div class="pipe-role">Computes 6 risk dimensions</div>
+        <div class="pipe-mode det">Deterministic</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-agent" onclick="selectAgent(5)" id="pa5">
+        <div class="pipe-icon">🧭</div>
+        <div class="pipe-name">Decision Agent</div>
+        <div class="pipe-role">Ranks & synthesizes</div>
+        <div class="pipe-mode llm">LLM</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-agent" onclick="selectAgent(6)" id="pa6">
+        <div class="pipe-icon">🤝</div>
+        <div class="pipe-name">Pairing Agent</div>
+        <div class="pipe-role">Evaluates leader combos</div>
+        <div class="pipe-mode llm">LLM</div>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-top:8px">
+      <div class="card">
+        <div class="card-label">LLM stages</div>
+        <div class="card-title">5 Claude calls</div>
+        <div class="card-body">Role analysis, scenario calibration, candidate scoring (×N), decision synthesis, pair evaluation. Each call returns structured JSON.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Deterministic stages</div>
+        <div class="card-title">2 math stages</div>
+        <div class="card-body">Bias & confidence review and outcome modeling use pure arithmetic. No LLM. Results are reproducible and auditable.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Ranking method</div>
+        <div class="card-title">Scores sort. LLM explains.</div>
+        <div class="card-body">Rankings are computed deterministically from weighted scores. Claude only generates the narrative — it cannot change who ranks first.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S3: ROLE AGENT -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s3">
+  <div class="section-content">
+    <div class="step-counter fade-up">Stage 1 of 7</div>
+    <div class="section-tag fade-up">03 — Role Agent</div>
+    <div class="section-title fade-up fade-up-1">Role analysis<br>& weight extraction</div>
+
+    <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap" class="fade-up fade-up-2">
+      <span class="badge badge-blue">LLM Call</span>
+      <span class="badge badge-amber">Input: role definition</span>
+      <span class="badge badge-green">Output: 7 criteria + baseline weights</span>
+    </div>
+
+    <div class="step-grid" style="margin-top:20px">
+      <div class="fade-up fade-up-2">
+        <div class="io-label io-in">Input</div>
+        <div class="json-wrap">
+          <div class="json-header"><div class="json-filename">role_agent_input.json</div></div>
+          <div class="json-body">{
+  <span class="k">"title"</span>: <span class="hi">"VP of People & Culture"</span>,
+  <span class="k">"description"</span>: <span class="s">"Senior leader to oversee talent
+    strategy, DEI, and org health
+    through post-merger integration."</span>,
+  <span class="k">"scenario"</span>: <span class="s">"Rapid scaling in a new
+    geographic market"</span>
+}</div>
+        </div>
+        <div class="code-wrap" style="margin-top:12px">
+          <div class="code-header"><span class="code-file">server.mjs</span><span class="code-lang">javascript</span></div>
+          <div class="code-body"><span class="cm">// Sends role to Claude, gets back weights</span>
+<span class="ck">async function</span> <span class="cf">runRoleAgent</span>(input) {
+  <span class="ck">const</span> sys <span class="co">=</span> <span class="cs">`You are an expert org psychologist.
+    Return valid JSON only.`</span>
+  <span class="ck">const</span> r <span class="co">=</span> <span class="ck">await</span> <span class="cf">callClaudeJSON</span>(sys, msg, <span class="cn">2000</span>)
+  <span class="cm">// Force exact 7 criteria keys</span>
+  r.criteria <span class="co">=</span> [<span class="cs">"domain_expertise"</span>,
+    <span class="cs">"transformation_leadership"</span>, ...]
+  <span class="ck">return</span> r
+}</div>
+        </div>
+      </div>
+
+      <div class="transform-arrow fade-up fade-up-3">
+        <div class="transform-line"></div>
+        <div class="transform-label">Claude</div>
+        <div class="transform-line"></div>
+      </div>
+
+      <div class="fade-up fade-up-3">
+        <div class="io-label io-out">Output</div>
+        <div class="json-wrap">
+          <div class="json-header"><div class="json-filename">role_agent_output.json</div></div>
+          <div class="json-body">{
+  <span class="k">"complexity_rating"</span>: <span class="s">"high"</span>,
+  <span class="k">"must_have_criteria"</span>: [
+    <span class="s">"stakeholder_management"</span>,
+    <span class="s">"transformation_leadership"</span>
+  ],
+  <span class="k">"baseline_weights"</span>: {
+    <span class="k">"domain_expertise"</span>:          <span class="hi">15</span>,
+    <span class="k">"transformation_leadership"</span>:  <span class="hi">15</span>,
+    <span class="k">"operational_execution"</span>:      <span class="hi">15</span>,
+    <span class="k">"stakeholder_management"</span>:     <span class="hi">15</span>,
+    <span class="k">"crisis_management"</span>:          <span class="hi">15</span>,
+    <span class="k">"innovation_digital"</span>:         <span class="hi">12</span>,
+    <span class="k">"strategic_scalability"</span>:      <span class="hi">13</span>
+    <span class="c">// sums to 100</span>
+  },
+  <span class="k">"role_success_definition"</span>: <span class="s">"Drive rapid
+    geographic expansion while preserving
+    culture and talent retention."</span>
+}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S4: SCENARIO AGENT -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s4">
+  <div class="section-content">
+    <div class="step-counter fade-up">Stage 2 of 7</div>
+    <div class="section-tag fade-up">04 — Scenario Agent</div>
+    <div class="section-title fade-up fade-up-1">Weight vector<br>calibration</div>
+
+    <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap" class="fade-up fade-up-2">
+      <span class="badge badge-blue">LLM Call</span>
+      <span class="badge badge-amber">Input: baseline weights + scenario</span>
+      <span class="badge badge-green">Output: shifted normalized weights</span>
+    </div>
+
+    <div style="margin-top:20px;font-size:13px;color:var(--muted)" class="fade-up fade-up-2">
+      For <strong style="color:var(--white)">"Rapid scaling in a new geographic market"</strong>, Claude recommends boosting <strong style="color:var(--amber)">strategic_scalability</strong> and <strong style="color:var(--amber)">transformation_leadership</strong> — since this scenario demands leaders who can operate in unfamiliar territory and build teams from scratch. All weights re-normalize to 100.
+    </div>
+
+    <div style="margin-top:24px" class="fade-up fade-up-3">
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <span class="badge badge-amber">Baseline → Adjusted</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:3px 8px">delta applied per criterion</span>
+      </div>
+
+      <div id="weightBars"></div>
+
+      <div class="formula" style="margin-top:16px">
+        <div>adjusted_i = max(0, baseline_i + delta_i)</div>
+        <div>normalized_i = adjusted_i / Σ adjusted_j × 100</div>
+        <span>All weights re-sum to exactly 100 after normalization.</span>
+      </div>
+    </div>
+
+    <div class="div-line"></div>
+    <div class="grid-2" style="margin-top:0">
+      <div class="json-wrap fade-up fade-up-2">
+        <div class="json-header"><div class="json-filename">weight_deltas.json <span class="badge badge-blue" style="margin-left:6px">from Claude</span></div></div>
+        <div class="json-body">{
+  <span class="k">"weight_deltas"</span>: {
+    <span class="k">"strategic_scalability"</span>:     <span class="hi">+12</span>,
+    <span class="k">"transformation_leadership"</span>:  <span class="hi">+5</span>,
+    <span class="k">"stakeholder_management"</span>:     <span class="hi">+3</span>,
+    <span class="k">"innovation_digital"</span>:         <span class="hi">+2</span>,
+    <span class="k">"operational_execution"</span>:      <span class="n">-2</span>,
+    <span class="k">"domain_expertise"</span>:          <span class="n">-3</span>,
+    <span class="k">"crisis_management"</span>:          <span class="n">-5</span>
+  },
+  <span class="k">"key_pressures"</span>: [
+    <span class="s">"Talent acquisition in new market"</span>,
+    <span class="s">"Cultural integration at scale"</span>,
+    <span class="s">"Building leadership pipeline"</span>
+  ]
+}</div>
+      </div>
+      <div class="json-wrap fade-up fade-up-3">
+        <div class="json-header"><div class="json-filename">normalized_weights.json <span class="badge badge-green" style="margin-left:6px">deterministic</span></div></div>
+        <div class="json-body">{
+  <span class="k">"normalized_weights"</span>: {
+    <span class="k">"strategic_scalability"</span>:     <span class="hi">22.0</span>,
+    <span class="k">"transformation_leadership"</span>:  <span class="hi">17.8</span>,
+    <span class="k">"stakeholder_management"</span>:     <span class="hi">16.0</span>,
+    <span class="k">"innovation_digital"</span>:         <span class="hi">12.4</span>,
+    <span class="k">"operational_execution"</span>:      <span class="hi">11.8</span>,
+    <span class="k">"domain_expertise"</span>:          <span class="hi">10.7</span>,
+    <span class="k">"crisis_management"</span>:          <span class="hi"> 9.3</span>
+    <span class="c">// sums to exactly 100</span>
+  }
+}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S5: SCORING AGENT -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s5">
+  <div class="section-content">
+    <div class="step-counter fade-up">Stage 3 of 7</div>
+    <div class="section-tag fade-up">05 — Candidate Scoring Agent</div>
+    <div class="section-title fade-up fade-up-1">Evidence-based<br>criterion scoring</div>
+
+    <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap" class="fade-up fade-up-2">
+      <span class="badge badge-blue">LLM Call × N candidates</span>
+      <span class="badge badge-amber">Concurrency = 2 (rate-limit safe)</span>
+      <span class="badge badge-green">Output: 7 scores + confidence + evidence</span>
+    </div>
+
+    <div style="font-size:13px;color:var(--muted);margin-top:12px" class="fade-up fade-up-2">Each candidate's text description is evaluated independently. Claude scores 1–10 per criterion, reports its confidence (0–1), and must cite evidence from the profile text.</div>
+
+    <div class="grid-2" style="margin-top:20px">
+      <div class="fade-up fade-up-2">
+        <div class="io-label io-out">Alexandra Chen — Scores</div>
+        <div class="json-wrap">
+          <div class="json-header"><div class="json-filename">scoring_output_c1.json</div></div>
+          <div class="json-body">{
+  <span class="k">"candidate_name"</span>: <span class="s">"Alexandra Chen"</span>,
+  <span class="k">"criteria_scores"</span>: {
+    <span class="k">"domain_expertise"</span>: {
+      <span class="k">"score"</span>: <span class="hi">8</span>, <span class="k">"confidence"</span>: <span class="hi">0.90</span>,
+      <span class="k">"evidence"</span>: <span class="s">"15 years enterprise SaaS"</span>
+    },
+    <span class="k">"transformation_leadership"</span>: {
+      <span class="k">"score"</span>: <span class="hi">7</span>, <span class="k">"confidence"</span>: <span class="hi">0.85</span>,
+      <span class="k">"evidence"</span>: <span class="s">"3 post-merger integrations"</span>
+    },
+    <span class="k">"operational_execution"</span>: {
+      <span class="k">"score"</span>: <span class="hi">8</span>, <span class="k">"confidence"</span>: <span class="hi">0.90</span>,
+      <span class="k">"evidence"</span>: <span class="s">"Cross-functional alignment"</span>
+    },
+    <span class="k">"stakeholder_management"</span>: {
+      <span class="k">"score"</span>: <span class="hi">8</span>, <span class="k">"confidence"</span>: <span class="hi">0.75</span>,
+      <span class="k">"evidence"</span>: <span class="s">"Fortune 500 experience"</span>
+    },
+    <span class="k">"strategic_scalability"</span>: {
+      <span class="k">"score"</span>: <span class="hi">7</span>, <span class="k">"confidence"</span>: <span class="hi">0.75</span>,
+      <span class="k">"evidence"</span>: <span class="s">"Data-driven decision making"</span>
+    },
+    <span class="k">"crisis_management"</span>:    { <span class="k">"score"</span>: <span class="hi">7</span>, ... },
+    <span class="k">"innovation_digital"</span>:   { <span class="k">"score"</span>: <span class="hi">7</span>, ... }
+  }
+}</div>
+        </div>
+      </div>
+
+      <div class="fade-up fade-up-3">
+        <div class="io-label io-out">Weighted Fit Score — Math</div>
+        <div class="formula">
+          WFS = Σ ( weight_i × score_i ) / 10
+        </div>
+        <div class="json-wrap" style="margin-top:0">
+          <div class="json-header"><div class="json-filename">wfs_calculation.txt</div></div>
+          <div class="json-body"><span class="c">// Alexandra Chen — Best Fit calculation</span>
+
+strategic_scalability:    <span class="hi">22.0</span> × 7 = <span class="n">154</span>
+transformation_leadership:<span class="hi">17.8</span> × 7 = <span class="n">124.6</span>
+stakeholder_management:   <span class="hi">16.0</span> × 8 = <span class="n">128</span>
+innovation_digital:       <span class="hi">12.4</span> × 7 = <span class="n"> 86.8</span>
+operational_execution:    <span class="hi">11.8</span> × 8 = <span class="n"> 94.4</span>
+domain_expertise:         <span class="hi">10.7</span> × 8 = <span class="n"> 85.6</span>
+crisis_management:        <span class="hi"> 9.3</span> × 7 = <span class="n"> 65.1</span>
+                              ─────────
+                    Sum = <span class="n">738.5</span>
+
+WFS = 738.5 / 10 = <span class="hi">73.85</span>
+
+<span class="c">// Overall confidence (weighted avg):
+// Σ(conf_i × weight_i) / Σ weight_i = 0.82</span></div>
+        </div>
+
+        <div class="code-wrap" style="margin-top:12px">
+          <div class="code-header"><span class="code-file">server.mjs — computeWeightedFitScore()</span></div>
+          <div class="code-body"><span class="ck">function</span> <span class="cf">computeWeightedFitScore</span>(scores, weights) {
+  <span class="ck">let</span> total <span class="co">=</span> <span class="cn">0</span>
+  <span class="ck">for</span> (<span class="ck">const</span> k <span class="ck">of</span> Object.<span class="cf">keys</span>(weights))
+    total <span class="co">+=</span> (scores[k] <span class="co">??</span> <span class="cn">0</span>) <span class="co">*</span>
+             (weights[k] <span class="co">??</span> <span class="cn">0</span>) <span class="co">/</span> <span class="cn">10</span>
+  <span class="ck">return</span> Math.<span class="cf">round</span>(total <span class="co">*</span> <span class="cn">100</span>) <span class="co">/</span> <span class="cn">100</span>
+}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S6: RISK & OUTCOME MODELING -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s6">
+  <div class="section-content">
+    <div class="step-counter fade-up">Stages 4 & 5 of 7</div>
+    <div class="section-tag fade-up">06 — Bias Review + Outcome Modeling</div>
+    <div class="section-title fade-up fade-up-1">Pure math.<br>No LLM.</div>
+
+    <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap" class="fade-up fade-up-2">
+      <span class="badge badge-green">100% Deterministic</span>
+      <span class="badge badge-amber">Reproducible on same inputs</span>
+      <span class="badge badge-teal">6 risk dimensions computed</span>
+    </div>
+
+    <div class="grid-2" style="margin-top:24px">
+      <div class="fade-up fade-up-2">
+        <div class="card-label" style="margin-bottom:12px">Alexandra Chen — Risk Profile</div>
+        <div class="risk-grid">
+          <div class="risk-cell low">
+            <div class="risk-val low">14%</div>
+            <div class="risk-key">Execution Risk</div>
+          </div>
+          <div class="risk-cell med">
+            <div class="risk-val med">30%</div>
+            <div class="risk-key">Culture Risk</div>
+          </div>
+          <div class="risk-cell low">
+            <div class="risk-val low">20%</div>
+            <div class="risk-key">Time-to-Impact</div>
+          </div>
+          <div class="risk-cell med">
+            <div class="risk-val med">50%</div>
+            <div class="risk-key">Adaptability Risk</div>
+          </div>
+          <div class="risk-cell low">
+            <div class="risk-val low">18%</div>
+            <div class="risk-key">Confidence Risk</div>
+          </div>
+          <div class="risk-cell low">
+            <div class="risk-val low">21%</div>
+            <div class="risk-key">Opportunity Cost</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;padding:12px 16px;background:var(--green-dim);border:1px solid rgba(74,222,128,.2);border-radius:8px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">Outcome Model</div>
+          <div style="display:flex;gap:24px;margin-top:8px">
+            <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--white)">82%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase">Execution Success</div></div>
+            <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--white)">74%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase">Scenario Fit</div></div>
+            <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--white)">50%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase">Adaptability</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fade-up fade-up-3">
+        <div class="card-label" style="margin-bottom:12px">Formulas used (from server.mjs)</div>
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-file">server.mjs — risk computation</span></div>
+          <div class="code-body"><span class="cm">// Execution risk: low exec ability = high risk</span>
+ExecutionRisk <span class="co">=</span> <span class="cn">100</span> <span class="co">-</span> (
+  <span class="cn">0.45</span> <span class="co">×</span> operational_execution <span class="co">×</span> <span class="cn">10</span> <span class="co">+</span>
+  <span class="cn">0.30</span> <span class="co">×</span> domain_expertise <span class="co">×</span> <span class="cn">10</span> <span class="co">+</span>
+  <span class="cn">0.25</span> <span class="co">×</span> crisis_management <span class="co">×</span> <span class="cn">10</span>
+)
+
+<span class="cm">// Expected outcome (0-100 scale)</span>
+EOS <span class="co">=</span> <span class="cn">0.35</span> <span class="co">×</span> WFS
+    <span class="co">+</span> <span class="cn">0.20</span> <span class="co">×</span> AdaptabilityScore
+    <span class="co">+</span> <span class="cn">0.20</span> <span class="co">×</span> (<span class="cn">100</span> <span class="co">-</span> ExecutionRisk)
+    <span class="co">+</span> <span class="cn">0.10</span> <span class="co">×</span> (<span class="cn">100</span> <span class="co">-</span> CultureRisk)
+    <span class="co">+</span> <span class="cn">0.10</span> <span class="co">×</span> (<span class="cn">100</span> <span class="co">-</span> TimeRisk)
+    <span class="co">+</span> <span class="cn">0.05</span> <span class="co">×</span> Confidence <span class="co">×</span> <span class="cn">100</span>
+
+<span class="cm">// Risk-adjusted score (ranks lowest-risk mode)</span>
+RAS <span class="co">=</span> WFS
+    <span class="co">-</span> <span class="cn">0.25</span> <span class="co">×</span> ExecutionRisk
+    <span class="co">-</span> <span class="cn">0.20</span> <span class="co">×</span> CultureRisk
+    <span class="co">-</span> <span class="cn">0.15</span> <span class="co">×</span> TimeRisk
+    <span class="co">-</span> <span class="cn">0.15</span> <span class="co">×</span> (1 <span class="co">-</span> Confidence) <span class="co">×</span> <span class="cn">100</span>
+    <span class="co">-</span> <span class="cn">0.10</span> <span class="co">×</span> (<span class="cn">100</span> <span class="co">-</span> Adaptability)
+    <span class="co">-</span> <span class="cn">0.15</span> <span class="co">×</span> OpportunityCost</div>
+        </div>
+
+        <div style="margin-top:12px;padding:12px 16px;background:var(--blue-dim);border:1px solid rgba(96,165,250,.15);border-radius:8px;font-size:13px;color:var(--muted)">
+          <strong style="color:var(--blue)">Bias Review (deterministic):</strong> Flags any criterion where confidence &lt; 0.65. If 3+ criteria are flagged, recommends human review. Does not change scores — only annotates them.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S7: DECISION AGENT -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s7">
+  <div class="section-content">
+    <div class="step-counter fade-up">Stage 6 of 7</div>
+    <div class="section-tag fade-up">07 — Decision Agent</div>
+    <div class="section-title fade-up fade-up-1">Deterministic ranking.<br>LLM narrates.</div>
+
+    <div style="margin-top:8px;font-size:13px;color:var(--muted)" class="fade-up fade-up-2">
+      The ranking is computed by sorting on the chosen decision mode's score. Claude receives the ranked metrics as input and generates explanations — it cannot reorder candidates.
+    </div>
+
+    <div style="margin-top:20px" class="fade-up fade-up-2">
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="padding:8px 16px;background:var(--amber-dim);border:1px solid var(--amber-line);border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--amber)">Mode: Best Fit → sort by WFS</div>
+        <div style="padding:8px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--muted)">Lowest Risk → sort by RAS</div>
+        <div style="padding:8px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--muted)">Best Outcome → sort by EOS</div>
+      </div>
+
+      <!-- Rankings -->
+      <div class="cand-row winner">
+        <div class="cand-rank">1</div>
+        <div class="cand-info">
+          <div class="cand-name">Samuel Okafor</div>
+          <div class="cand-label">High-Upside Adaptive Leader</div>
+        </div>
+        <div class="cand-scores">
+          <div class="score-item"><div class="score-val amber">77.4</div><div class="score-key">WFS</div></div>
+          <div class="score-item"><div class="score-val">62.1</div><div class="score-key">Risk-Adj</div></div>
+          <div class="score-item"><div class="score-val">74.2</div><div class="score-key">Outcome</div></div>
+          <div class="score-item"><div class="score-val">84%</div><div class="score-key">Confidence</div></div>
+        </div>
+      </div>
+
+      <div class="cand-row">
+        <div class="cand-rank dim">2</div>
+        <div class="cand-info">
+          <div class="cand-name">Alexandra Chen</div>
+          <div class="cand-label">Balanced Performer</div>
+        </div>
+        <div class="cand-scores">
+          <div class="score-item"><div class="score-val">73.9</div><div class="score-key">WFS</div></div>
+          <div class="score-item"><div class="score-val">60.4</div><div class="score-key">Risk-Adj</div></div>
+          <div class="score-item"><div class="score-val">71.5</div><div class="score-key">Outcome</div></div>
+          <div class="score-item"><div class="score-val">82%</div><div class="score-key">Confidence</div></div>
+        </div>
+      </div>
+
+      <div class="cand-row">
+        <div class="cand-rank dim">3</div>
+        <div class="cand-info">
+          <div class="cand-name">Jordan Malik</div>
+          <div class="cand-label">Balanced Performer</div>
+        </div>
+        <div class="cand-scores">
+          <div class="score-item"><div class="score-val">70.2</div><div class="score-key">WFS</div></div>
+          <div class="score-item"><div class="score-val">58.8</div><div class="score-key">Risk-Adj</div></div>
+          <div class="score-item"><div class="score-val">67.9</div><div class="score-key">Outcome</div></div>
+          <div class="score-item"><div class="score-val">76%</div><div class="score-key">Confidence</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="cand-row" style="flex:1;margin-bottom:0"><div class="cand-rank dim">4</div><div class="cand-info"><div class="cand-name">Marcus Rodriguez</div></div><div class="cand-scores"><div class="score-item"><div class="score-val">66.5</div><div class="score-key">WFS</div></div></div></div>
+        <div class="cand-row" style="flex:1;margin-bottom:0"><div class="cand-rank dim">5</div><div class="cand-info"><div class="cand-name">Priya Nair</div></div><div class="cand-scores"><div class="score-item"><div class="score-val">64.1</div><div class="score-key">WFS</div></div></div></div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;padding:14px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:13px" class="fade-up fade-up-3">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Key insight — mode sensitivity</div>
+      <div style="color:var(--muted)">Samuel ranks <strong style="color:var(--white)">#1 in Best Fit</strong> because his strategic_scalability and stakeholder_management scores align with the scenario-shifted weights. Switch to <strong style="color:var(--white)">Lowest Risk</strong> and Alexandra may lead — her execution risk is lower. Same scores, different rank. The <strong style="color:var(--amber)">decision mode is the user's choice of what to optimize for.</strong></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S8: FINAL OUTPUT -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s8">
+  <div class="section-content">
+    <div class="step-counter fade-up">Stage 7 of 7</div>
+    <div class="section-tag fade-up">08 — Final Output</div>
+    <div class="section-title fade-up fade-up-1">From input text<br>to executive decision</div>
+
+    <div class="grid-2" style="margin-top:24px">
+      <div class="fade-up fade-up-2">
+        <div class="io-label io-out">Pipeline Response (excerpt)</div>
+        <div class="json-wrap">
+          <div class="json-header"><div class="json-filename">pipeline_response.json</div></div>
+          <div class="json-body">{
+  <span class="k">"decision_result"</span>: {
+    <span class="k">"recommended_candidate_name"</span>: <span class="hi">"Samuel Okafor"</span>,
+    <span class="k">"final_label"</span>: <span class="s">"Best Fit"</span>,
+    <span class="k">"key_reason"</span>: <span class="s">"Highest WFS for geographic
+      scaling — McKinsey DEI background and
+      strategic clarity align with the
+      scenario's top-weighted criteria."</span>,
+    <span class="k">"overall_confidence"</span>: <span class="hi">0.84</span>
+  },
+  <span class="k">"executive_summary"</span>: {
+    <span class="k">"recommendation"</span>: <span class="s">"Hire Samuel Okafor"</span>,
+    <span class="k">"trade_off"</span>: <span class="s">"Higher perceived top-down style
+      may need mitigation in flat teams."</span>,
+    <span class="k">"alternative"</span>: <span class="s">"Alexandra Chen for Lowest Risk."</span>
+  },
+  <span class="k">"trade_offs"</span>: [ ... ],
+  <span class="k">"pairing_result"</span>: {
+    <span class="k">"best_pair"</span>: [<span class="hi">"Samuel Okafor"</span>, <span class="hi">"Alexandra Chen"</span>],
+    <span class="k">"pair_score"</span>: <span class="hi">8.7</span>,
+    <span class="k">"complementarity"</span>: <span class="hi">0.88</span>
+  }
+}</div>
+        </div>
+      </div>
+
+      <div class="fade-up fade-up-3">
+        <div style="margin-bottom:16px">
+          <div class="card-label">What the pipeline produced</div>
+        </div>
+        <ul class="tick-list">
+          <li>7 criteria extracted from role description by Claude</li>
+          <li>Weights recalibrated for geographic scaling scenario</li>
+          <li>5 candidates scored across 7 criteria with evidence</li>
+          <li>Confidence scores computed per criterion</li>
+          <li>6 risk dimensions calculated from criterion scores</li>
+          <li>Full ranking produced deterministically</li>
+          <li>Executive summary, trade-offs, and pair score generated</li>
+        </ul>
+
+        <div class="div-line"></div>
+
+        <div style="padding:14px 18px;background:var(--amber-dim);border:1px solid var(--amber-line);border-radius:10px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Switch to "Lowest Risk" mode</div>
+          <div style="font-size:13px;color:var(--white)">Alexandra Chen moves to <strong>#1</strong>. Samuel drops to <strong>#2</strong>. Same scores. Same pipeline. Different optimization objective → different recommendation.</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px">This is the core value: one evaluation, three decision modes, transparent reasoning.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- S9: WHY IT MATTERS -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="s9">
+  <div class="section-content">
+    <div class="section-tag fade-up">09 — Impact</div>
+    <div class="section-title fade-up fade-up-1">Why this<br>system matters</div>
+    <div class="section-sub fade-up fade-up-2">Most hiring decisions fail not because of bad candidates — but because of evaluation frameworks that weren't designed for the specific decision being made.</div>
+
+    <div class="why-grid fade-up fade-up-3">
+      <div class="why-card">
+        <div class="why-num">01</div>
+        <div class="why-title">Trade-offs made explicit</div>
+        <div class="why-body">Every recommendation comes with what you gain, what you sacrifice, and what you're optimizing for. Not just a winner — a decision context.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-num">02</div>
+        <div class="why-title">Scenario simulation</div>
+        <div class="why-body">The same candidate ranks differently under crisis vs growth vs transformation. The system shows where candidates are robust vs fragile.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-num">03</div>
+        <div class="why-title">Transparent reasoning</div>
+        <div class="why-body">Every score has evidence. Every weight has a justification. Every ranking is reproducible. An auditor can trace any output back to a formula.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-num">04</div>
+        <div class="why-title">Leaders as a system</div>
+        <div class="why-body">Pair simulation surfaces combinations where complementarity is high but conflict risk is low — insight that individual evaluation cannot provide.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:32px;padding:24px 28px;background:var(--bg2);border:1px solid var(--amber-line);border-radius:14px" class="fade-up fade-up-4">
+      <div style="font-family:var(--display);font-size:28px;color:var(--amber);margin-bottom:8px">The core insight</div>
+      <div style="font-size:15px;color:var(--muted);line-height:1.8;max-width:700px">
+        <strong style="color:var(--white)">"Who is the best candidate?"</strong> is only part of the decision.<br>
+        The harder question is: <strong style="color:var(--amber)">"Who is the best candidate for this scenario, optimizing for this objective, accepting these risks, at this opportunity cost?"</strong><br><br>
+        ScenarioRank AI structures that question so the answer is explainable — not just to the hiring team, but to every stakeholder who has to live with the outcome.
+      </div>
+    </div>
+
+    <div style="margin-top:24px;display:flex;gap:16px;flex-wrap:wrap" class="fade-up fade-up-4">
+      <div style="padding:12px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Built with</div>
+        <div style="font-size:13px;color:var(--white);margin-top:4px">Node.js · Anthropic Claude · React · TypeScript</div>
+      </div>
+      <div style="padding:12px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Architecture</div>
+        <div style="font-size:13px;color:var(--white);margin-top:4px">Single-file server · SSE streaming · 7-agent pipeline</div>
+      </div>
+      <div style="padding:12px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Scoring</div>
+        <div style="font-size:13px;color:var(--white);margin-top:4px">WFS · RAS · EOS · 6 risk dimensions</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+// ── SECTIONS ──
+const sections = document.querySelectorAll('section');
+const dots = document.querySelectorAll('.nav-dot');
+const progressBar = document.getElementById('progress');
+
+// Tooltip labels
+dots.forEach((dot, i) => {
+  const label = dot.getAttribute('data-label');
+  if (label) {
+    const tip = document.createElement('span');
+    tip.className = 'nav-label';
+    tip.textContent = label;
+    dot.appendChild(tip);
+    dot.style.position = 'relative';
+  }
+});
+
+// ── SCROLL TRACKING ──
+function updateNav() {
+  const scrollY = window.scrollY;
+  const total = document.body.scrollHeight - window.innerHeight;
+  progressBar.style.width = (scrollY / total * 100) + '%';
+
+  sections.forEach((s, i) => {
+    const rect = s.getBoundingClientRect();
+    if (rect.top <= window.innerHeight / 2 && rect.bottom >= window.innerHeight / 2) {
+      dots.forEach(d => d.classList.remove('active'));
+      if (dots[i]) dots[i].classList.add('active');
+    }
+  });
+
+  // Trigger weight bar animation when s4 is visible
+  const s4 = document.getElementById('s4');
+  if (s4) {
+    const r = s4.getBoundingClientRect();
+    if (r.top < window.innerHeight * 0.6) animateWeights();
+  }
+}
+window.addEventListener('scroll', updateNav, { passive: true });
+
+// ── SCROLL TO ──
+function scrollTo(idx) {
+  sections[idx]?.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── WEIGHT BARS ──
+const weights = [
+  { label: 'strategic_scalability',    base: 13, adj: 22.0, delta: +12 },
+  { label: 'transformation_leadership',base: 15, adj: 17.8, delta: +5  },
+  { label: 'stakeholder_management',   base: 15, adj: 16.0, delta: +3  },
+  { label: 'innovation_digital',       base: 12, adj: 12.4, delta: +2  },
+  { label: 'operational_execution',    base: 15, adj: 11.8, delta: -2  },
+  { label: 'domain_expertise',         base: 15, adj: 10.7, delta: -3  },
+  { label: 'crisis_management',        base: 15, adj:  9.3, delta: -5  },
+];
+
+let weightAnimated = false;
+function animateWeights() {
+  if (weightAnimated) return;
+  weightAnimated = true;
+  const container = document.getElementById('weightBars');
+  if (!container) return;
+
+  weights.forEach(w => {
+    const row = document.createElement('div');
+    row.className = 'weight-row';
+
+    const pct = w.adj;
+    const color = w.delta > 0 ? 'var(--amber)' : w.delta < 0 ? 'var(--muted)' : 'var(--blue)';
+    const dSign = w.delta > 0 ? '+' : '';
+    const dColor = w.delta > 0 ? 'class="delta-pos"' : 'class="delta-neg"';
+
+    row.innerHTML = `
+      <div class="weight-label">${w.label.replace(/_/g,' ')}</div>
+      <div class="weight-bar-bg">
+        <div class="weight-bar" style="width:0%;background:${color}" data-width="${pct}"></div>
+      </div>
+      <div class="weight-val">${w.adj.toFixed(1)}%</div>
+      <div class="weight-delta"><span ${dColor}>${dSign}${w.delta}</span></div>
+    `;
+    container.appendChild(row);
+  });
+
+  // Animate bars
+  setTimeout(() => {
+    document.querySelectorAll('.weight-bar[data-width]').forEach(bar => {
+      bar.style.width = bar.getAttribute('data-width') + '%';
+    });
+  }, 100);
+}
+
+// ── PIPELINE AGENT SELECT (for architecture page) ──
+function selectAgent(i) {
+  document.querySelectorAll('.pipe-agent').forEach((a, j) => {
+    a.classList.toggle('active', j === i);
+  });
+}
+
+// ── INIT ──
+updateNav();
+</script>
+</body>
+</html>

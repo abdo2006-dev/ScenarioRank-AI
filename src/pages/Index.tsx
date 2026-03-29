@@ -1181,21 +1181,34 @@ export default function Index() {
     <div className="min-h-screen bg-[#0d0f14] text-white">
       {/* Header — always visible */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#0d0f14]/80 border-b border-white/5">
-        <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="font-bold text-base">
-            <span className="text-amber-400">ScenarioRank</span> <span className="text-white">AI</span>
-            <span className="text-white/20 text-xs ml-2">v3</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {phase !== "landing" && (
-              <button onClick={() => { resetInputs(); setPhase("landing"); }}
-                className="text-xs text-white/30 hover:text-white/60 transition-colors">
-                Reset
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+  <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div className="font-bold text-base">
+      <span className="text-amber-400">ScenarioRank</span> <span className="text-white">AI</span>
+      <span className="text-white/20 text-xs ml-2">v3</span>
+    </div>
+
+    <div className="flex items-center gap-3">
+      <a
+        href="/demo.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-400 hover:bg-amber-400/10 transition-colors"
+      >
+        System Demo ↗
+      </a>
+
+      {phase !== "landing" && (
+        <button
+          onClick={() => { resetInputs(); setPhase("landing"); }}
+          className="text-xs text-white/30 hover:text-white/60 transition-colors"
+        >
+          Reset
+        </button>
+      )}
+    </div>
+  </div>
+</header>
+
 
       {/* Error Banner */}
       {error && (
