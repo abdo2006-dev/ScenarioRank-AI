@@ -1,9 +1,9 @@
 /**
  * ScenarioRank AI v3 — Self-Contained Frontend
- * 
+ *
  * This file is intentionally self-contained (no missing imports).
  * Place this at: src/Index.tsx  OR  src/pages/Index.tsx
- * 
+ *
  * Requires: server.mjs running on port 3001 for Live Mode
  */
 
@@ -29,7 +29,12 @@ interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { t
 
 const BACKEND_URL = "http://localhost:3001";
 
-const SCENARIOS = [
+const DEFAULT_ROLE = {
+  title: "VP of People & Culture",
+  description: "Senior leader to oversee talent strategy, DEI initiatives, and organizational health through a post-merger integration. Must balance speed with cultural sensitivity.",
+};
+
+const DEFAULT_SCENARIOS = [
   "Post-merger integration with cultural clash risk",
   "Rapid scaling in a new geographic market",
   "Digital transformation in a legacy enterprise",
@@ -39,14 +44,16 @@ const SCENARIOS = [
 
 const DECISION_MODES = [
   { value: "best_fit", label: "Best Fit" },
-  { value: "lowest_risk", label: "Lowest Risk" },
-  { value: "best_expected_outcome", label: "Best Expected Outcome" },
+  { value: "lowest_risk", label: "Risk-Adjusted Choice" },
+  { value: "best_outcome", label: "Best Outcome" },
 ];
 
 const DEFAULT_CANDIDATES: CandidateInput[] = [
   { id: "c1", name: "Alexandra Chen", description: "15 years in enterprise SaaS, led 3 post-merger integrations at Fortune 500 companies. Known for data-driven decision making and cross-functional alignment. MBA from Wharton." },
   { id: "c2", name: "Marcus Rodriguez", description: "Operator turned strategist. Scaled two companies from seed to Series C. Deep ops background, high execution velocity. Sometimes clashes with legacy culture." },
   { id: "c3", name: "Priya Nair", description: "Chief of Staff turned GM. Exceptional at navigating ambiguity and building coalition. Lower on pure execution speed but high on stakeholder trust and long-term thinking." },
+  { id: "c4", name: "Jordan Malik", description: "20 years in global HR transformation across EMEA and APAC. Built scalable talent systems for hyper-growth companies. Strong on analytical rigor and workforce planning. Sometimes overly process-heavy in fast-moving environments." },
+  { id: "c5", name: "Samuel Okafor", description: "Ex-McKinsey People & Org specialist. Led DEI turnarounds in three multinational firms. High strategic clarity, strong executive presence. Can be perceived as too top-down by grassroots teams." },
 ];
 
 const INITIAL_STAGES: PipelineStage[] = [
@@ -61,7 +68,17 @@ const INITIAL_STAGES: PipelineStage[] = [
 
 // ─── SERVICE ──────────────────────────────────────────────────────────────────
 
-const REQUEST_TIMEOUT_MS = 6 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 3 * 60 * 1000;
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 45000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 async function runLive(
   request: { role: { title: string; description: string }; scenario: string; decision_mode: string; candidates: CandidateInput[]; options: { enable_pair_simulation: boolean }; },
@@ -85,11 +102,19 @@ async function runLive(
     const decoder = new TextDecoder();
     let buffer = "";
     let currentEvent = "";
+    // FIX #3: Track the last error event the server sent so that if the stream
+    // closes after an error (done=true), we surface the real server message
+    // instead of the generic "Stream ended before pipeline completed" fallback.
+    let lastServerError: string | null = null;
 
     while (true) {
       const { done, value } = await reader.read();
 
       if (done) {
+        // FIX #3: If the server already sent an error event, re-throw it with
+        // the real message. Without this, the server's error was shown correctly
+        // but then immediately overwritten by the generic "stream ended" error.
+        if (lastServerError) throw new Error(lastServerError);
         throw new Error("Stream ended before pipeline completed.");
       }
 
@@ -120,8 +145,13 @@ async function runLive(
             const message = typeof (data as { message?: unknown }).message === "string"
               ? (data as { message: string }).message
               : "Pipeline error.";
-            await reader.cancel();
-            throw new Error(message);
+            // FIX #3: Save the server error message. The server will call res.end()
+            // after sending the error event, which means the next reader.read()
+            // returns done=true. We stash the message here so the done branch
+            // above can throw it correctly instead of the generic fallback.
+            lastServerError = message;
+            currentEvent = "";
+            continue;
           }
 
           if (currentEvent === "stage_update" && Array.isArray(data)) {
@@ -141,7 +171,7 @@ async function runLive(
     }
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error("Pipeline request timed out after 3 minutes. Please try again.");
+      throw new Error(`Pipeline request timed out after ${Math.round(REQUEST_TIMEOUT_MS / 60000)} minutes. Please try again.`);
     }
     throw err;
   } finally {
@@ -195,24 +225,51 @@ function Landing({ onStart }: { onStart: () => void }) {
 }
 
 function EvalForm({
-  role, setRole, scenario, setScenario, decisionMode, setDecisionMode,
+  role, setRole, scenarios, setScenarios, scenario, setScenario, decisionMode, setDecisionMode,
   candidates, setCandidates, enablePairing, setEnablePairing, onRun, isRunning,
+  onGenerateScenarios, isGeneratingScenarios, onLoadDefaults, onResetInputs, aiEnabled,
 }: {
   role: { title: string; description: string }; setRole: (r: { title: string; description: string }) => void;
+  scenarios: string[]; setScenarios: (s: string[]) => void;
   scenario: string; setScenario: (s: string) => void;
   decisionMode: string; setDecisionMode: (m: string) => void;
   candidates: CandidateInput[]; setCandidates: (c: CandidateInput[]) => void;
   enablePairing: boolean; setEnablePairing: (b: boolean) => void;
   onRun: () => void; isRunning: boolean;
+  onGenerateScenarios: () => void; isGeneratingScenarios: boolean;
+  onLoadDefaults: () => void; onResetInputs: () => void;
+  aiEnabled: boolean;
 }) {
+  const canRun = !!role.title.trim() && !!role.description.trim() && !!scenario && candidates.filter(c => c.name.trim() && c.description.trim()).length >= 2;
+
   return (
     <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
       <h2 className="text-xl font-bold text-white">Configure Evaluation</h2>
 
-      {/* Role */}
+      {!aiEnabled && (
+        <Card className="border-amber-400/20 bg-amber-400/5">
+          <p className="text-sm text-amber-200 font-semibold">AI generation is unavailable in this environment.</p>
+          <p className="text-xs text-white/60 mt-1">You can still use Default Entries or add scenarios and candidates manually. Live pipeline requests require a configured server-side API key.</p>
+        </Card>
+      )}
+
       <Card>
         <div className="space-y-3">
-          <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Role</label>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Role</label>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={onGenerateScenarios}
+                disabled={isGeneratingScenarios || !role.title.trim() || !role.description.trim() || !aiEnabled}
+                className="px-3 py-1.5 rounded-lg bg-blue-400/15 text-blue-300 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isGeneratingScenarios ? "Generating..." : "Generate Scenarios"}
+              </button>
+              <button type="button" onClick={onLoadDefaults} className="px-3 py-1.5 rounded-lg bg-amber-400 text-black text-xs font-semibold">Default Entries</button>
+              <button type="button" onClick={onResetInputs} className="px-3 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs font-semibold">Reset</button>
+            </div>
+          </div>
           <input
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-amber-400/50"
             placeholder="Role title (e.g. VP of Product)"
@@ -229,16 +286,61 @@ function EvalForm({
         </div>
       </Card>
 
-      {/* Scenario + Mode */}
+      <Card>
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Scenarios ({scenarios.length})</label>
+          <button
+            type="button"
+            className="text-xs text-amber-400 hover:text-amber-300"
+            onClick={() => {
+              const next = [...scenarios, ""];
+              setScenarios(next);
+              if (!scenario) setScenario("");
+            }}
+          >
+            + Add Scenario
+          </button>
+        </div>
+        <div className="space-y-2">
+          {scenarios.length === 0 && <p className="text-xs text-white/40">Enter a role and description, then generate scenarios or add your own.</p>}
+          {scenarios.map((item, i) => (
+            <div key={`${i}-${item}`} className="flex gap-2">
+              <input
+                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none"
+                placeholder={`Scenario ${i + 1}`}
+                value={item}
+                onChange={e => {
+                  const next = [...scenarios];
+                  next[i] = e.target.value;
+                  setScenarios(next);
+                  if (scenario === item) setScenario(e.target.value);
+                }}
+              />
+              <button
+                type="button"
+                className="text-white/30 hover:text-red-400 text-xs px-2"
+                onClick={() => {
+                  const next = scenarios.filter((_, idx) => idx !== i);
+                  setScenarios(next);
+                  if (scenario === item) setScenario(next[0] || "");
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <div className="grid grid-cols-2 gap-4">
         <Card>
-          <label className="text-xs font-semibold text-white/50 uppercase tracking-widest block mb-2">Scenario</label>
+          <label className="text-xs font-semibold text-white/50 uppercase tracking-widest block mb-2">Active Scenario</label>
           <select
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400/50"
             value={scenario}
             onChange={e => setScenario(e.target.value)}
           >
-            {SCENARIOS.map(s => <option key={s} value={s}>{s}</option>)}
+            {scenarios.length === 0 ? <option value="">No scenarios yet</option> : scenarios.map((s, idx) => <option key={`${idx}-${s}`} value={s}>{s || `Scenario ${idx + 1}`}</option>)}
           </select>
         </Card>
         <Card>
@@ -253,7 +355,6 @@ function EvalForm({
         </Card>
       </div>
 
-      {/* Candidates */}
       <Card>
         <div className="flex items-center justify-between mb-3">
           <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Candidates ({candidates.length})</label>
@@ -274,7 +375,7 @@ function EvalForm({
                   value={c.name}
                   onChange={e => { const updated = [...candidates]; updated[i] = { ...c, name: e.target.value }; setCandidates(updated); }}
                 />
-                {candidates.length > 2 && (
+                {candidates.length > 0 && (
                   <button className="text-white/30 hover:text-red-400 text-xs" onClick={() => setCandidates(candidates.filter((_, j) => j !== i))}>✕</button>
                 )}
               </div>
@@ -290,7 +391,6 @@ function EvalForm({
         </div>
       </Card>
 
-      {/* Options */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => setEnablePairing(!enablePairing)}
@@ -301,14 +401,14 @@ function EvalForm({
         <span className="text-sm text-white/60">Enable pair simulation</span>
       </div>
 
-      {/* Run */}
       <button
         onClick={onRun}
-        disabled={isRunning}
+        disabled={isRunning || !canRun || !aiEnabled}
         className="w-full py-3 rounded-xl bg-amber-400 text-black font-bold text-sm hover:bg-amber-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isRunning ? "Running Pipeline..." : "▶ Run Decision Pipeline"}
       </button>
+      {!canRun && <p className="text-xs text-white/40">Add a role, at least one scenario, and at least two complete candidate profiles.</p>}
     </div>
   );
 }
@@ -553,15 +653,89 @@ type Phase = "landing" | "eval" | "running" | "results";
 
 export default function Index() {
   const [phase, setPhase] = useState<Phase>("landing");
-  const [role, setRole] = useState({ title: "VP of People & Culture", description: "Senior leader to oversee talent strategy, DEI initiatives, and organizational health through a post-merger integration. Must balance speed with cultural sensitivity." });
-  const [scenario, setScenario] = useState(SCENARIOS[0]);
+  const [role, setRole] = useState({ ...DEFAULT_ROLE });
+  const [scenarios, setScenarios] = useState<string[]>([...DEFAULT_SCENARIOS]);
+  const [scenario, setScenario] = useState(DEFAULT_SCENARIOS[0]);
   const [decisionMode, setDecisionMode] = useState("best_fit");
   const [candidates, setCandidates] = useState<CandidateInput[]>(DEFAULT_CANDIDATES.map(c => ({ ...c })));
   const [enablePairing, setEnablePairing] = useState(false);
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [response, setResponse] = useState<PipelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [isGeneratingScenarios, setIsGeneratingScenarios] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/health`)
+      .then(r => r.json())
+      .then(data => setAiEnabled(Boolean(data?.ai_enabled)))
+      .catch(() => setAiEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    if (scenario && scenarios.includes(scenario)) return;
+    setScenario(scenarios[0] || "");
+  }, [scenario, scenarios]);
+
+  const resetInputs = useCallback(() => {
+    setRole({ title: "", description: "" });
+    setScenarios([]);
+    setScenario("");
+    setCandidates([]);
+    setEnablePairing(false);
+    setResponse(null);
+    setStages([]);
+    setError(null);
+    setPhase("eval");
+  }, []);
+
+  const loadDefaults = useCallback(() => {
+    setRole({ ...DEFAULT_ROLE });
+    setScenarios([...DEFAULT_SCENARIOS]);
+    setScenario(DEFAULT_SCENARIOS[0]);
+    setCandidates(DEFAULT_CANDIDATES.map(c => ({ ...c })));
+    setEnablePairing(false);
+    setResponse(null);
+    setStages([]);
+    setError(null);
+    setPhase("eval");
+  }, []);
+
+  const handleGenerateScenarios = useCallback(async () => {
+    if (!role.title.trim() || !role.description.trim()) {
+      setError("Enter a role title and description first.");
+      return;
+    }
+    setIsGeneratingScenarios(true);
+    setError(null);
+    try {
+      // FIX #1: Was 25000ms — the server's own Claude timeout for this call is 20000ms.
+      // With only 5s of headroom, network latency and server overhead routinely pushed
+      // us past the deadline, so the frontend aborted before the server's fallback JSON
+      // even arrived. Raised to 35000ms to give a reliable 15s buffer.
+      const res = await fetchWithTimeout(`${BACKEND_URL}/api/scenarios`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: role.title, description: role.description }),
+      }, 35000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.message || "Scenario generation failed.");
+      const next = Array.isArray(data?.scenarios) ? data.scenarios.filter((s: unknown) => typeof s === "string" && s.trim()).slice(0, 5) : [];
+      if (next.length === 0) throw new Error("No scenarios were generated. Try refining the role description.");
+      setScenarios(next);
+      setScenario(next[0]);
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // FIX #1: Updated message to match the new 35s timeout.
+        setError("Scenario generation timed out after 35 seconds. The server may be under load — please try again.");
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      setIsGeneratingScenarios(false);
+    }
+  }, [role]);
 
   const handleRun = useCallback(async () => {
     setPhase("running");
@@ -578,7 +752,13 @@ export default function Index() {
       setPhase("results");
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // FIX #2: Was showing "Scenario generation timed out..." — copy-paste error.
+        // This branch is for the pipeline runner, not scenario generation.
+        setError(`Pipeline request timed out after ${Math.round(REQUEST_TIMEOUT_MS / 60000)} minutes. Please try again.`);
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
       setPhase("eval");
     }
   }, [role, scenario, decisionMode, candidates, enablePairing]);
@@ -594,7 +774,7 @@ export default function Index() {
           </div>
           <div className="flex items-center gap-3">
             {phase !== "landing" && (
-              <button onClick={() => { setPhase("landing"); setResponse(null); setError(null); setStages([]); }}
+              <button onClick={() => { resetInputs(); setPhase("landing"); }}
                 className="text-xs text-white/30 hover:text-white/60 transition-colors">
                 Reset
               </button>
@@ -623,11 +803,15 @@ export default function Index() {
       {(phase === "eval" || phase === "running") && (
         <EvalForm
           role={role} setRole={setRole}
+          scenarios={scenarios} setScenarios={setScenarios}
           scenario={scenario} setScenario={setScenario}
           decisionMode={decisionMode} setDecisionMode={setDecisionMode}
           candidates={candidates} setCandidates={setCandidates}
           enablePairing={enablePairing} setEnablePairing={setEnablePairing}
           onRun={handleRun} isRunning={phase === "running"}
+          onGenerateScenarios={handleGenerateScenarios} isGeneratingScenarios={isGeneratingScenarios}
+          onLoadDefaults={loadDefaults} onResetInputs={resetInputs}
+          aiEnabled={aiEnabled}
         />
       )}
       <PipelineProgress stages={stages} />
