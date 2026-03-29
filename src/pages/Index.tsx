@@ -793,6 +793,59 @@ function PipelineProgress({ stages }: { stages: PipelineStage[] }) {
   );
 }
 
+// ─── CRITERION SCORING PANEL ─────────────────────────────────────────────────
+
+const CRITERION_LABELS: Record<string, string> = {
+  domain_expertise: "Domain Expertise",
+  transformation_leadership: "Transformation Leadership",
+  operational_execution: "Operational Execution",
+  stakeholder_management: "Stakeholder Management",
+  crisis_management: "Crisis Management",
+  innovation_digital: "Innovation & Digital",
+  strategic_scalability: "Strategic Scalability",
+};
+
+function CriterionScoringPanel({ criteriaScores }: { criteriaScores: Record<string, CriterionScore> }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mt-3 border-t border-white/10 pt-3">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 text-xs text-white/40 hover:text-white/70 transition-colors"
+      >
+        <span className="font-semibold uppercase tracking-widest">Criterion Scoring</span>
+        <span className="text-white/30">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-2">
+          {Object.entries(criteriaScores).map(([key, cs]) => (
+            <div key={key} className="rounded-lg border border-white/8 bg-black/20 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-semibold text-white">
+                  {CRITERION_LABELS[key] ?? key}
+                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs text-white/40">
+                    Conf: {Math.round(cs.confidence * 100)}%
+                  </span>
+                  <span className="text-sm font-bold text-amber-400">
+                    {cs.score}/10
+                  </span>
+                </div>
+              </div>
+              {cs.evidence && (
+                <p className="mt-1 text-[11px] leading-relaxed text-white/40">{cs.evidence}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Results({ response }: { response: PipelineResponse }) {
   const [tab, setTab] = useState<"overview" | "candidates" | "analysis" | "pairing" | "agents">("overview");
   const winner = response.candidate_evaluations[0];
@@ -889,6 +942,9 @@ function Results({ response }: { response: PipelineResponse }) {
               </div>
               {c.winner_reason && <p className="mt-3 text-xs text-amber-300 italic border-t border-white/10 pt-3">{c.winner_reason}</p>}
               {c.trade_off_note && <p className="mt-2 text-xs text-white/40 italic">{c.trade_off_note}</p>}
+              {c.criteria_scores && Object.keys(c.criteria_scores).length > 0 && (
+                <CriterionScoringPanel criteriaScores={c.criteria_scores} />
+              )}
             </Card>
           ))}
         </div>
