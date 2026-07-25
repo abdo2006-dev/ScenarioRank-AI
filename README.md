@@ -1,322 +1,146 @@
-# ScenarioRank AI
+# ScenarioRank AI V2
 
-**Scenario-based decision intelligence for leadership evaluation.**
+**Scenario-aware decision support for comparing leadership candidates under different business conditions.**
 
-Hiring is not a resume problem — it is a decision problem under uncertainty. ScenarioRank AI answers a different question than a typical ATS or scoring rubric: not *who looks best on paper*, but *who is the optimal choice for this specific scenario, and what are we trading off by choosing them?*
+> **Project status:** V2 engineering refinement in progress. The `main` branch is the public source of truth and is intentionally being upgraded from the BMW hackathon implementation into a better-tested, better-documented, and more defensible system.
 
-The system combines a deterministic scoring engine with LLM-powered interpretation across a seven-stage agent pipeline. Every number in the output is traceable to a formula. Every label is grounded in those numbers.
+ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 
-**BMW Hackathon 2025 · [GitHub Repository](https://github.com/abdo2006-dev/Scenario-LeaderBoard-BMW-Hackathon-main)**
+## Why V2 exists
 
----
+The competition version demonstrated a strong product idea and a complete end-to-end user experience, but it also contains hackathon-era shortcuts. V2 is a deliberate post-award engineering effort to:
 
-## The Problem
+- make the architecture explicit and understandable;
+- separate LLM interpretation from deterministic decision logic;
+- remove hardcoded or misleading outputs;
+- validate all model responses and API inputs;
+- add meaningful automated tests and evaluation cases;
+- improve security, observability, deployment, and documentation;
+- make every important design choice explainable in an interview or technical review.
 
-Structured hiring research consistently finds that most candidate evaluation frameworks fail in the same ways:
+This repository documents both what currently exists and what will change. See [`docs/`](./docs/README.md).
 
-- Criteria are static, not tuned to the actual business scenario being faced
-- Risk is not surfaced until after a decision is made
-- Confidence in evidence quality is never quantified
-- Leaders are evaluated alone, never as a team unit
-- The final decision is a black box — gut feeling disguised as data
+## Important scope statement
 
-The financial consequence is well-documented: wrong senior hires cost multiples of annual salary in direct costs, team disruption, and lost execution time. The root cause is almost always an evaluation framework that was not designed for the specific decision at hand.
+ScenarioRank is a **research and decision-support prototype**, not an autonomous hiring system. It must not make final employment decisions, automatically reject candidates, or replace qualified human review. Current scores are based on model interpretation and prototype heuristic formulas; they are not validated predictions of job performance.
 
----
+## Current baseline architecture
 
-## Architecture Overview
-
+```mermaid
+flowchart LR
+    U[User] --> F[React + TypeScript frontend]
+    F -->|GET /health| B[Node.js + Express backend]
+    F -->|POST /api/scenarios| B
+    F -->|POST /api/decision/stream via SSE| B
+    B --> O[Pipeline orchestrator in server.mjs]
+    O --> A[Anthropic Messages API]
+    O --> D[Deterministic scoring functions]
+    A --> O
+    D --> O
+    O -->|stage updates + final JSON| F
 ```
-Frontend (React + TypeScript)
-    │  HTTP POST
-    ▼
-Backend (Node.js · Express · ESM)
-    │  Orchestrates sequential agent pipeline
-    │  Deterministic math runs in-process (no API call)
-    │  LLM calls go to Anthropic Claude (claude-sonnet-4-5)
-    ▼
-Output (JSON → rendered UI)
-    Rankings · Risk profiles · Pair scores · Executive summary
-```
 
-The pipeline exposes two endpoints:
-- `POST /api/decision` — synchronous, returns full result object
-- `POST /api/decision/stream` — Server-Sent Events, pushes stage updates as they complete (2.5-minute hard timeout)
+The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Several functions are named “agents,” but orchestration, routing, and control remain in normal application code.
 
----
+## Current request pipeline
 
-## Pipeline
+1. **Role analysis — LLM:** derives evaluation criteria, base weights, must-haves, and complexity.
+2. **Scenario analysis — LLM:** adjusts and normalizes weights for the selected business scenario.
+3. **Candidate scoring — LLM:** scores each candidate across seven criteria and returns confidence, evidence, and reasoning.
+4. **Deterministic scoring:** calculates weighted fit, risk dimensions, adaptability, expected outcome, and risk-adjusted scores.
+5. **Confidence and evidence review — deterministic:** flags low confidence and weak evidence. The current code calls this “Bias & Confidence Review,” but it does not yet perform a defensible bias audit.
+6. **Decision explanation — deterministic ranking + LLM explanation:** code selects the ranking key; the LLM generates explanations and summaries.
+7. **Pair simulation — optional LLM + deterministic formula:** estimates pair-level metrics and computes a pair score.
 
-The seven stages in execution order:
+Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
 
-| Stage | Mode | Input → Output |
+## Technology baseline
+
+| Layer | Current technology | Current role |
 |---|---|---|
-| Role Agent | LLM | Role title + description → 7 criteria, base weights (sum = 100), must-haves, complexity rating |
-| Scenario Agent | LLM | Base weights + scenario → weight deltas, normalized weights, key pressures |
-| Candidate Scoring | LLM × N | Candidate profile × 7 criteria → score (1–10), confidence (0–1), evidence string |
-| Deterministic Math | In-process | Scores + weights → WFS, risk profile, outcome model, risk-adjusted score |
-| Bias & Confidence Review | Deterministic | Scores + evidence → bias flags, low-confidence criteria, human review flag |
-| Decision Agent | LLM | All metrics + decision mode → ranked list, trade-off cards, executive summary |
-| Pairing Agent | LLM (optional) | Top-4 candidate pairs → pair score, complementarity, conflict risk, cohesion |
+| Frontend | React 18, TypeScript, Vite | Single-page interface and results rendering |
+| Styling/UI | Tailwind CSS, selected Radix/shadcn components | Layout and interface primitives |
+| Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
+| AI provider | Anthropic Messages API | Role/scenario interpretation, candidate scoring, explanations, pair estimates |
+| Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
+| Validation | Manual checks and JSON repair | Incomplete; Zod is installed but not used for backend schemas |
+| Persistence | None | Runs are not stored |
+| Automated testing | Vitest placeholder only | No meaningful coverage yet |
 
-![Pipeline image](./public/pipeline.svg)
+Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
-Candidate scoring runs with concurrency = 2 (rate-limit safe). All other stages are sequential. The deterministic block runs entirely in-process — no API call, no latency.
+## Known baseline limitations
 
----
+The V2 audit has already identified several high-priority issues:
 
-## Scoring Formulas
+- pair simulation currently selects the first four submitted candidates instead of the top four ranked candidates;
+- cross-scenario consistency is hardcoded to `75`;
+- “best” and “worst” adaptability scenarios are not genuinely simulated;
+- the “bias” stage currently checks confidence and evidence length, not demographic or procedural bias;
+- model-generated JSON is not validated against strict schemas;
+- the backend URL and AI model are hardcoded;
+- the main frontend and backend files are oversized and mix responsibilities;
+- there is no authentication, rate limiting, persistence, audit trail, or cost tracking;
+- the mathematical coefficients are prototype heuristics and have not been empirically calibrated.
 
-All scoring is transparent and reproducible. The implementation is in `server.mjs` lines 151–190.
+See [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITATIONS.md).
 
-### Weighted Fit Score
+## Local development
 
-```
-WFS = Σᵢ ( weightᵢ × scoreᵢ ) / 10
-```
+### Prerequisites
 
-`weightᵢ` is the scenario-normalized weight for criterion `i` (sums to 100).
-`scoreᵢ` is the LLM-assigned score for that criterion on a 1–10 scale.
-Division by 10 maps the result to a 0–100 scale.
+- Node.js 18 or newer
+- An Anthropic API key for live AI evaluation
 
-The weight vector starts from a role-derived baseline and is shifted by the Scenario Agent's deltas, then re-normalized:
-
-```
-adjustedᵢ = max(0,  baselineᵢ + deltaᵢ)
-normalizedᵢ = adjustedᵢ / Σ adjustedⱼ × 100
-```
-
-### Risk Dimensions
-
-Six risk dimensions are computed deterministically from criterion scores:
-
-```
-ExecutionRisk   = 100 − (0.45 × operational_execution × 10
-                       + 0.30 × domain_expertise × 10
-                       + 0.25 × crisis_management × 10)
-
-CultureRisk     = 100 − (0.60 × stakeholder_management × 10
-                       + 0.20 × transformation_leadership × 10
-                       + 0.20 × confidence(stakeholder_management) × 100)
-
-TimeRisk        = 100 − (0.40 × domain_expertise × 10
-                       + 0.35 × operational_execution × 10
-                       + 0.25 × WFS)
-
-ConfidenceRisk  = (1 − OverallConfidence) × 100
-
-AdaptabilityScore = 0.35 × cross_scenario_consistency
-                  + 0.25 × transformation_leadership × 10
-                  + 0.20 × stakeholder_management × 10
-                  + 0.20 × innovation_digital × 10
-
-AdaptabilityRisk  = 100 − AdaptabilityScore
-
-OpportunityCostRisk = (ExecutionRisk + CultureRisk + TimeRisk) / 3
-```
-
-All values clamped to [0, 100].
-
-### Expected Outcome Score
-
-```
-EOS = 0.35 × WFS
-    + 0.20 × AdaptabilityScore
-    + 0.20 × (100 − ExecutionRisk)
-    + 0.10 × (100 − CultureRisk)
-    + 0.10 × (100 − TimeRisk)
-    + 0.05 × OverallConfidence × 100
-```
-
-Primary signal for **Best Outcome** mode.
-
-### Risk-Adjusted Score
-
-```
-RAS = WFS
-    − 0.25 × ExecutionRisk
-    − 0.20 × CultureRisk
-    − 0.15 × TimeRisk
-    − 0.15 × (1 − OverallConfidence) × 100
-    − 0.10 × (100 − AdaptabilityScore)
-    − 0.15 × OpportunityCostRisk
-```
-
-Primary signal for **Lowest Risk** mode.
-
-### Overall Confidence
-
-Confidence is a weighted average across criteria using the same normalized weights:
-
-```
-OverallConfidence = Σᵢ ( confidenceᵢ × weightᵢ ) / Σᵢ weightᵢ
-```
-
-where `confidenceᵢ ∈ [0, 1]` is the LLM's self-reported confidence for each criterion score.
-
----
-
-## Decision Modes
-
-Three modes select which score drives the ranking:
-
-| Mode | Sort Key | When to Use |
-|---|---|---|
-| `best_fit` | Weighted Fit Score | Criteria match is the primary objective |
-| `lowest_risk` | Risk-Adjusted Score | Downside protection matters more than upside |
-| `best_outcome` | Expected Outcome Score | Optimizing projected real-world performance |
-
-The ranking is deterministic given the scores. The Decision Agent (LLM) generates natural-language explanations, trade-off cards, and the executive summary from the computed metrics — it does not change the ranking.
-
----
-
-## Leadership Pairing
-
-When `enable_pair_simulation: true`, the Pairing Agent evaluates all combinations of the top-4 candidates:
-
-```
-PairScore = 0.30 × scenario_coverage
-          + 0.25 × complementarity
-          + 0.20 × execution_cohesion
-          + 0.15 × pair_adaptability
-          − 0.10 × conflict_risk
-          − 0.05 × overlap_risk
-```
-
-All inputs are LLM-estimated on a 0–1 scale. The final pair score is scaled to 0–10.
-
-This addresses a structural gap in most hiring frameworks: candidates are evaluated as individuals, but leaders function as a system. A pair with moderate individual scores but high complementarity and low conflict risk may outperform two individually high-scoring candidates who create redundancy or friction.
-
----
-
-## Example
-
-**Input:**
-
-```json
-{
-  "role": {
-    "title": "Chief Revenue Officer",
-    "description": "Series B SaaS company, 80 employees, entering enterprise segment"
-  },
-  "scenario": "Rapid enterprise expansion with 12-month revenue target",
-  "decision_mode": "best_outcome",
-  "candidates": [
-    { "id": "a1", "name": "Alex",   "description": "15yr enterprise sales, conservative operator, deep network" },
-    { "id": "b2", "name": "Jordan", "description": "High-growth PLG background, bold, limited enterprise depth" },
-    { "id": "c3", "name": "Morgan", "description": "Balanced profile, team builder, moderate enterprise exposure" }
-  ],
-  "options": { "enable_pair_simulation": true }
-}
-```
-
-**Selected output fields:**
-
-```json
-{
-  "decision_result": {
-    "recommended_candidate_name": "Alex",
-    "final_label": "Best Outcome",
-    "overall_confidence": 0.81
-  },
-  "candidate_evaluations": [
-    { "rank": 1, "candidate_name": "Alex",   "weighted_fit_score": 84.2, "risk_adjusted_score": 71.4, "expected_outcome_score": 80.9 },
-    { "rank": 2, "candidate_name": "Morgan", "weighted_fit_score": 76.1, "risk_adjusted_score": 74.8, "expected_outcome_score": 74.3 },
-    { "rank": 3, "candidate_name": "Jordan", "weighted_fit_score": 68.4, "risk_adjusted_score": 55.2, "expected_outcome_score": 66.1 }
-  ],
-  "pairing_result": {
-    "best_pair": {
-      "pair": ["Alex", "Morgan"],
-      "pair_score": 8.4,
-      "complementarity": 0.88,
-      "conflict_risk": 0.12
-    }
-  }
-}
-```
-
-If the mode is switched to `lowest_risk`, Morgan ranks first (RAS 74.8 vs Alex's 71.4), because Morgan carries lower execution and culture risk despite a lower absolute fit score. The mode makes the optimization objective explicit and auditable.
-
----
-
-## Running the Project
-
-**Prerequisites:** Node.js 18+
+### Setup
 
 ```bash
-# 1. Install dependencies
-npm install express cors
+npm install
 
-# 2. Start the backend
+cp .env.example .env
+# Add your key to .env:
+# ANTHROPIC_API_KEY=your_key_here
+```
+
+Run the backend:
+
+```bash
 node server.mjs
-#    Runs on http://localhost:3001
+```
 
-# 3. Start the frontend (separate terminal)
+Run the frontend in a second terminal:
+
+```bash
 npm run dev
-#    Runs on http://localhost:5173
 ```
 
-No `.env` file is required. The API key is embedded directly in `server.mjs` so the project runs without any configuration. If you want to substitute your own key, create a `.env` file:
+Default local addresses:
 
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:3001`
+- Health check: `http://localhost:3001/health`
 
-The `.env` key takes priority over the embedded key when present.
+Never commit `.env` or API keys.
 
----
+## V2 documentation
 
-## Repository Structure
+- [Phase 0 baseline audit](./docs/PHASE_0_BASELINE_AUDIT.md)
+- [Current architecture](./docs/architecture/CURRENT_ARCHITECTURE.md)
+- [Data flows](./docs/architecture/DATA_FLOW.md)
+- [Technology inventory](./docs/architecture/TECHNOLOGY_INVENTORY.md)
+- [Scoring model and assumptions](./docs/architecture/SCORING_AND_ASSUMPTIONS.md)
+- [Known limitations](./docs/architecture/KNOWN_LIMITATIONS.md)
+- [Repository map](./docs/REPOSITORY_MAP.md)
+- [Branch strategy](./docs/BRANCH_STRATEGY.md)
+- [V2 roadmap](./docs/V2_ROADMAP.md)
+- [Learning checkpoints](./docs/LEARNING_CHECKPOINTS.md)
+- [ADR-0001: main is the V2 line](./docs/decisions/ADR-0001-main-is-v2.md)
 
-```
-/
-├── server.mjs          # Complete backend — agents, scoring engine, routes
-├── pipeline.ts         # TypeScript type definitions for all pipeline I/O
-├── src/
-│   └── Index.tsx       # Frontend entry point
-└── assets/
-    ├── pipeline.png    # Pipeline architecture diagram
-    └── ...
-```
+## Branch model
 
----
+- `main` — public V2 source of truth; the branch visitors and recruiters see first.
+- `archive/bmw-award-original` — frozen branch containing the competition snapshot.
+- `bmw-award-original` — immutable annotated tag for the same snapshot.
+- `v2/<work-item>` — short-lived implementation branches merged into `main` through focused pull requests.
 
-## Evaluation Criteria
-
-| Criterion | What it measures |
-|---|---|
-| `domain_expertise` | Depth of experience in the role's specific domain |
-| `transformation_leadership` | Track record leading significant organizational change |
-| `operational_execution` | Ability to translate strategy into reliable delivery |
-| `stakeholder_management` | Effectiveness with boards, customers, internal functions |
-| `crisis_management` | Performance under pressure and ambiguity |
-| `innovation_digital` | Comfort with technology-driven change |
-| `strategic_scalability` | Capacity to grow with the organization |
-
-Weights across these seven criteria are set by the Role Agent and then shifted by the Scenario Agent. The shift logic is scenario-specific: a crisis turnaround increases `crisis_management` and `operational_execution` weights; a digital transformation increases `innovation_digital` and `transformation_leadership`.
-
----
-
-## Bias & Confidence Review
-
-Every candidate evaluation passes through a deterministic review layer before the decision stage:
-
-- **Low-confidence flag** — any criterion where the LLM's self-reported confidence < 0.65
-- **Weak evidence flag** — any criterion where the evidence string is under 15 characters
-- **Overall confidence flag** — if the weighted confidence average < 0.60
-- **Human review recommendation** — triggered when confidence < 0.65, or 3+ criteria are low-confidence, or any high-severity flag is present
-- **Rescore recommendation** — triggered when 3+ criteria have weak evidence
-
-These flags are included in the response payload and surfaced in the UI. They do not change the score — they annotate where the evaluation should be weighted less.
-
----
-
-## Design Rationale
-
-Most decision-support tools stop at scoring. This project goes further in three specific ways:
-
-**The scenario is a first-class input.** The weight vector is not fixed — it is derived from the role and then adjusted for the specific business situation. The same candidate evaluated for a stable growth role vs. a crisis turnaround receives a different ranking, because the criteria that matter differ.
-
-**Risk is explicit and decomposed.** A single aggregate risk score hides where the risk comes from. Six independently computed dimensions tell you whether the risk is in execution, culture fit, time-to-ramp, confidence of the evidence, adaptability, or opportunity cost.
-
-**The math is auditable.** Every score is a function of inputs that are shown in the UI. A hiring committee or auditor can trace any ranking back to its source formula.
+The original result is preserved without forcing visitors to land on legacy code.

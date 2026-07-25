@@ -1,0 +1,163 @@
+# Scoring model and assumptions
+
+## Principle
+
+The current system combines model-derived qualitative judgments with deterministic formulas.
+
+The formulas are reproducible **after** the model has produced criterion scores and confidence values. This does not make the complete system objectively reproducible, because model outputs may vary across runs and the formulas themselves use manually selected coefficients.
+
+## Model-derived inputs
+
+The LLM currently supplies:
+
+- role baseline weights;
+- scenario weight deltas;
+- criterion scores from 1 to 10;
+- self-reported confidence values from 0 to 1;
+- short evidence and reasoning strings;
+- strengths and weaknesses;
+- pair-level estimates from 0 to 1;
+- natural-language explanations and summaries.
+
+These outputs are not currently validated against strict runtime schemas.
+
+## Deterministic formulas
+
+### Weight normalization
+
+```text
+adjusted_i = max(0, baseline_i + delta_i)
+normalized_i = adjusted_i / sum(adjusted) * 100
+```
+
+The final normalized weights are intended to total 100.
+
+### Weighted fit score
+
+```text
+WFS = sum(score_i * weight_i / 10)
+```
+
+With scores in `[1, 10]` and weights totaling 100, the result is approximately on a `[10, 100]` scale rather than a true `[0, 100]` scale.
+
+### Overall confidence
+
+```text
+OverallConfidence = sum(confidence_i * weight_i) / sum(weight_i)
+```
+
+The number is a weighted average of model self-reported confidence. It is not an empirically calibrated probability.
+
+### Execution risk
+
+```text
+100 - (
+  0.45 * operational_execution * 10
++ 0.30 * domain_expertise * 10
++ 0.25 * crisis_management * 10
+)
+```
+
+### Culture risk
+
+```text
+100 - (
+  0.60 * stakeholder_management * 10
++ 0.20 * transformation_leadership * 10
++ 0.20 * confidence(stakeholder_management) * 100
+)
+```
+
+This formula combines a capability estimate and confidence estimate in the same weighted score. That is a design assumption requiring justification.
+
+### Time risk
+
+```text
+100 - (
+  0.40 * domain_expertise * 10
++ 0.35 * operational_execution * 10
++ 0.25 * WFS
+)
+```
+
+### Adaptability
+
+```text
+0.35 * cross_scenario_consistency
++ 0.25 * transformation_leadership * 10
++ 0.20 * stakeholder_management * 10
++ 0.20 * innovation_digital * 10
+```
+
+The current implementation always passes `75` as `cross_scenario_consistency`. It therefore does not yet measure real cross-scenario consistency.
+
+### Opportunity-cost risk
+
+```text
+(ExecutionRisk + CultureRisk + TimeRisk) / 3
+```
+
+Despite its name, this is currently the average of three risk measures. It does not calculate the benefit lost by not choosing an alternative candidate.
+
+### Expected outcome score
+
+```text
+0.35 * WFS
++ 0.20 * AdaptabilityScore
++ 0.20 * (100 - ExecutionRisk)
++ 0.10 * (100 - CultureRisk)
++ 0.10 * (100 - TimeRisk)
++ 0.05 * OverallConfidence * 100
+```
+
+### Risk-adjusted score
+
+```text
+WFS
+- 0.25 * ExecutionRisk
+- 0.20 * CultureRisk
+- 0.15 * TimeRisk
+- 0.15 * (1 - OverallConfidence) * 100
+- 0.10 * (100 - AdaptabilityScore)
+- 0.15 * OpportunityCostRisk
+```
+
+This result can be negative. It is not clamped before ranking.
+
+### Pair score
+
+```text
+0.30 * scenario_coverage
++ 0.25 * complementarity
++ 0.20 * execution_cohesion
++ 0.15 * pair_adaptability
+- 0.10 * conflict_risk
+- 0.05 * overlap_risk
+```
+
+The baseline implementation scales and clamps this result, then divides by 10 for display.
+
+## Prototype assumptions requiring validation
+
+1. Seven fixed criteria are sufficient for every leadership role.
+2. Criterion values can be inferred reliably from short free-text candidate descriptions.
+3. Model self-confidence correlates with scoring correctness.
+4. The selected coefficients reflect real organizational outcomes.
+5. Linear weighted sums adequately model interactions between leadership traits.
+6. “Culture risk” can be inferred from the current inputs without introducing harmful proxies.
+7. Pair compatibility can be estimated from short descriptions without team, role, or behavioral data.
+8. The same model can interpret evidence and then fairly judge confidence in its own interpretation.
+9. A single scenario label contains enough context to shift role weights correctly.
+10. The model-generated explanation will remain faithful to deterministic metrics.
+
+## Required V2 language
+
+Until validation exists, documentation and UI should use terms such as:
+
+- “prototype heuristic score”;
+- “model-estimated criterion score”;
+- “evidence availability indicator” rather than calibrated probability;
+- “decision-support recommendation” rather than hiring decision;
+- “requires human review.”
+
+Avoid claims that the system predicts job performance, removes bias, or objectively identifies the best person.

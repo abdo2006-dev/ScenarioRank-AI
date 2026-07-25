@@ -1,5 +1,5 @@
 /**
- * ScenarioRank AI v3 — Complete Backend Server
+ * ScenarioRank AI V2 — Phase 0 Baseline Backend
  * Single-file compiled server. Run with: node server.mjs
  * Requires: ANTHROPIC_API_KEY env var
  *
@@ -798,7 +798,7 @@ app.post("/api/decision/stream", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 ScenarioRank AI v3 Backend`);
+  console.log(`\n🚀 ScenarioRank AI V2 Backend`);
   console.log(`   Running on: http://localhost:${PORT}`);
   console.log(`   Health:     http://localhost:${PORT}/health`);
   console.log(`   API:        http://localhost:${PORT}/api/decision`);

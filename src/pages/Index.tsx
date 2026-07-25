@@ -1,5 +1,5 @@
 /**
- * ScenarioRank AI v3 — Self-Contained Frontend
+ * ScenarioRank AI V2 — Phase 0 Baseline Frontend
  *
  * This file is intentionally self-contained (no missing imports).
  * Place this at: src/Index.tsx  OR  src/pages/Index.tsx
@@ -1184,7 +1184,7 @@ export default function Index() {
   <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between">
     <div className="font-bold text-base">
       <span className="text-amber-400">ScenarioRank</span> <span className="text-white">AI</span>
-      <span className="text-white/20 text-xs ml-2">v3</span>
+      <span className="text-white/20 text-xs ml-2">V2</span>
     </div>
 
     <div className="flex items-center gap-3">
