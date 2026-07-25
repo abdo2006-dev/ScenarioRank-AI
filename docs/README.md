@@ -4,6 +4,7 @@ These documents form the engineering baseline for the post-award V2 refinement.
 
 ## Start here
 
+0. [`PROJECT_STATUS.md`](./PROJECT_STATUS.md) — **read this first.** The living source of truth for the project's objective, current state, decisions made, and next step. Every other document here goes deeper on one part of it.
 1. [`PHASE_0_BASELINE_AUDIT.md`](./PHASE_0_BASELINE_AUDIT.md) — what exists today and what Phase 0 establishes.
 2. [`architecture/CURRENT_ARCHITECTURE.md`](./architecture/CURRENT_ARCHITECTURE.md) — components, responsibilities, and pipeline boundaries.
 3. [`architecture/DATA_FLOW.md`](./architecture/DATA_FLOW.md) — how requests and data move through the system.
