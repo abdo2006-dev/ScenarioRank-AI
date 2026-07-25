@@ -18,7 +18,7 @@ The competition version demonstrated a strong product idea and a complete end-to
 - improve security, observability, deployment, and documentation;
 - make every important design choice explainable in an interview or technical review.
 
-This repository documents both what currently exists and what will change. See [`docs/`](./docs/README.md).
+This repository documents both what currently exists and what will change. See [`docs/`](./docs/README.md) — start with [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md) for the current state, decisions made, and next planned step.
 
 ## Important scope statement
 

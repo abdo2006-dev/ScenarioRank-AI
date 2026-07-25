@@ -10,6 +10,20 @@ import express from "express";
 import cors from "cors";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
+import {
+  clamp,
+  normalizeWeights,
+  applyDeltas,
+  computeWeightedFitScore,
+  computeOverallConfidence,
+  computeExecutionRisk,
+  computeCultureRisk,
+  computeTimeRisk,
+  computeAdaptabilityScore,
+  computeExpectedOutcomeScore,
+  computeRiskAdjustedScore,
+  computePairScore,
+} from "./server/domain/scoring.js";
 
 // ── Auto-load .env file (so you don't need to export manually) ──────────────
 const envPath = resolve(process.cwd(), ".env");
@@ -123,71 +137,11 @@ async function callClaudeJSON(systemPrompt, userMessage, maxTokens = 2000, timeo
   }
 }
 
-// ===== NORMALIZATION =====
-function normalizeWeights(adjusted) {
-  const clamped = {};
-  for (const k of Object.keys(adjusted)) clamped[k] = Math.max(0, adjusted[k]);
-  const total = Object.values(clamped).reduce((a, b) => a + b, 0);
-  if (total === 0) { const eq = 100 / Object.keys(clamped).length; return Object.fromEntries(Object.keys(clamped).map(k => [k, eq])); }
-  const norm = {};
-  let run = 0;
-  const keys = Object.keys(clamped);
-  for (let i = 0; i < keys.length; i++) {
-    if (i === keys.length - 1) norm[keys[i]] = Math.round((100 - run) * 100) / 100;
-    else { const v = Math.round((clamped[keys[i]] / total) * 10000) / 100; norm[keys[i]] = v; run += v; }
-  }
-  return norm;
-}
-
-function applyDeltas(base, deltas) {
-  const adj = {};
-  for (const k of Object.keys(base)) adj[k] = base[k] + (deltas[k] ?? 0);
-  return normalizeWeights(adj);
-}
-
-// ===== SCORING =====
-function clamp(v, min = 0, max = 100) { return Math.max(min, Math.min(max, v)); }
-
-function computeWeightedFitScore(scores, weights) {
-  let total = 0;
-  for (const k of Object.keys(weights)) total += (scores[k] ?? 0) * (weights[k] ?? 0) / 10;
-  return Math.round(total * 100) / 100;
-}
-
-function computeOverallConfidence(confs, weights) {
-  let ws = 0, tw = 0;
-  for (const k of Object.keys(weights)) { ws += (confs[k] ?? 0) * (weights[k] ?? 0); tw += weights[k] ?? 0; }
-  return tw === 0 ? 0 : Math.round(ws / tw * 100) / 100;
-}
-
-function computeExecutionRisk(s) {
-  return clamp(Math.round((100 - (0.45 * (s.operational_execution ?? 0) * 10 + 0.30 * (s.domain_expertise ?? 0) * 10 + 0.25 * (s.crisis_management ?? 0) * 10)) * 100) / 100);
-}
-
-function computeCultureRisk(s, c) {
-  return clamp(Math.round((100 - (0.60 * (s.stakeholder_management ?? 0) * 10 + 0.20 * (s.transformation_leadership ?? 0) * 10 + 0.20 * (c.stakeholder_management ?? 0) * 100)) * 100) / 100);
-}
-
-function computeTimeRisk(s, wfs) {
-  return clamp(Math.round((100 - (0.40 * (s.domain_expertise ?? 0) * 10 + 0.35 * (s.operational_execution ?? 0) * 10 + 0.25 * wfs)) * 100) / 100);
-}
-
-function computeAdaptabilityScore(s, consistency) {
-  return clamp(Math.round((0.35 * consistency + 0.25 * (s.transformation_leadership ?? 0) * 10 + 0.20 * (s.stakeholder_management ?? 0) * 10 + 0.20 * (s.innovation_digital ?? 0) * 10) * 100) / 100);
-}
-
-function computeExpectedOutcomeScore(p) {
-  return Math.round((0.35 * p.wfs + 0.20 * p.adapt + 0.20 * (100 - p.exec) + 0.10 * (100 - p.cult) + 0.10 * (100 - p.time) + 0.05 * p.conf * 100) * 100) / 100;
-}
-
-function computeRiskAdjustedScore(p) {
-  // All terms normalized to a roughly 0-100 scale.
-  return Math.round((p.wfs - 0.25 * p.exec - 0.20 * p.cult - 0.15 * p.time - 0.15 * (1 - p.conf) * 100 - 0.10 * (100 - p.adapt) - 0.15 * p.opp) * 100) / 100;
-}
-
-function computePairScore(m) {
-  return clamp(Math.round((0.30 * m.sc * 100 + 0.25 * m.comp * 100 + 0.20 * m.coh * 100 + 0.15 * m.pa * 100 - 0.10 * m.conf * 100 - 0.05 * m.over * 100) * 100) / 100);
-}
+// ===== DETERMINISTIC SCORING =====
+// Moved verbatim to server/domain/scoring.js in Phase 1A (see
+// docs/decisions/ADR-0002-provider-abstraction.md). Coefficients, clamping,
+// rounding, and fallback behavior are unchanged — this is an import, not a
+// rewrite. (Imported at the top of the file alongside the other imports.)
 
 // ===== AGENTS =====
 

@@ -15,18 +15,41 @@
 
 **Goal:** fix misleading or incorrect behavior without changing the core product concept.
 
-Planned work:
+Phase 1 is split into four subphases so the provider swap, the correctness
+fixes, and the test/documentation work stay independently reviewable and
+revertable. See `docs/decisions/ADR-0002-provider-abstraction.md` for the
+provider-architecture reasoning.
 
-1. select actual top-ranked candidates for pair simulation;
-2. replace hardcoded cross-scenario consistency with real scenario evaluation or remove the claim temporarily;
-3. rename “Bias & Confidence Review” to “Confidence & Evidence Review” until a real bias methodology exists;
-4. replace misleading opportunity-cost terminology or implement a real comparative metric;
-5. define strict request and model-output schemas;
-6. validate criterion names, types, ranges, IDs, and decision modes;
-7. make backend URL, provider, and model configurable;
-8. remove false or unsupported product claims;
-9. add unit tests for every deterministic formula and sorting mode;
-10. add regression tests for the known correctness bugs.
+- **Phase 1A — provider abstraction and test foundation (done, on
+  `v2/phase-1a-provider-abstraction`, not yet merged to `main`).** Added a
+  real backend test runner (`server/**/*.test.js` under a Node-environment
+  Vitest config, previously not executed at all); characterization-tested
+  and verbatim-moved the deterministic scoring formulas to
+  `server/domain/scoring.js`; built a provider-neutral contract
+  (`server/ai/types.js`, `errors.js`, `providerFactory.js`) with tested Groq
+  and Gemini adapters. **The active pipeline still calls Anthropic directly
+  through `server.mjs`'s `callClaudeJSON()` — nothing in this subphase is
+  wired into a real request yet.**
+- **Phase 1B — structured-outputs cutover (not started).** Migrate the six
+  `callClaudeJSON()` call sites onto the Phase 1A provider abstraction, one
+  stage at a time, each verified end-to-end before the next; author the six
+  production Zod schemas; retire the Anthropic-specific request/JSON-repair
+  code once every stage is migrated.
+- **Phase 1C — correctness fixes (not started).**
+  1. select actual top-ranked candidates for pair simulation;
+  2. relabel (not reformulate) hardcoded cross-scenario consistency — a
+     real fix needs multi-scenario execution, deferred to Phase 3;
+  3. rename “Bias & Confidence Review” to “Confidence & Evidence Review”;
+  4. caveat LLM self-reported confidence as uncalibrated in copy.
+- **Phase 1D — tests, cleanup, documentation (not started).** Route/SSE
+  integration tests, pre-existing lint-error cleanup, dependency-audit
+  classification, environment-safe backend URL configuration for the
+  frontend, final documentation pass.
+
+Deferred out of Phase 1 entirely (see `docs/architecture/KNOWN_LIMITATIONS.md`):
+replacing misleading opportunity-cost terminology with a real comparative
+metric, and a defensible bias-detection methodology — both need design
+work beyond a correctness fix.
 
 ## Phase 2 — architecture and maintainability
 

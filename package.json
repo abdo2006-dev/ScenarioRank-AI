@@ -8,11 +8,15 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "lint:server": "eslint server/ai server/domain",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "npm run test:frontend && npm run test:server",
+    "test:frontend": "vitest run --config vitest.config.ts",
+    "test:server": "vitest run --config vitest.server.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@google/genai": "^2.13.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -50,6 +54,7 @@
     "embla-carousel-react": "^8.6.0",
     "express": "^5.2.1",
     "framer-motion": "^11.0.0",
+    "groq-sdk": "^1.4.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
@@ -64,7 +69,8 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
