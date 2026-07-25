@@ -18,3 +18,4 @@ export const pairingAnalysisSchema = z.object({
 
 export const PAIRING_ANALYSIS_PROMPT_ID = "pairing-analysis";
 export const PAIRING_ANALYSIS_PROMPT_VERSION = "v1";
+export const PAIRING_ANALYSIS_SCHEMA_VERSION = "v1";

@@ -36,6 +36,7 @@ export function createGroqProvider({ apiKey, model = DEFAULT_GROQ_MODEL, client 
 
   return {
     name: "groq",
+    model,
     /** @param {import("../types.js").StructuredGenerationRequest} request */
     async generateStructured(request) {
       return runStructuredGeneration({

@@ -44,6 +44,9 @@
 /**
  * @typedef {Object} AIProvider
  * @property {"groq"|"gemini"} name
+ * @property {string} model - The exact model this instance was constructed
+ *   with. Constant for the instance's lifetime — callers resolve one
+ *   provider instance per run and never mutate or re-resolve it mid-run.
  * @property {(request: StructuredGenerationRequest) => Promise<StructuredGenerationResult>} generateStructured
  */
 

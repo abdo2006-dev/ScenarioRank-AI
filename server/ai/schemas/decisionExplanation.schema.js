@@ -42,3 +42,4 @@ export const decisionExplanationSchema = z.object({
 
 export const DECISION_EXPLANATION_PROMPT_ID = "decision-explanation";
 export const DECISION_EXPLANATION_PROMPT_VERSION = "v1";
+export const DECISION_EXPLANATION_SCHEMA_VERSION = "v1";

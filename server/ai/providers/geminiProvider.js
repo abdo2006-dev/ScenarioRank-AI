@@ -36,6 +36,7 @@ export function createGeminiProvider({ apiKey, model, client } = {}) {
 
   return {
     name: "gemini",
+    model,
     /** @param {import("../types.js").StructuredGenerationRequest} request */
     async generateStructured(request) {
       return runStructuredGeneration({

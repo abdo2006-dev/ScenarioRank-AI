@@ -20,3 +20,4 @@ export const roleAnalysisSchema = z.object({
 
 export const ROLE_ANALYSIS_PROMPT_ID = "role-analysis";
 export const ROLE_ANALYSIS_PROMPT_VERSION = "v1";
+export const ROLE_ANALYSIS_SCHEMA_VERSION = "v1";

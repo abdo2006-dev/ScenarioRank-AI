@@ -28,3 +28,4 @@ export const scenarioAnalysisSchema = z.object({
 
 export const SCENARIO_ANALYSIS_PROMPT_ID = "scenario-analysis";
 export const SCENARIO_ANALYSIS_PROMPT_VERSION = "v1";
+export const SCENARIO_ANALYSIS_SCHEMA_VERSION = "v1";

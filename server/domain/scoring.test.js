@@ -99,30 +99,30 @@ describe("computeTimeRisk", () => {
 });
 
 describe("computeAdaptabilityScore", () => {
-  it("blends cross-scenario consistency with three criteria", () => {
+  // Phase 1C correctness fix (docs/architecture/KNOWN_LIMITATIONS.md P0.2,
+  // docs/decisions/ADR-0003): this formula used to take a hardcoded
+  // `cross_scenario_consistency` value of 75 from its caller as a second
+  // argument, contributing a fixed 26.25-point floor regardless of any real
+  // signal. That fabricated input is gone — the function now takes only
+  // the candidate's real per-criterion scores, and these expected values
+  // were re-derived by running the current (fixed) implementation, not by
+  // hand. See runPipeline.test.js for the pipeline-level regression
+  // coverage of this same fix.
+  it("blends the three real criteria, renormalized to a 0-100 scale", () => {
     expect(
-      computeAdaptabilityScore(
-        { transformation_leadership: 8, stakeholder_management: 7, innovation_digital: 6 },
-        75
-      )
-    ).toBe(72.25);
+      computeAdaptabilityScore({ transformation_leadership: 8, stakeholder_management: 7, innovation_digital: 6 })
+    ).toBe(70.77);
   });
-  it("returns 0 when consistency is 0 and all criteria are missing", () => {
-    expect(computeAdaptabilityScore({}, 0)).toBe(0);
+  it("returns exactly 0 when all criteria are missing — no fabricated floor", () => {
+    expect(computeAdaptabilityScore({})).toBe(0);
   });
   it("clamps to 100 at maximum inputs", () => {
     expect(
-      computeAdaptabilityScore(
-        { transformation_leadership: 10, stakeholder_management: 10, innovation_digital: 10 },
-        100
-      )
+      computeAdaptabilityScore({ transformation_leadership: 10, stakeholder_management: 10, innovation_digital: 10 })
     ).toBe(100);
   });
-  it("does NOT hardcode 75 itself — the caller supplies cross_scenario_consistency", () => {
-    // This pins that the fixed value of 75 (docs/architecture/KNOWN_LIMITATIONS.md P0.2)
-    // lives at the call site in server.mjs, not inside this formula. Phase 1A must not
-    // move that assumption into the formula.
-    expect(computeAdaptabilityScore({}, 75)).not.toBe(computeAdaptabilityScore({}, 0));
+  it("depends only on the three named criteria, not on any hidden constant", () => {
+    expect(computeAdaptabilityScore({ transformation_leadership: 10 })).toBe(38.46);
   });
 });
 

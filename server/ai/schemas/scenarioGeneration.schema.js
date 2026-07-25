@@ -11,3 +11,4 @@ export const scenarioGenerationSchema = z.object({
 
 export const SCENARIO_GENERATION_PROMPT_ID = "scenario-generation";
 export const SCENARIO_GENERATION_PROMPT_VERSION = "v1";
+export const SCENARIO_GENERATION_SCHEMA_VERSION = "v1";

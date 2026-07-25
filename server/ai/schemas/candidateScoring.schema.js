@@ -27,3 +27,4 @@ export const candidateScoringSchema = z.object({
 
 export const CANDIDATE_SCORING_PROMPT_ID = "candidate-scoring";
 export const CANDIDATE_SCORING_PROMPT_VERSION = "v1";
+export const CANDIDATE_SCORING_SCHEMA_VERSION = "v1";
