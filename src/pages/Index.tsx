@@ -15,19 +15,25 @@ interface CandidateInput { id: string; name: string; description: string; }
 interface PipelineStage { id: string; label: string; status: "pending" | "running" | "completed" | "failed"; summary?: string; duration_ms?: number; }
 interface CriterionScore { score: number; confidence: number; evidence: string; reasoning: string; }
 interface RiskProfile { execution_risk: number; culture_risk: number; time_risk: number; adaptability_risk: number; confidence_risk: number; opportunity_cost_risk: number; }
-interface OutcomeModel { expected_execution_success: number; scenario_fit: number; adaptability_score: number; likely_outcome: string; strategic_label: string; expected_outcome_score?: number; }
+interface OutcomeModel { expected_execution_success: number; scenario_fit: number; adaptability_score: number; likely_outcome: string; strategic_label: string; expected_outcome_score?: number; cross_scenario_consistency?: "not_measured" | null; }
 interface CandidateEvaluation { candidate_id: string; candidate_name: string; rank: number; weighted_fit_score: number; risk_adjusted_score: number; expected_outcome_score: number; overall_confidence: number; strategic_labels: string[]; winner_reason?: string; trade_off_note?: string; criteria_scores: Record<string, CriterionScore>; strengths: string[]; weaknesses: string[]; risk_profile: RiskProfile; outcome_model: OutcomeModel; }
 interface DecisionResult { recommended_candidate_id: string; recommended_candidate_name: string; decision_mode: string; scenario: string; final_label: string; key_reason: string; overall_confidence: number; executive_interpretation: string; }
 interface TradeOffCard { title: string; description: string; type: string; severity?: string; }
-interface AdaptabilityProfile { candidate_name: string; adaptability_score: number; best_scenario: string; worst_scenario: string; resilience_note: string; }
+interface AdaptabilityProfile { candidate_name: string; adaptability_score: number; best_scenario: string; worst_scenario: string; resilience_note: string; cross_scenario_consistency?: "not_measured" | null; }
 interface AgentOutput { agent_name: string; agent_role: string; inputs: string[]; outputs: string[]; summary: string; }
 interface BiasReview { candidate_id: string; candidate_name: string; overall_confidence: number; bias_flags: Array<{ type: string; severity: string; description: string; }>; recommend_human_review: boolean; }
 interface PairResult { pair: [string, string]; pair_score: number; explanation: string; scenario_coverage?: number; complementarity?: number; overlap_risk?: number; conflict_risk?: number; execution_cohesion?: number; pair_adaptability?: number; }
-interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { title: string; key_requirements: string[]; complexity: string; }; scenario_analysis: { scenario: string; key_pressures: string[]; weight_rationale: string; }; candidate_evaluations: CandidateEvaluation[]; bias_confidence_reviews: BiasReview[]; decision_result: DecisionResult; pairing_result?: { best_pair: PairResult; top_pairs: PairResult[]; }; trade_offs: TradeOffCard[]; adaptability_profiles: AdaptabilityProfile[]; agent_outputs: AgentOutput[]; executive_summary: { recommendation: string; reason: string; trade_off: string; opportunity_cost: string; adaptability: string; alternative: string; }; }
+interface RunMetadata { provider: string; model: string; promptVersions: Record<string, string>; schemaVersions: Record<string, string>; attempts: Record<string, number>; startedAt: string; completedAt: string; }
+interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { title: string; key_requirements: string[]; complexity: string; }; scenario_analysis: { scenario: string; key_pressures: string[]; weight_rationale: string; }; candidate_evaluations: CandidateEvaluation[]; bias_confidence_reviews: BiasReview[]; decision_result: DecisionResult; pairing_result?: { best_pair: PairResult; top_pairs: PairResult[]; }; trade_offs: TradeOffCard[]; adaptability_profiles: AdaptabilityProfile[]; agent_outputs: AgentOutput[]; executive_summary: { recommendation: string; reason: string; trade_off: string; opportunity_cost: string; adaptability: string; alternative: string; }; run_metadata?: RunMetadata; }
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
-const BACKEND_URL = "http://localhost:3001";
+// Env-safe backend URL (Phase 1D): configured via VITE_BACKEND_URL, with
+// the previous hardcoded localhost value kept only as a development
+// fallback. Never a provider API key or anything backend-secret — Vite
+// only exposes VITE_-prefixed variables to the browser bundle, so no
+// provider credential may ever use that prefix (see .env.example).
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
 const DEFAULT_ROLE = {
   title: "VP of People & Culture",
@@ -60,7 +66,7 @@ const INITIAL_STAGES: PipelineStage[] = [
   { id: "role", label: "Role Analysis", status: "pending" },
   { id: "scenario", label: "Scenario Analysis", status: "pending" },
   { id: "scoring", label: "Candidate Scoring", status: "pending" },
-  { id: "bias", label: "Bias & Confidence Review", status: "pending" },
+  { id: "confidence_review", label: "Confidence & Evidence Review", status: "pending" },
   { id: "outcome", label: "Outcome Modeling", status: "pending" },
   { id: "decision", label: "Decision Engine", status: "pending" },
   { id: "pairing", label: "Pair Simulation", status: "pending" },
@@ -827,8 +833,8 @@ function CriterionScoringPanel({ criteriaScores }: { criteriaScores: Record<stri
                   {CRITERION_LABELS[key] ?? key}
                 </span>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs text-white/40">
-                    Conf: {Math.round(cs.confidence * 100)}%
+                  <span className="text-xs text-white/40" title="Model-reported confidence — not a calibrated probability of correctness">
+                    Model conf: {Math.round(cs.confidence * 100)}%
                   </span>
                   <span className="text-sm font-bold text-amber-400">
                     {cs.score}/10
@@ -928,7 +934,7 @@ function Results({ response }: { response: PipelineResponse }) {
               <div className="grid grid-cols-3 gap-3 mb-3 text-xs text-center">
                 <div><div className="text-white font-semibold">{c.risk_adjusted_score.toFixed(1)}</div><div className="text-white/40">Risk Adj.</div></div>
                 <div><div className="text-white font-semibold">{c.expected_outcome_score.toFixed(1)}</div><div className="text-white/40">Outcome</div></div>
-                <div><div className="text-white font-semibold">{Math.round(c.overall_confidence * 100)}%</div><div className="text-white/40">Confidence</div></div>
+                <div><div className="text-white font-semibold">{Math.round(c.overall_confidence * 100)}%</div><div className="text-white/40" title="Model-reported confidence — not a calibrated probability of correctness">Model Conf.</div></div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
@@ -969,6 +975,9 @@ function Results({ response }: { response: PipelineResponse }) {
                   </div>
                   <ScoreBar value={p.adaptability_score} max={100} color="#34d399" />
                   <div className="text-xs text-white/40 italic">{p.resilience_note}</div>
+                  {p.cross_scenario_consistency === "not_measured" && (
+                    <div className="text-[11px] text-white/30 italic">Cross-scenario consistency: not measured (requires running multiple scenarios).</div>
+                  )}
                 </div>
               ))}
             </div>
@@ -976,7 +985,7 @@ function Results({ response }: { response: PipelineResponse }) {
 
           {response.bias_confidence_reviews.some(r => r.bias_flags.length > 0) && (
             <Card>
-              <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Bias Flags</h3>
+              <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Confidence & Evidence Flags</h3>
               {response.bias_confidence_reviews.filter(r => r.bias_flags.length > 0).map(r => (
                 <div key={r.candidate_id} className="mb-3">
                   <div className="text-sm font-medium text-white mb-1">{r.candidate_name}</div>
@@ -1055,6 +1064,12 @@ function Results({ response }: { response: PipelineResponse }) {
               <p className="text-xs text-white/40 mt-3 italic border-t border-white/10 pt-3">{a.summary}</p>
             </Card>
           ))}
+        </div>
+      )}
+
+      {response.run_metadata && (
+        <div className="text-center text-[11px] text-white/25 pt-2">
+          Evaluated with {response.run_metadata.provider} ({response.run_metadata.model})
         </div>
       )}
     </div>

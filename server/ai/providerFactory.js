@@ -1,16 +1,15 @@
 /**
- * @file Provider factory (Phase 1A).
+ * @file Provider factory.
  *
- * IMPORTANT: this module is intentionally not imported or invoked anywhere
- * in server.mjs yet. The active pipeline still calls the Anthropic endpoint
- * directly (callClaudeJSON) through Phase 1A — wiring this factory into
- * startup and into the real pipeline stages is Phase 1B. Until then, this
- * factory is exercised only by its own tests, so adding it cannot change
- * current application startup or request behavior.
+ * Since Phase 1B, this is the sole way the live application constructs an
+ * AI provider — server.mjs calls createProvider() once at process startup
+ * (see resolveStartupAiStatus() in server/config/env.js) and reuses that
+ * one instance for the process's entire lifetime. The Anthropic-specific
+ * request path this factory was designed to replace has been removed.
  *
  * createProvider() validates and builds a provider only when explicitly
  * called with a provider name — there is no implicit "read AI_PROVIDER and
- * construct something" behavior that runs on import or on server start.
+ * construct something" behavior that runs on import.
  */
 
 import { ConfigurationError } from "./errors.js";
