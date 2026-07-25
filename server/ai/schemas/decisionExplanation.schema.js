@@ -23,7 +23,7 @@ const executiveSummarySchema = z.object({
 });
 
 /**
- * Decision Agent's LLM-generated explanation layer. Ranking itself is
+ * Decision Explanation Stage's LLM-generated explanation layer. Ranking itself is
  * always computed deterministically before this call — this schema only
  * covers the narrative fields the model is allowed to produce (see
  * server/pipeline/runPipeline.js for where deterministic ranking and this

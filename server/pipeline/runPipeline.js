@@ -173,7 +173,7 @@ export function confidenceEvidenceReview(scoring, overallConfidence) {
     candidate_name: scoring.candidate_name,
     overall_confidence: overallConfidence,
     low_confidence_criteria: lowConf,
-    bias_flags: flags.map((f) => ({ ...f, candidate_id: scoring.candidate_id })),
+    confidence_evidence_flags: flags.map((f) => ({ ...f, candidate_id: scoring.candidate_id })),
     weak_evidence_flags: weakEvidenceFlags,
     recommend_human_review: recommendHumanReview,
     recommend_rescore: recommendRescore,
@@ -344,7 +344,7 @@ export async function runPipeline(provider, model, input, onUpdate, options = {}
 
   const confidenceReviews = await timed("confidence_review", async () => {
     const res = metrics.map((m) => confidenceEvidenceReview(m.scoring, m.oc));
-    update("confidence_review", { summary: `${res.filter((r) => r.bias_flags.length > 0).length} with confidence/evidence flags, ${res.filter((r) => r.recommend_human_review).length} for human review.` });
+    update("confidence_review", { summary: `${res.filter((r) => r.confidence_evidence_flags.length > 0).length} with confidence/evidence flags, ${res.filter((r) => r.recommend_human_review).length} for human review.` });
     return res;
   });
 
@@ -414,11 +414,18 @@ export async function runPipeline(provider, model, input, onUpdate, options = {}
       winner_id: winner.scoring.candidate_id, winner_name: winner.scoring.candidate_name,
       final_label: llm.final_label || modeLabel, key_reason: llm.key_reason, overall_confidence: winner.oc,
       executive_interpretation: llm.executive_interpretation, trade_offs: llm.trade_offs || [],
+      // Phase 1C correction (docs/architecture/KNOWN_LIMITATIONS.md P0.2):
+      // best_scenario/worst_scenario and the old resilience_note claimed
+      // the system had observed how a candidate performs in other
+      // scenarios ("may struggle under rapid pivots") when no
+      // multi-scenario execution occurs. best_scenario/worst_scenario are
+      // now `"not_measured"`, and the note describes adaptability only as
+      // a heuristic derived from the criteria observed in this one run.
       adaptability_profiles: rankedForDecision.slice(0, 4).map((c) => ({
         candidate_name: c.scoring.candidate_name, adaptability_score: c.outcome.adaptability_score / 100,
         cross_scenario_consistency: c.outcome.cross_scenario_consistency,
-        best_scenario: input.scenario, worst_scenario: "Rapid crisis/pivot scenario",
-        resilience_note: c.outcome.adaptability_score > 70 ? `${c.scoring.candidate_name} shows strong adaptability on the criteria observed in this run.` : `${c.scoring.candidate_name} is more specialized — performs well in ${input.scenario} but may struggle under rapid pivots.`,
+        best_scenario: "not_measured", worst_scenario: "not_measured",
+        resilience_note: `${c.scoring.candidate_name}'s adaptability score (${c.outcome.adaptability_score}/100) is a heuristic derived only from the criteria observed in this run. Cross-scenario resilience has not been measured.`,
       })),
       executive_summary: llm.executive_summary,
     };
@@ -445,9 +452,18 @@ export async function runPipeline(provider, model, input, onUpdate, options = {}
           }
         }
         pairs.sort((a, b) => b.pair_score - a.pair_score);
-        const result = pairs.length === 0
-          ? { best_pair: { pair: [top[0].scoring.candidate_name, top[1].scoring.candidate_name], pair_score: 7.0, scenario_coverage: 0.75, complementarity: 0.70, overlap_risk: 0.25, conflict_risk: 0.20, execution_cohesion: 0.72, pair_adaptability: 0.68, explanation: "Default pair." }, top_pairs: [] }
-          : { best_pair: pairs[0], top_pairs: pairs.slice(0, 3) };
+
+        // Correction: no fabricated pair, score, or metrics when every pair
+        // evaluation fails (docs/architecture/KNOWN_LIMITATIONS.md P0.5).
+        // Previously this branch invented a "Default pair" with made-up
+        // numbers, which could make a result look complete when pairing
+        // evaluation had actually failed entirely.
+        if (pairs.length === 0) {
+          update("pairing", { summary: "Pairing unavailable: all pair evaluations failed." });
+          return { status: "unavailable", reason: "All pair evaluations failed.", best_pair: null, top_pairs: [] };
+        }
+
+        const result = { status: "ok", best_pair: pairs[0], top_pairs: pairs.slice(0, 3) };
         update("pairing", { summary: `Best pair: ${result.best_pair.pair[0]} + ${result.best_pair.pair[1]} (${result.best_pair.pair_score.toFixed(1)}).` });
         return result;
       });
@@ -462,7 +478,10 @@ export async function runPipeline(provider, model, input, onUpdate, options = {}
     role_analysis: { title: input.role.title, key_requirements: role.must_have_criteria || [], complexity: role.complexity_rating },
     scenario_analysis: { scenario: input.scenario, key_pressures: scenario.key_pressures || [], weight_rationale: scenario.weight_rationale || "" },
     candidate_evaluations: decision.rankedOut,
-    bias_confidence_reviews: confidenceReviews,
+    // Renamed from bias_confidence_reviews (docs/architecture/KNOWN_LIMITATIONS.md
+    // P0.3): this stage checks response confidence and evidence length, not
+    // demographic or legal bias, and the field name must not imply otherwise.
+    confidence_evidence_reviews: confidenceReviews,
     outcome_models: outcomes.map((o) => ({
       expected_execution_success: o.expected_execution_success, scenario_fit: o.scenario_fit,
       adaptability_score: o.adaptability_score / 100, likely_outcome: o.likely_outcome,
@@ -472,14 +491,27 @@ export async function runPipeline(provider, model, input, onUpdate, options = {}
     pairing_result: pairing,
     trade_offs: decision.trade_offs || [],
     adaptability_profiles: decision.adaptability_profiles || [],
-    agent_outputs: [
-      { agent_name: "Role Agent", agent_role: "Defines criteria & base weights from role description", inputs: ["Role title", "Description", "Scenario"], outputs: ["7 criteria", "Base weights", "Must-haves", "Success definition"], summary: `Complexity: ${role.complexity_rating}. Success: ${role.role_success_definition}` },
-      { agent_name: "Scenario Agent", agent_role: "Adjusts weights for business scenario", inputs: ["Base weights", `Scenario: ${input.scenario}`], outputs: ["Adjusted weights", "Normalized weights", "Key pressures"], summary: scenario.weight_rationale },
-      { agent_name: "Candidate Scoring Agent", agent_role: "Scores candidates from text (LLM)", inputs: [`${input.candidates.length} profiles`, "7 criteria"], outputs: ["Criterion scores (1-10)", "Confidence", "Evidence"], summary: `Scored ${scorings.length} candidates. Evidence-based, grounded in descriptions.` },
-      { agent_name: "Confidence & Evidence Review", agent_role: "Reviews scoring confidence and evidence quality — not a demographic or legal bias audit", inputs: ["All scores", "Evidence quality"], outputs: ["Confidence/evidence flags", "Review recommendations"], summary: `${confidenceReviews.filter((b) => b.recommend_human_review).length}/${confidenceReviews.length} candidates flagged for human review.` },
-      { agent_name: "Outcome Modeling Agent", agent_role: "Computes risk profiles and expected outcomes (deterministic)", inputs: ["Weighted scores", "Confidence"], outputs: ["6 risk dimensions", "Adaptability", "Expected outcome"], summary: `Risk computed: execution, culture, time, confidence, adaptability, opportunity cost.` },
-      { agent_name: "Decision Agent", agent_role: "Ranks candidates and generates explanations (LLM)", inputs: ["All evaluations", `Mode: ${input.decision_mode}`], outputs: ["Ranked list", "Explanations", "Trade-offs", "Executive summary"], summary: `${decision.winner_name} recommended. Ranking is deterministic; explanations are LLM-generated from computed metrics.` },
-      ...(pairing ? [{ agent_name: "Pairing Agent", agent_role: "Simulates optimal leadership pair among the top-ranked candidates", inputs: ["Top-ranked candidates", "Scenario"], outputs: ["Best pair", "Pair metrics"], summary: `Best: ${pairing.best_pair.pair[0]} + ${pairing.best_pair.pair[1]}. Score: ${pairing.best_pair.pair_score.toFixed(1)}.` }] : []),
+    // Renamed from agent_outputs, and every entry's name/role from "Agent"
+    // to "Stage": ScenarioRank is a fixed orchestrated pipeline — stages do
+    // not independently plan, select tools, delegate work, or determine
+    // control flow, so calling this a multi-agent architecture would be
+    // inaccurate (docs/architecture/KNOWN_LIMITATIONS.md P1.6).
+    pipeline_stage_outputs: [
+      { stage_name: "Role Analysis Stage", stage_role: "Defines criteria & base weights from role description (LLM)", inputs: ["Role title", "Description", "Scenario"], outputs: ["7 criteria", "Base weights", "Must-haves", "Success definition"], summary: `Complexity: ${role.complexity_rating}. Success: ${role.role_success_definition}` },
+      { stage_name: "Scenario Analysis Stage", stage_role: "Adjusts weights for business scenario (LLM)", inputs: ["Base weights", `Scenario: ${input.scenario}`], outputs: ["Adjusted weights", "Normalized weights", "Key pressures"], summary: scenario.weight_rationale },
+      { stage_name: "Candidate Scoring Stage", stage_role: "Scores candidates from text (LLM)", inputs: [`${input.candidates.length} profiles`, "7 criteria"], outputs: ["Criterion scores (1-10)", "Confidence", "Evidence"], summary: `Scored ${scorings.length} candidates. Evidence-based, grounded in descriptions.` },
+      { stage_name: "Confidence & Evidence Review", stage_role: "Reviews scoring confidence and evidence quality (deterministic) — not a demographic or legal bias audit", inputs: ["All scores", "Evidence quality"], outputs: ["Confidence/evidence flags", "Review recommendations"], summary: `${confidenceReviews.filter((b) => b.recommend_human_review).length}/${confidenceReviews.length} candidates flagged for human review.` },
+      { stage_name: "Outcome Modeling Stage", stage_role: "Computes risk profiles and expected outcomes (deterministic)", inputs: ["Weighted scores", "Confidence"], outputs: ["6 risk dimensions", "Adaptability", "Expected outcome"], summary: `Risk computed: execution, culture, time, confidence, adaptability, opportunity cost.` },
+      { stage_name: "Decision Explanation Stage", stage_role: "Ranks candidates (deterministic) and generates explanations (LLM)", inputs: ["All evaluations", `Mode: ${input.decision_mode}`], outputs: ["Ranked list", "Explanations", "Trade-offs", "Executive summary"], summary: `${decision.winner_name} recommended. Ranking is deterministic; explanations are LLM-generated from computed metrics.` },
+      ...(pairing ? [{
+        stage_name: "Pairing Analysis Stage",
+        stage_role: "Simulates leadership-pair compatibility among the top-ranked candidates (LLM)",
+        inputs: ["Top-ranked candidates", "Scenario"],
+        outputs: ["Best pair", "Pair metrics"],
+        summary: pairing.status === "ok"
+          ? `Best: ${pairing.best_pair.pair[0]} + ${pairing.best_pair.pair[1]}. Score: ${pairing.best_pair.pair_score.toFixed(1)}.`
+          : `Pairing unavailable: ${pairing.reason}`,
+      }] : []),
     ],
     executive_summary: decision.executive_summary || { recommendation: `${decision.winner_name} recommended.`, reason: "Highest score.", trade_off: "", opportunity_cost: "", adaptability: "", alternative: "" },
     run_metadata: runMeta.finalize(),

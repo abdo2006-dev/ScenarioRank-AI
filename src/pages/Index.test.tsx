@@ -22,7 +22,7 @@ function buildResponse(overrides: Record<string, unknown> = {}) {
         outcome_model: { expected_execution_success: 0.8, scenario_fit: 0.82, adaptability_score: 0.7, likely_outcome: "Solid results.", strategic_label: "Balanced Performer", cross_scenario_consistency: "not_measured" },
       },
     ],
-    bias_confidence_reviews: [],
+    confidence_evidence_reviews: [],
     decision_result: {
       recommended_candidate_id: "a", recommended_candidate_name: "Alice", decision_mode: "best_fit",
       scenario: "Post-merger integration", final_label: "Best Fit", key_reason: "Highest weighted fit score.",
@@ -30,9 +30,9 @@ function buildResponse(overrides: Record<string, unknown> = {}) {
     },
     trade_offs: [],
     adaptability_profiles: [
-      { candidate_name: "Alice", adaptability_score: 70, best_scenario: "Post-merger integration", worst_scenario: "Rapid crisis/pivot scenario", resilience_note: "Shows strong adaptability.", cross_scenario_consistency: "not_measured" },
+      { candidate_name: "Alice", adaptability_score: 70, best_scenario: "not_measured", worst_scenario: "not_measured", resilience_note: "Shows strong adaptability.", cross_scenario_consistency: "not_measured" },
     ],
-    agent_outputs: [],
+    pipeline_stage_outputs: [],
     executive_summary: { recommendation: "Alice recommended.", reason: "Highest score.", trade_off: "", opportunity_cost: "", adaptability: "", alternative: "" },
     ...overrides,
   };
@@ -55,7 +55,7 @@ describe("Results — cross-scenario consistency is shown as not measured", () =
 
   it("does not show the not-measured line when the field is absent (older/partial data)", () => {
     const response = buildResponse({
-      adaptability_profiles: [{ candidate_name: "Alice", adaptability_score: 70, best_scenario: "s", worst_scenario: "w", resilience_note: "note" }],
+      adaptability_profiles: [{ candidate_name: "Alice", adaptability_score: 70, best_scenario: "not_measured", worst_scenario: "not_measured", resilience_note: "note" }],
     });
     render(<Results response={response as never} />);
     openAnalysisTab();
@@ -82,14 +82,74 @@ describe("Results — provider/model run metadata", () => {
 describe("Results — confidence/evidence wording, not bias-detection wording", () => {
   it("labels the flags card 'Confidence & Evidence Flags', not 'Bias Flags'", () => {
     const response = buildResponse({
-      bias_confidence_reviews: [
-        { candidate_id: "a", candidate_name: "Alice", overall_confidence: 0.5, recommend_human_review: true, bias_flags: [{ type: "low_overall_confidence", severity: "high", description: "Overall model-reported confidence is low." }] },
+      confidence_evidence_reviews: [
+        { candidate_id: "a", candidate_name: "Alice", overall_confidence: 0.5, recommend_human_review: true, confidence_evidence_flags: [{ type: "low_overall_confidence", severity: "high", description: "Overall model-reported confidence is low." }] },
       ],
     });
     render(<Results response={response as never} />);
     openAnalysisTab();
     expect(screen.getByText("Confidence & Evidence Flags")).toBeInTheDocument();
     expect(screen.queryByText("Bias Flags")).not.toBeInTheDocument();
+  });
+});
+
+describe("Results — no unsupported cross-scenario claims (docs/architecture/KNOWN_LIMITATIONS.md P0.2)", () => {
+  it("never renders fabricated cross-scenario phrases anywhere in the response", () => {
+    const response = buildResponse({
+      pairing_result: {
+        status: "ok",
+        best_pair: { pair: ["Alice", "Bob"], pair_score: 8.4, explanation: "Strong complementary skill sets." },
+        top_pairs: [],
+      },
+    });
+    render(<Results response={response as never} />);
+    openAnalysisTab();
+    fireEvent.click(screen.getByRole("button", { name: "pairing" }));
+    fireEvent.click(screen.getByRole("button", { name: "pipeline" }));
+
+    const forbiddenPhrases = [
+      /rapid crisis\/pivot scenario/i,
+      /may struggle under rapid pivots/i,
+      /best scenario/i,
+      /worst scenario/i,
+    ];
+    for (const phrase of forbiddenPhrases) {
+      expect(screen.queryByText(phrase)).not.toBeInTheDocument();
+    }
+  });
+});
+
+describe("Results — pairing tab reflects honest pairing state, never a fabricated pair", () => {
+  it("shows the best pair and its metrics when pairing succeeded", () => {
+    const response = buildResponse({
+      pairing_result: {
+        status: "ok",
+        best_pair: { pair: ["Alice", "Bob"], pair_score: 8.4, explanation: "Strong complementary skill sets." },
+        top_pairs: [],
+      },
+    });
+    render(<Results response={response as never} />);
+    fireEvent.click(screen.getByRole("button", { name: "pairing" }));
+    expect(screen.getByText("Best Leadership Pair")).toBeInTheDocument();
+    expect(screen.getByText("Bob")).toBeInTheDocument();
+    expect(screen.getByText("Strong complementary skill sets.")).toBeInTheDocument();
+  });
+
+  it("shows an honest unavailable message, with no fabricated pair, when every pair evaluation failed", () => {
+    const response = buildResponse({
+      pairing_result: { status: "unavailable", reason: "All pair evaluations failed.", best_pair: null, top_pairs: [] },
+    });
+    render(<Results response={response as never} />);
+    fireEvent.click(screen.getByRole("button", { name: "pairing" }));
+
+    expect(screen.getByText("Pairing Unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Default pair.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/7\.0/)).not.toBeInTheDocument();
+  });
+
+  it("does not show a pairing tab at all when pairing_result is absent", () => {
+    render(<Results response={buildResponse() as never} />);
+    expect(screen.queryByRole("button", { name: "pairing" })).not.toBeInTheDocument();
   });
 });
 
@@ -132,7 +192,11 @@ describe("BACKEND_URL — env-safe configuration", () => {
   it("reads VITE_BACKEND_URL when set (verified via a fresh module load)", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_BACKEND_URL", "https://api.example.com");
-    const fresh = await import("../lib/backendUrl?configured-url-test");
+    // A non-literal specifier keeps this a genuine fresh-module-load test
+    // (the query string busts Vitest's module cache) without tsc trying
+    // to statically resolve a module path that doesn't exist on disk.
+    const freshModulePath = "../lib/backendUrl?configured-url-test";
+    const fresh = await import(/* @vite-ignore */ freshModulePath);
     expect(fresh.BACKEND_URL).toBe("https://api.example.com");
   });
 });

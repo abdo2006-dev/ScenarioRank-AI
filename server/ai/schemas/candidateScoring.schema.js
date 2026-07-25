@@ -11,7 +11,7 @@ const criterionScoreSchema = z.object({
 const criteriaScoresShape = Object.fromEntries(CRITERIA_KEYS.map((k) => [k, criterionScoreSchema]));
 
 /**
- * Candidate Scoring Agent output. `candidate_id`/`candidate_name` are
+ * Candidate Scoring Stage output. `candidate_id`/`candidate_name` are
  * overwritten unconditionally by the caller after parsing (predating
  * Phase 1B), so this schema still requires them (the model must produce
  * well-formed output) but the pipeline stage does not trust their values.

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Pairing Agent output, one call per candidate pair. All six metrics are
+ * Pairing Analysis Stage output, one call per candidate pair. All six metrics are
  * now required (schema-validated with a retry on failure) rather than the
  * pre-migration `?? 0.7`-style silent defaults — an invalid response is
  * now rejected and retried, not quietly papered over.

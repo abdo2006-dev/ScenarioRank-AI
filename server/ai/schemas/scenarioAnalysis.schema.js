@@ -4,7 +4,7 @@ import { CRITERIA_KEYS } from "./criteriaKeys.js";
 const deltasShape = Object.fromEntries(CRITERIA_KEYS.map((k) => [k, z.number().min(-100).max(100)]));
 
 /**
- * Scenario Agent output.
+ * Scenario Analysis Stage output.
  *
  * SEMANTIC PROMPT CHANGE (documented per Phase 1B requirement): the
  * pre-migration prompt asked for `priority_shifts` as a free-form object

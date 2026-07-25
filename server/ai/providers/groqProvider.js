@@ -1,5 +1,7 @@
 /**
- * @file Groq adapter (Phase 1A). Not wired into the active pipeline yet.
+ * @file Groq adapter. The default runtime provider, wired into the active
+ * pipeline via server/ai/providerFactory.js and resolved once at startup
+ * (see server.mjs).
  *
  * Uses the official `groq-sdk` package. The client is constructed with
  * `maxRetries: 0` — confirmed against groq-sdk's own type definitions

@@ -178,6 +178,27 @@ describe("runPipeline — unmeasured cross-scenario consistency (docs/architectu
     expect(outcome.cross_scenario_consistency).toBe("not_measured");
     expect(typeof outcome.adaptability_score).toBe("number");
   });
+
+  it("never claims a candidate performs best in this scenario or will struggle in a pivot/crisis scenario anywhere in the response", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    const input = defaultInput({ candidateIds: ["a", "b", "c", "d", "e"], enablePairing: true });
+    const result = await runPipeline(provider, provider.model, input, () => {});
+
+    for (const profile of result.adaptability_profiles) {
+      expect(profile.best_scenario).toBe("not_measured");
+      expect(profile.worst_scenario).toBe("not_measured");
+    }
+
+    // Full-response regression scan: none of the previously-fabricated
+    // cross-scenario claims may appear anywhere in the pipeline's output,
+    // including inside free-text summaries (docs/architecture/
+    // KNOWN_LIMITATIONS.md P0.2).
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toMatch(/rapid crisis\/pivot scenario/i);
+    expect(serialized).not.toMatch(/may struggle under rapid pivots/i);
+    expect(serialized).not.toMatch(/best scenario/i);
+    expect(serialized).not.toMatch(/worst scenario/i);
+  });
 });
 
 describe("runPipeline — run metadata", () => {
@@ -219,15 +240,78 @@ describe("runPipeline — structured validation failure and no-hang propagation"
     expect(result.decision_result.key_reason).toMatch(/ranked highest/);
   });
 
-  it("does not fail the whole run when pairing calls fail — pairing is simply omitted for that pair", async () => {
+  it("does not fail the whole run when pairing calls fail — pairing is reported as honestly unavailable", async () => {
     const handlers = { ...defaultHandlers(), "pairing-analysis": () => { throw new Error("pairing provider error"); } };
     const provider = createFakePipelineProvider({ handlers });
 
     const result = await runPipeline(provider, provider.model, defaultInput({ enablePairing: true }), () => {});
     expect(result.decision_result.recommended_candidate_id).toBeTruthy();
-    // Every pair call failed, so the pairing stage falls back to its
-    // documented default-pair behavior rather than hanging or throwing.
+    // Every pair call failed. Correction (docs/architecture/KNOWN_LIMITATIONS.md
+    // P0.5): no fabricated pair is invented — the pipeline reports pairing
+    // as unavailable instead of hanging, throwing, or making one up.
+    expect(result.pairing_result.status).toBe("unavailable");
+    expect(result.pairing_result.best_pair).toBeNull();
+    expect(result.pairing_result.top_pairs).toEqual([]);
+  });
+});
+
+describe("runPipeline — pairing failure modes never fabricate a pair (docs/architecture/KNOWN_LIMITATIONS.md P0.5)", () => {
+  it("returns a real best pair from the pairs that succeeded when only some pair evaluations fail", async () => {
+    // 4 top candidates -> 6 pairwise combinations. Fail the pair
+    // involving both "a" and "b" only; the other 5 combinations succeed.
+    const handlers = {
+      ...defaultHandlers(),
+      "pairing-analysis": (request) => {
+        if (/^a: /m.test(request.prompt) && /^b: /m.test(request.prompt)) {
+          throw new Error("pairing provider error");
+        }
+        return {
+          scenario_coverage: 0.8, complementarity: 0.7, overlap_risk: 0.2,
+          conflict_risk: 0.1, execution_cohesion: 0.75, pair_adaptability: 0.65,
+          explanation: "Complementary strengths with low overlap.",
+        };
+      },
+    };
+    const provider = createFakePipelineProvider({ handlers });
+    const input = defaultInput({ candidateIds: ["a", "b", "c", "d"], enablePairing: true });
+
+    const result = await runPipeline(provider, provider.model, input, () => {});
+
+    expect(result.pairing_result.status).toBe("ok");
     expect(result.pairing_result.best_pair).toBeTruthy();
+    const pairedNames = new Set(result.pairing_result.best_pair.pair);
+    expect(pairedNames.has("a") && pairedNames.has("b")).toBe(false);
+  });
+
+  it("reports an honest unavailable result with no invented pair name, score, or metric when every pair evaluation fails", async () => {
+    const handlers = { ...defaultHandlers(), "pairing-analysis": () => { throw new Error("pairing provider error"); } };
+    const provider = createFakePipelineProvider({ handlers });
+
+    const result = await runPipeline(provider, provider.model, defaultInput({ enablePairing: true }), () => {});
+
+    expect(result.pairing_result).toEqual({
+      status: "unavailable",
+      reason: "All pair evaluations failed.",
+      best_pair: null,
+      top_pairs: [],
+    });
+
+    const serialized = JSON.stringify(result.pairing_result);
+    // These are the exact fabricated values the previous "Default pair"
+    // fallback invented — none may appear anywhere in an unavailable result.
+    expect(serialized).not.toMatch(/7\.0/);
+    expect(serialized).not.toMatch(/0\.75/);
+    expect(serialized).not.toMatch(/0\.7/);
+    expect(serialized).not.toMatch(/Default pair/i);
+  });
+
+  it("still produces a full decision result (pairing is optional) when pairing is unavailable", async () => {
+    const handlers = { ...defaultHandlers(), "pairing-analysis": () => { throw new Error("pairing provider error"); } };
+    const provider = createFakePipelineProvider({ handlers });
+
+    const result = await runPipeline(provider, provider.model, defaultInput({ enablePairing: true }), () => {});
+    expect(result.decision_result.recommended_candidate_id).toBeTruthy();
+    expect(result.candidate_evaluations.length).toBeGreaterThan(0);
   });
 });
 

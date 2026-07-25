@@ -94,6 +94,8 @@ AdaptabilityScore = raw / 0.65
 
 `cross_scenario_consistency` itself is no longer computed as a number at all — it is returned as the literal string `"not_measured"` in the API response (`outcome_models`, `candidate_evaluations[].outcome_model`, `adaptability_profiles`) and displayed as such in the UI, rather than silently feeding a fabricated value into a hidden internal calculation with zero visibility. Genuine cross-scenario consistency requires actually running the pipeline against multiple scenarios and comparing results — that capability does not exist yet (Phase 3, `docs/V2_ROADMAP.md`).
 
+**Post-review correction (Phase 1D)**: `adaptability_profiles[].best_scenario` and `.worst_scenario` previously reported the current run's scenario as "best" and a fixed phrase ("Rapid crisis/pivot scenario") as "worst," which implied the system had actually observed how each candidate performs across different scenarios. It hadn't — no multi-scenario execution occurs. Both fields are now always the literal string `"not_measured"`, and the accompanying `resilience_note` states only that the adaptability score is "a heuristic derived only from the criteria observed in this run" and that cross-scenario resilience has not been measured — it no longer claims a candidate performs best in the current scenario or would struggle in a rapid pivot/crisis scenario.
+
 ### Opportunity-cost risk
 
 ```text

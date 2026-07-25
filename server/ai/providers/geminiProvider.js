@@ -1,5 +1,7 @@
 /**
- * @file Gemini adapter (Phase 1A). Not wired into the active pipeline yet.
+ * @file Gemini adapter. An optional alternative provider, wired into the
+ * active pipeline via server/ai/providerFactory.js for controlled
+ * comparison and experimentation (set AI_PROVIDER=gemini to use it).
  *
  * Uses the official `@google/genai` package. The client is constructed with
  * `httpOptions.retryOptions.attempts: 1` — confirmed against the SDK's own

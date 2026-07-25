@@ -59,6 +59,40 @@ provider-architecture reasoning.
   vulnerabilities via safe in-range fixes only (no `--force`, no major
   version bumps); the backend was split into `server/{config,ai,domain,
   pipeline,http}` module boundaries; this full documentation pass.
+- **Phase 1 post-review corrections — Done, on the same PR #2 (not yet
+  merged; not a new phase number).** A review of the completed Phase
+  1B/1C/1D work (PR #2) found remaining behavior/terminology that still
+  contradicted the honesty and technical-defensibility goals above.
+  Corrected on `v2/phase-1-completion`, still awaiting explicit approval
+  to merge:
+  1. candidate-scoring concurrency is now a configurable, validated
+     `AI_CANDIDATE_CONCURRENCY` env var (default 1) instead of a hardcoded
+     `2`, resolved once by `server.mjs` and passed down explicitly —
+     `server/pipeline/runPipeline.js` never reads `process.env` itself;
+  2. the pairing stage's remaining fabricated "Default pair" fallback (P0.5
+     above described this as narrowed, not fully resolved — it is now
+     fully resolved) was removed; an all-pairs-failed run now returns an
+     honest `{"status":"unavailable", ...}` result instead of an invented
+     pair;
+  3. `adaptability_profiles[].best_scenario`/`.worst_scenario` no longer
+     claim a candidate performs best in the current scenario or would
+     struggle in a "Rapid crisis/pivot scenario" — both are always
+     `"not_measured"` until real multi-scenario execution exists (Phase 3);
+  4. `bias_confidence_reviews`/`bias_flags` were renamed to
+     `confidence_evidence_reviews`/`confidence_evidence_flags` (no
+     compatibility alias kept — this is still pre-production);
+  5. `agent_outputs`/`agent_name`/`agent_role` and every "X Agent" stage
+     display name were renamed to `pipeline_stage_outputs`/`stage_name`/
+     `stage_role`/"X ... Stage" (backend, frontend rendering, and the
+     live-progress "Decision Pipeline" heading, previously "Agent
+     Pipeline") — ScenarioRank is a fixed orchestrated pipeline, not a
+     multi-agent architecture (P1.6);
+  6. stale header comments on `server/ai/providers/groqProvider.js` and
+     `geminiProvider.js` claiming they were "not wired into the active
+     pipeline" (true in Phase 1A, false since Phase 1B) were corrected.
+
+  See `docs/PROJECT_STATUS.md` for the exact test counts, verification
+  results, and the real Groq end-to-end retest at concurrency 1.
 
 Deferred out of Phase 1 entirely, unchanged (see `docs/architecture/KNOWN_LIMITATIONS.md`):
 replacing misleading opportunity-cost terminology with a real comparative

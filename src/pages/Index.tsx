@@ -20,12 +20,23 @@ interface OutcomeModel { expected_execution_success: number; scenario_fit: numbe
 interface CandidateEvaluation { candidate_id: string; candidate_name: string; rank: number; weighted_fit_score: number; risk_adjusted_score: number; expected_outcome_score: number; overall_confidence: number; strategic_labels: string[]; winner_reason?: string; trade_off_note?: string; criteria_scores: Record<string, CriterionScore>; strengths: string[]; weaknesses: string[]; risk_profile: RiskProfile; outcome_model: OutcomeModel; }
 interface DecisionResult { recommended_candidate_id: string; recommended_candidate_name: string; decision_mode: string; scenario: string; final_label: string; key_reason: string; overall_confidence: number; executive_interpretation: string; }
 interface TradeOffCard { title: string; description: string; type: string; severity?: string; }
-interface AdaptabilityProfile { candidate_name: string; adaptability_score: number; best_scenario: string; worst_scenario: string; resilience_note: string; cross_scenario_consistency?: "not_measured" | null; }
-interface AgentOutput { agent_name: string; agent_role: string; inputs: string[]; outputs: string[]; summary: string; }
-interface BiasReview { candidate_id: string; candidate_name: string; overall_confidence: number; bias_flags: Array<{ type: string; severity: string; description: string; }>; recommend_human_review: boolean; }
+// best_scenario/worst_scenario are always "not_measured" until real
+// multi-scenario execution exists (docs/architecture/KNOWN_LIMITATIONS.md
+// P0.2) — typed as a union so a future real value remains representable.
+interface AdaptabilityProfile { candidate_name: string; adaptability_score: number; best_scenario: string | "not_measured"; worst_scenario: string | "not_measured"; resilience_note: string; cross_scenario_consistency?: "not_measured" | null; }
+// Renamed from AgentOutput: ScenarioRank is a fixed orchestrated pipeline,
+// not a multi-agent system — see docs/decisions/ADR-0002-provider-abstraction.md.
+interface PipelineStageOutput { stage_name: string; stage_role: string; inputs: string[]; outputs: string[]; summary: string; }
+// Renamed from BiasReview/bias_flags: this stage checks response
+// confidence and evidence length, not demographic or legal bias.
+interface ConfidenceEvidenceReview { candidate_id: string; candidate_name: string; overall_confidence: number; confidence_evidence_flags: Array<{ type: string; severity: string; description: string; }>; recommend_human_review: boolean; }
 interface PairResult { pair: [string, string]; pair_score: number; explanation: string; scenario_coverage?: number; complementarity?: number; overlap_risk?: number; conflict_risk?: number; execution_cohesion?: number; pair_adaptability?: number; }
-interface RunMetadata { provider: string; model: string; promptVersions: Record<string, string>; schemaVersions: Record<string, string>; attempts: Record<string, number>; startedAt: string; completedAt: string; }
-interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { title: string; key_requirements: string[]; complexity: string; }; scenario_analysis: { scenario: string; key_pressures: string[]; weight_rationale: string; }; candidate_evaluations: CandidateEvaluation[]; bias_confidence_reviews: BiasReview[]; decision_result: DecisionResult; pairing_result?: { best_pair: PairResult; top_pairs: PairResult[]; }; trade_offs: TradeOffCard[]; adaptability_profiles: AdaptabilityProfile[]; agent_outputs: AgentOutput[]; executive_summary: { recommendation: string; reason: string; trade_off: string; opportunity_cost: string; adaptability: string; alternative: string; }; run_metadata?: RunMetadata; }
+// No fabricated fallback pair (docs/architecture/KNOWN_LIMITATIONS.md P0.5):
+// when every pair evaluation fails, the backend returns an honest
+// "unavailable" result instead of an invented best_pair.
+type PairingResult = { status: "ok"; best_pair: PairResult; top_pairs: PairResult[]; } | { status: "unavailable"; reason: string; best_pair: null; top_pairs: []; };
+interface RunMetadata { provider: string; model: string; candidateConcurrency?: number; promptVersions: Record<string, string>; schemaVersions: Record<string, string>; attempts: Record<string, number>; startedAt: string; completedAt: string; }
+interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { title: string; key_requirements: string[]; complexity: string; }; scenario_analysis: { scenario: string; key_pressures: string[]; weight_rationale: string; }; candidate_evaluations: CandidateEvaluation[]; confidence_evidence_reviews: ConfidenceEvidenceReview[]; decision_result: DecisionResult; pairing_result?: PairingResult; trade_offs: TradeOffCard[]; adaptability_profiles: AdaptabilityProfile[]; pipeline_stage_outputs: PipelineStageOutput[]; executive_summary: { recommendation: string; reason: string; trade_off: string; opportunity_cost: string; adaptability: string; alternative: string; }; run_metadata?: RunMetadata; }
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -779,7 +790,7 @@ function PipelineProgress({ stages }: { stages: PipelineStage[] }) {
   return (
     <div className="max-w-3xl mx-auto px-6 py-6">
       <Card>
-        <h3 className="text-sm font-semibold text-white/60 mb-4 uppercase tracking-widest">Agent Pipeline</h3>
+        <h3 className="text-sm font-semibold text-white/60 mb-4 uppercase tracking-widest">Decision Pipeline</h3>
         <div className="space-y-2">
           {stages.map(s => (
             <div key={s.id} className="flex items-center gap-3">
@@ -848,7 +859,7 @@ function CriterionScoringPanel({ criteriaScores }: { criteriaScores: Record<stri
 }
 
 export function Results({ response }: { response: PipelineResponse }) {
-  const [tab, setTab] = useState<"overview" | "candidates" | "analysis" | "pairing" | "agents">("overview");
+  const [tab, setTab] = useState<"overview" | "candidates" | "analysis" | "pairing" | "pipeline">("overview");
   const winner = response.candidate_evaluations[0];
   const hasPairing = !!response.pairing_result;
 
@@ -869,7 +880,7 @@ export function Results({ response }: { response: PipelineResponse }) {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white/5 rounded-xl p-1">
-        {(["overview", "candidates", "analysis", ...(hasPairing ? ["pairing"] : []), "agents"] as const).map(t => (
+        {(["overview", "candidates", "analysis", ...(hasPairing ? ["pairing"] : []), "pipeline"] as const).map(t => (
           <button key={t} onClick={() => setTab(t as typeof tab)}
             className={cn("flex-1 py-1.5 rounded-lg text-xs font-medium capitalize transition-all", tab === t ? "bg-white/10 text-white" : "text-white/40 hover:text-white/60")}
           >{t}</button>
@@ -978,13 +989,13 @@ export function Results({ response }: { response: PipelineResponse }) {
             </div>
           </Card>
 
-          {response.bias_confidence_reviews.some(r => r.bias_flags.length > 0) && (
+          {response.confidence_evidence_reviews.some(r => r.confidence_evidence_flags.length > 0) && (
             <Card>
               <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Confidence & Evidence Flags</h3>
-              {response.bias_confidence_reviews.filter(r => r.bias_flags.length > 0).map(r => (
+              {response.confidence_evidence_reviews.filter(r => r.confidence_evidence_flags.length > 0).map(r => (
                 <div key={r.candidate_id} className="mb-3">
                   <div className="text-sm font-medium text-white mb-1">{r.candidate_name}</div>
-                  {r.bias_flags.map((f, i) => (
+                  {r.confidence_evidence_flags.map((f, i) => (
                     <div key={i} className="text-xs border-l-2 border-amber-400/40 pl-2 mb-1">
                       <span className="text-amber-300">{f.type}</span>
                       <span className="text-white/40 ml-2">{f.description}</span>
@@ -997,7 +1008,19 @@ export function Results({ response }: { response: PipelineResponse }) {
         </div>
       )}
 
-      {tab === "pairing" && response.pairing_result && (
+      {tab === "pairing" && response.pairing_result && response.pairing_result.status === "unavailable" && (
+        <div className="space-y-4">
+          <Card className="border-white/10">
+            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Pairing Unavailable</h3>
+            <p className="text-sm text-white/70 leading-relaxed">
+              We couldn't evaluate leadership pairs for this run. No pair result is available — nothing below is a real recommendation.
+            </p>
+            <p className="text-xs text-white/40 mt-2">You can try running the evaluation again.</p>
+          </Card>
+        </div>
+      )}
+
+      {tab === "pairing" && response.pairing_result && response.pairing_result.status === "ok" && (
         <div className="space-y-4">
           <Card className="border-amber-400/20">
             <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Best Leadership Pair</h3>
@@ -1043,15 +1066,15 @@ export function Results({ response }: { response: PipelineResponse }) {
         </div>
       )}
 
-      {tab === "agents" && (
+      {tab === "pipeline" && (
         <div className="space-y-3">
-          {response.agent_outputs.map(a => (
-            <Card key={a.agent_name}>
+          {response.pipeline_stage_outputs.map(a => (
+            <Card key={a.stage_name}>
               <div className="flex justify-between items-start mb-2">
-                <div className="font-semibold text-sm text-white">{a.agent_name}</div>
-                <Badge>{a.agent_role.includes("LLM") ? "LLM" : "Deterministic"}</Badge>
+                <div className="font-semibold text-sm text-white">{a.stage_name}</div>
+                <Badge>{a.stage_role.includes("LLM") ? "LLM" : "Deterministic"}</Badge>
               </div>
-              <p className="text-xs text-white/50 mb-3">{a.agent_role}</p>
+              <p className="text-xs text-white/50 mb-3">{a.stage_role}</p>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div><div className="text-white/30 mb-1">Inputs</div>{a.inputs.map(i => <div key={i} className="text-white/60">→ {i}</div>)}</div>
                 <div><div className="text-white/30 mb-1">Outputs</div>{a.outputs.map(o => <div key={o} className="text-white/60">← {o}</div>)}</div>
