@@ -73,7 +73,7 @@ export function defineProviderContractTests({ providerName, model, secretApiKey,
   });
 
   it("exhausts retries and reports attempts when every response fails schema validation", async () => {
-    const { provider, client } = build([
+    const { provider } = build([
       { type: "success", text: SCHEMA_INVALID_TEXT },
       { type: "success", text: SCHEMA_INVALID_TEXT },
     ]);
