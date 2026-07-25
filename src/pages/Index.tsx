@@ -8,6 +8,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { BACKEND_URL } from "@/lib/backendUrl";
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -28,12 +29,6 @@ interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { t
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
-// Env-safe backend URL (Phase 1D): configured via VITE_BACKEND_URL, with
-// the previous hardcoded localhost value kept only as a development
-// fallback. Never a provider API key or anything backend-secret — Vite
-// only exposes VITE_-prefixed variables to the browser bundle, so no
-// provider credential may ever use that prefix (see .env.example).
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
 const DEFAULT_ROLE = {
   title: "VP of People & Culture",
@@ -571,7 +566,7 @@ function Landing({ onStart }: { onStart: () => void }) {
   );
 }
 
-function EvalForm({
+export function EvalForm({
   role, setRole, scenarios, setScenarios, scenario, setScenario, decisionMode, setDecisionMode,
   candidates, setCandidates, enablePairing, setEnablePairing, onRun, isRunning,
   onGenerateScenarios, isGeneratingScenarios, onLoadDefaults, onResetInputs, aiEnabled,
@@ -852,7 +847,7 @@ function CriterionScoringPanel({ criteriaScores }: { criteriaScores: Record<stri
   );
 }
 
-function Results({ response }: { response: PipelineResponse }) {
+export function Results({ response }: { response: PipelineResponse }) {
   const [tab, setTab] = useState<"overview" | "candidates" | "analysis" | "pairing" | "agents">("overview");
   const winner = response.candidate_evaluations[0];
   const hasPairing = !!response.pairing_result;
