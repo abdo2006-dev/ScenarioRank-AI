@@ -2,7 +2,14 @@ import { describe, it, expect } from "vitest";
 import { writeFileSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { loadEnv, checkProviderConfig, resolveStartupAiStatus, SUPPORTED_PROVIDERS } from "./env.js";
+import {
+  loadEnv,
+  checkProviderConfig,
+  resolveStartupAiStatus,
+  resolveCandidateConcurrency,
+  SUPPORTED_PROVIDERS,
+  DEFAULT_CANDIDATE_CONCURRENCY,
+} from "./env.js";
 
 function withTempDir(files, run) {
   const dir = mkdtempSync(join(tmpdir(), "scenariorank-env-test-"));
@@ -142,5 +149,41 @@ describe("resolveStartupAiStatus", () => {
       nodeEnv: "development",
     });
     expect(status).toEqual({ aiEnabled: true, provider: "gemini", reason: null });
+  });
+});
+
+describe("resolveCandidateConcurrency", () => {
+  it("defaults to 1 when AI_CANDIDATE_CONCURRENCY is unset", () => {
+    expect(resolveCandidateConcurrency({ env: {} })).toEqual({ value: 1, usedDefault: true });
+    expect(DEFAULT_CANDIDATE_CONCURRENCY).toBe(1);
+  });
+
+  it("defaults to 1 when the value is an empty string", () => {
+    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "" } })).toEqual({ value: 1, usedDefault: true });
+  });
+
+  it("accepts a valid override within range", () => {
+    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "3" } })).toEqual({ value: 3, usedDefault: false });
+  });
+
+  it("accepts the boundary values 1 and 4", () => {
+    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "1" } })).toEqual({ value: 1, usedDefault: false });
+    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "4" } })).toEqual({ value: 4, usedDefault: false });
+  });
+
+  it("falls back to the default for a non-integer value", () => {
+    const result = resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "2.5" } });
+    expect(result).toEqual({ value: 1, usedDefault: true, invalidInput: "2.5" });
+  });
+
+  it("falls back to the default for a non-numeric value", () => {
+    const result = resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "fast" } });
+    expect(result).toEqual({ value: 1, usedDefault: true, invalidInput: "fast" });
+  });
+
+  it("falls back to the default when the value is out of the 1-4 range", () => {
+    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "0" } })).toEqual({ value: 1, usedDefault: true, invalidInput: "0" });
+    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "5" } })).toEqual({ value: 1, usedDefault: true, invalidInput: "5" });
+    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "-1" } })).toEqual({ value: 1, usedDefault: true, invalidInput: "-1" });
   });
 });

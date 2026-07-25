@@ -40,6 +40,7 @@ import { buildScenarioAnalysisPrompt, promptId as scenarioAnalysisPromptId, prom
 import { buildCandidateScoringPrompt, promptId as candidateScoringPromptId, promptVersion as candidateScoringPromptVersion } from "../ai/prompts/candidateScoring.prompt.js";
 import { buildDecisionExplanationPrompt, promptId as decisionExplanationPromptId, promptVersion as decisionExplanationPromptVersion } from "../ai/prompts/decisionExplanation.prompt.js";
 import { buildPairingAnalysisPrompt, promptId as pairingAnalysisPromptId, promptVersion as pairingAnalysisPromptVersion } from "../ai/prompts/pairingAnalysis.prompt.js";
+import { DEFAULT_CANDIDATE_CONCURRENCY } from "../config/env.js";
 
 const CANDIDATE_SCORING_MAX_TOKENS = 1400;
 const ROLE_ANALYSIS_MAX_TOKENS = 2000;
@@ -238,7 +239,7 @@ export function outcomeModeling(scoring, wfs, oc) {
 
 // ===== RUN METADATA =====
 
-function createRunMetadataTracker(provider, model) {
+function createRunMetadataTracker(provider, model, candidateConcurrency) {
   const promptVersions = {};
   const schemaVersions = {};
   const attempts = {};
@@ -254,6 +255,7 @@ function createRunMetadataTracker(provider, model) {
       return {
         provider: provider.name,
         model,
+        candidateConcurrency,
         promptVersions,
         schemaVersions,
         attempts,
@@ -274,8 +276,14 @@ function createRunMetadataTracker(provider, model) {
  *   this run, recorded in metadata only (the adapter already has it bound).
  * @param {object} input
  * @param {(stages: object[]) => void} [onUpdate]
+ * @param {{ candidateConcurrency?: number }} [options] - `candidateConcurrency`
+ *   is resolved once by the caller (server.mjs, via
+ *   server/config/env.js#resolveCandidateConcurrency) and passed in here —
+ *   this function never reads process.env itself. Defaults to 1 (the safe
+ *   default) if the caller omits it.
  */
-export async function runPipeline(provider, model, input, onUpdate) {
+export async function runPipeline(provider, model, input, onUpdate, options = {}) {
+  const candidateConcurrency = options.candidateConcurrency ?? DEFAULT_CANDIDATE_CONCURRENCY;
   const enablePairing = input.options?.enable_pair_simulation ?? false;
   const stages = [
     { id: "input", label: "Input Received", status: "pending" },
@@ -296,7 +304,7 @@ export async function runPipeline(provider, model, input, onUpdate) {
     catch (e) { update(id, { status: "failed", duration_ms: Date.now() - t, warnings: [e.message] }); throw e; }
   };
 
-  const runMeta = createRunMetadataTracker(provider, model);
+  const runMeta = createRunMetadataTracker(provider, model, candidateConcurrency);
 
   await timed("input", async () => { update("input", { summary: `Received ${input.candidates.length} candidates for "${input.scenario}".` }); });
 
@@ -319,7 +327,7 @@ export async function runPipeline(provider, model, input, onUpdate) {
 
   const scorings = await timed("scoring", async () => {
     update("scoring", { summary: `Scoring ${input.candidates.length} candidates…` });
-    const res = await mapWithConcurrency(input.candidates, 2, async (c) => {
+    const res = await mapWithConcurrency(input.candidates, candidateConcurrency, async (c) => {
       const { data, meta } = await runCandidateScoring(provider, c, input.scenario, input.role.title);
       runMeta.record(`scoring:${c.id}`, { promptVersion: candidateScoringPromptVersion, schemaVersion: CANDIDATE_SCORING_SCHEMA_VERSION, meta });
       return data;

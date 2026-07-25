@@ -16,13 +16,15 @@ const PIPELINE_TIMEOUT_MS = 150_000; // 2.5 minutes
 
 /**
  * @param {import("express").Express} app
- * @param {{ provider: import("../ai/types.js").AIProvider | null, aiEnabled: boolean }} deps
+ * @param {{ provider: import("../ai/types.js").AIProvider | null, aiEnabled: boolean, candidateConcurrency: number }} deps
  *   `provider` is resolved exactly once at process startup (see
  *   server.mjs) and reused for every request — this is what guarantees
  *   every run uses the same provider/model, since there is only ever one
- *   instance in the process for the app's whole lifetime.
+ *   instance in the process for the app's whole lifetime. `candidateConcurrency`
+ *   is likewise resolved once at startup (server/config/env.js) — routes
+ *   never read process.env directly.
  */
-export function registerRoutes(app, { provider, aiEnabled }) {
+export function registerRoutes(app, { provider, aiEnabled, candidateConcurrency }) {
   app.get("/health", (_req, res) => {
     res.json({
       status: "ok",
@@ -53,7 +55,7 @@ export function registerRoutes(app, { provider, aiEnabled }) {
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error(`Pipeline timed out after ${PIPELINE_TIMEOUT_MS / 1000}s. Try fewer candidates or a shorter description.`)), PIPELINE_TIMEOUT_MS)
       );
-      const result = await Promise.race([runPipeline(provider, provider.model, input), timeoutPromise]);
+      const result = await Promise.race([runPipeline(provider, provider.model, input, undefined, { candidateConcurrency }), timeoutPromise]);
       res.json(result);
     } catch (err) {
       console.error("Pipeline error:", err.message);
@@ -98,7 +100,7 @@ export function registerRoutes(app, { provider, aiEnabled }) {
         setTimeout(() => reject(new Error(`Pipeline timed out after ${PIPELINE_TIMEOUT_MS / 1000}s. Try fewer candidates or a shorter description.`)), PIPELINE_TIMEOUT_MS)
       );
       const result = await Promise.race([
-        runPipeline(provider, provider.model, input, (stages) => send("stage_update", stages)),
+        runPipeline(provider, provider.model, input, (stages) => send("stage_update", stages), { candidateConcurrency }),
         timeoutPromise,
       ]);
       send("complete", result);

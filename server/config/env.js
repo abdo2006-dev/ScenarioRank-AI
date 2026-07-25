@@ -96,6 +96,40 @@ export function checkProviderConfig({ env = process.env } = {}) {
   return { ok: true, provider };
 }
 
+export const DEFAULT_CANDIDATE_CONCURRENCY = 1;
+export const MIN_CANDIDATE_CONCURRENCY = 1;
+export const MAX_CANDIDATE_CONCURRENCY = 4;
+
+/**
+ * Resolves AI_CANDIDATE_CONCURRENCY — how many candidate-scoring requests
+ * run at once. Defaults to 1: a real Groq smoke test during Phase 1D
+ * showed the default account tier returning HTTP 429 the moment two
+ * candidate-scoring requests ran concurrently, while sequential calls
+ * succeeded reliably (see docs/PROJECT_STATUS.md and
+ * docs/decisions/ADR-0003-runtime-provider-configuration.md). Operators
+ * with a higher provider quota may deliberately raise this — see
+ * .env.example.
+ *
+ * This is a performance/reliability tuning knob, not a correctness
+ * requirement, so an invalid value falls back to the safe default with a
+ * clear reason rather than failing startup (unlike provider
+ * configuration, which does fail startup in production).
+ * @param {{env?: Record<string,string|undefined>}} [options]
+ * @returns {{ value: number, usedDefault: boolean, invalidInput?: string }}
+ */
+export function resolveCandidateConcurrency({ env = process.env } = {}) {
+  const raw = env.AI_CANDIDATE_CONCURRENCY;
+  if (raw === undefined || raw.trim() === "") {
+    return { value: DEFAULT_CANDIDATE_CONCURRENCY, usedDefault: true };
+  }
+  const parsed = Number(raw);
+  const isValidInteger = Number.isInteger(parsed);
+  if (!isValidInteger || parsed < MIN_CANDIDATE_CONCURRENCY || parsed > MAX_CANDIDATE_CONCURRENCY) {
+    return { value: DEFAULT_CANDIDATE_CONCURRENCY, usedDefault: true, invalidInput: raw };
+  }
+  return { value: parsed, usedDefault: false };
+}
+
 /**
  * Startup gate. In production, invalid/missing selected-provider
  * configuration fails the process immediately and clearly (throws) rather

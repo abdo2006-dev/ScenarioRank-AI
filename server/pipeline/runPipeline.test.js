@@ -49,6 +49,70 @@ describe("runPipeline — one provider per run", () => {
   });
 });
 
+describe("runPipeline — candidate-scoring concurrency is configurable and caller-controlled", () => {
+  /**
+   * Builds a fake provider whose candidate-scoring handler tracks how many
+   * calls are in flight simultaneously, so tests can assert on the actual
+   * concurrency the pipeline used — not just the configured number.
+   */
+  function createConcurrencyTrackingProvider() {
+    let active = 0;
+    let maxObserved = 0;
+    const handlers = {
+      ...defaultHandlers(),
+      "candidate-scoring": async (request) => {
+        active += 1;
+        maxObserved = Math.max(maxObserved, active);
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        active -= 1;
+        const idMatch = request.prompt.match(/Candidate ID: (\S+)/);
+        const id = idMatch?.[1] ?? "unknown";
+        return {
+          candidate_id: id,
+          candidate_name: id,
+          criteria_scores: criteriaScoresFixture(6),
+          strengths: ["s"],
+          weaknesses: ["w"],
+          best_fit_contexts: ["c"],
+        };
+      },
+    };
+    const provider = createFakePipelineProvider({ handlers });
+    return { provider, getMaxObserved: () => maxObserved };
+  }
+
+  it("defaults to concurrency 1 when no option is passed, never running two candidate-scoring calls at once", async () => {
+    const { provider, getMaxObserved } = createConcurrencyTrackingProvider();
+    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c"] }), () => {});
+    expect(getMaxObserved()).toBe(1);
+  });
+
+  it("respects an explicit candidateConcurrency of 1", async () => {
+    const { provider, getMaxObserved } = createConcurrencyTrackingProvider();
+    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c"] }), () => {}, { candidateConcurrency: 1 });
+    expect(getMaxObserved()).toBe(1);
+  });
+
+  it("respects a configured higher candidateConcurrency", async () => {
+    const { provider, getMaxObserved } = createConcurrencyTrackingProvider();
+    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c", "d"] }), () => {}, { candidateConcurrency: 3 });
+    expect(getMaxObserved()).toBe(3);
+  });
+
+  it("records the resolved concurrency in run_metadata", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    const result = await runPipeline(provider, provider.model, defaultInput(), () => {}, { candidateConcurrency: 2 });
+    expect(result.run_metadata.candidateConcurrency).toBe(2);
+  });
+
+  it("never constructs a second provider when a non-default concurrency is used", async () => {
+    let constructions = 0;
+    const provider = (() => { constructions += 1; return createFakePipelineProvider({ handlers: defaultHandlers() }); })();
+    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c", "d"] }), () => {}, { candidateConcurrency: 4 });
+    expect(constructions).toBe(1);
+  });
+});
+
 describe("runPipeline — deterministic ranking is independent of LLM explanation wording", () => {
   it("keeps the same winner regardless of what the mocked decision explanation says", async () => {
     const baseHandlers = defaultHandlers({ scoreByCandidateId: { a: 9, b: 3 } });
