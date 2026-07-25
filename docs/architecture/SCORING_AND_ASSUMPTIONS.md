@@ -19,7 +19,7 @@ The LLM currently supplies:
 - pair-level estimates from 0 to 1;
 - natural-language explanations and summaries.
 
-These outputs are not currently validated against strict runtime schemas.
+**Phase 1B update:** these outputs are now validated against strict runtime Zod schemas (`server/ai/schemas/`) before any deterministic formula below runs — see `docs/decisions/ADR-0002-provider-abstraction.md` and `docs/architecture/KNOWN_LIMITATIONS.md` P0.4.
 
 ## Deterministic formulas
 
@@ -82,14 +82,17 @@ This formula combines a capability estimate and confidence estimate in the same 
 
 ### Adaptability
 
+**Phase 1C correctness fix** (`docs/architecture/KNOWN_LIMITATIONS.md` P0.2, `docs/decisions/ADR-0003-runtime-provider-configuration.md`): the formula previously included a `0.35 * cross_scenario_consistency` term fed a hardcoded `75` at the call site — meaning even a candidate scoring 0 on every real criterion still received a fabricated 26.25-point floor. That term has been removed, not replaced with another constant or an invented replacement formula. The three genuinely model-derived criteria keep their relative weight to each other, renormalized to sum to 1.0:
+
 ```text
-0.35 * cross_scenario_consistency
-+ 0.25 * transformation_leadership * 10
-+ 0.20 * stakeholder_management * 10
-+ 0.20 * innovation_digital * 10
+raw = 0.25 * transformation_leadership * 10
+    + 0.20 * stakeholder_management * 10
+    + 0.20 * innovation_digital * 10
+
+AdaptabilityScore = raw / 0.65
 ```
 
-The current implementation always passes `75` as `cross_scenario_consistency`. It therefore does not yet measure real cross-scenario consistency.
+`cross_scenario_consistency` itself is no longer computed as a number at all — it is returned as the literal string `"not_measured"` in the API response (`outcome_models`, `candidate_evaluations[].outcome_model`, `adaptability_profiles`) and displayed as such in the UI, rather than silently feeding a fabricated value into a hidden internal calculation with zero visibility. Genuine cross-scenario consistency requires actually running the pipeline against multiple scenarios and comparing results — that capability does not exist yet (Phase 3, `docs/V2_ROADMAP.md`).
 
 ### Opportunity-cost risk
 

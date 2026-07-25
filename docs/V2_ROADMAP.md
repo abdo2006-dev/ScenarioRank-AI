@@ -20,33 +20,47 @@ fixes, and the test/documentation work stay independently reviewable and
 revertable. See `docs/decisions/ADR-0002-provider-abstraction.md` for the
 provider-architecture reasoning.
 
-- **Phase 1A — provider abstraction and test foundation (done, on
-  `v2/phase-1a-provider-abstraction`, not yet merged to `main`).** Added a
-  real backend test runner (`server/**/*.test.js` under a Node-environment
-  Vitest config, previously not executed at all); characterization-tested
-  and verbatim-moved the deterministic scoring formulas to
-  `server/domain/scoring.js`; built a provider-neutral contract
-  (`server/ai/types.js`, `errors.js`, `providerFactory.js`) with tested Groq
-  and Gemini adapters. **The active pipeline still calls Anthropic directly
-  through `server.mjs`'s `callClaudeJSON()` — nothing in this subphase is
-  wired into a real request yet.**
-- **Phase 1B — structured-outputs cutover (not started).** Migrate the six
-  `callClaudeJSON()` call sites onto the Phase 1A provider abstraction, one
-  stage at a time, each verified end-to-end before the next; author the six
-  production Zod schemas; retire the Anthropic-specific request/JSON-repair
-  code once every stage is migrated.
-- **Phase 1C — correctness fixes (not started).**
-  1. select actual top-ranked candidates for pair simulation;
-  2. relabel (not reformulate) hardcoded cross-scenario consistency — a
-     real fix needs multi-scenario execution, deferred to Phase 3;
-  3. rename “Bias & Confidence Review” to “Confidence & Evidence Review”;
-  4. caveat LLM self-reported confidence as uncalibrated in copy.
-- **Phase 1D — tests, cleanup, documentation (not started).** Route/SSE
-  integration tests, pre-existing lint-error cleanup, dependency-audit
-  classification, environment-safe backend URL configuration for the
-  frontend, final documentation pass.
+- **Phase 1A — provider abstraction and test foundation. Done, merged to
+  `main`** (PR #1, squash commit `f6d3058`). Added a real backend test
+  runner, characterization-tested and moved deterministic scoring to
+  `server/domain/scoring.js`, built the provider-neutral contract with
+  tested Groq and Gemini adapters. The active pipeline still called
+  Anthropic directly at the end of this subphase.
+- **Phase 1B — structured-outputs cutover. Done.** All six former
+  `callClaudeJSON()` call sites (role analysis, scenario analysis,
+  candidate scoring, decision explanation, pairing, scenario generation)
+  now go through `provider.generateStructured()` with production Zod
+  schemas (`server/ai/schemas/`) and extracted prompts
+  (`server/ai/prompts/`). One provider instance is resolved once at
+  process startup and reused for the process's entire lifetime — a
+  stronger guarantee than "once per run." The Anthropic-specific request
+  path, its manual JSON repair, and its environment variable have all been
+  removed (see `docs/decisions/ADR-0003-runtime-provider-configuration.md`).
+  Run metadata (provider, model, prompt/schema versions, attempts,
+  timestamps) is included in every response.
+- **Phase 1C — correctness fixes. Done.**
+  1. pairing selects the actual top four ranked candidates, with a
+     regression test proving submission order no longer matters;
+  2. the hardcoded `cross_scenario_consistency: 75` was removed (not
+     replaced by another constant) — the adaptability formula now uses
+     only real model-derived criteria, and the concept is honestly exposed
+     as `"not_measured"` in the API. Real multi-scenario measurement is
+     still Phase 3;
+  3. "Bias & Confidence Review" renamed to "Confidence & Evidence Review"
+     everywhere (stage label, SSE, frontend, `agent_outputs`, docs);
+  4. UI confidence labels now read "Model conf." with a tooltip clarifying
+     it is not a calibrated probability;
+  5. the frontend backend URL is now `VITE_BACKEND_URL`-configurable.
+- **Phase 1D — tests, cleanup, documentation. Done.** 159 backend tests
+  (was 0 running at all before Phase 1A) and 11 frontend tests (was 1
+  placeholder) including full mocked-pipeline, provider-contract, and
+  SSE-route coverage; the pre-existing general lint baseline (3 errors, 7
+  warnings) is now 0 problems; `npm audit` went from 22 to 9
+  vulnerabilities via safe in-range fixes only (no `--force`, no major
+  version bumps); the backend was split into `server/{config,ai,domain,
+  pipeline,http}` module boundaries; this full documentation pass.
 
-Deferred out of Phase 1 entirely (see `docs/architecture/KNOWN_LIMITATIONS.md`):
+Deferred out of Phase 1 entirely, unchanged (see `docs/architecture/KNOWN_LIMITATIONS.md`):
 replacing misleading opportunity-cost terminology with a real comparative
 metric, and a defensible bias-detection methodology — both need design
 work beyond a correctness fix.

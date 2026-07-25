@@ -1,7 +1,7 @@
 # ADR-0002: Provider-neutral AI integration (Groq default, Gemini optional)
 
-- **Status:** Accepted (Phase 1A: abstraction built; Phase 1B: pipeline cutover)
-- **Date:** 2026-07-25
+- **Status:** Accepted and implemented (Phase 1A built the abstraction; Phase 1B completed the pipeline cutover — the Anthropic-specific path described below has since been removed, see the note at the end of "Why Phase 1A does not yet migrate the active pipeline")
+- **Date:** 2026-07-25 (Phase 1A); cutover completed in the same overall Phase 1 effort
 
 ## Context
 
@@ -160,17 +160,24 @@ schemas:
   reference style — see the strengthened test coverage in
   `server/ai/schemaConversion.test.js`.
 
-### Why Phase 1A does not yet migrate the active pipeline
+### Why Phase 1A did not yet migrate the active pipeline (historical — since resolved)
 
-`providerFactory.js` is not imported anywhere in `server.mjs`. The six
-`callClaudeJSON()` call sites, the prompts, and the Anthropic-specific JSON
-repair are all untouched. Phase 1A's job is to build and prove the
-abstraction (characterization-tested scoring extraction, a real backend
-test runner, two adapters validated against a shared contract-test suite
-with mocked SDK clients) without touching request/response behavior for
-the live application. Cutting the real pipeline stages over to
-`provider.generateStructured()` — one stage at a time, with manual
-end-to-end verification after each — is Phase 1B.
+At the time this ADR was written, `providerFactory.js` was not imported
+anywhere in `server.mjs`. The six `callClaudeJSON()` call sites, the
+prompts, and the Anthropic-specific JSON repair were all untouched.
+Phase 1A's job was to build and prove the abstraction (characterization-
+tested scoring extraction, a real backend test runner, two adapters
+validated against a shared contract-test suite with mocked SDK clients)
+without touching request/response behavior for the live application.
+
+**Update:** Phase 1B has since cut every real pipeline stage over to
+`provider.generateStructured()` and removed the Anthropic-specific request
+path, its manual JSON repair, and the `ANTHROPIC_API_KEY` environment
+variable entirely. `server.mjs` now resolves the configured provider once
+at startup (`docs/decisions/ADR-0003-runtime-provider-configuration.md`).
+Git history and the preserved `archive/bmw-award-original` branch retain
+the original Anthropic-based implementation; it was not kept as unused
+runtime code in `main`.
 
 ## Consequences
 

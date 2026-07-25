@@ -16,7 +16,12 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 | `src/components/ui/tooltip.tsx` | Active through `App.tsx` | Tooltip provider |
 | `src/hooks/use-toast.ts` | Active transitively | Toast state helper |
 | `src/components/ui/toast.tsx` | Active transitively | Toast UI contract |
-| `server.mjs` | Active, oversized | Entire backend and pipeline |
+| `server.mjs` | Active, thin (Phase 1D) | Composition root only: env loading, provider resolution, app startup |
+| `server/config/env.js` | Active | `.env`/`.env.local` loading, provider-config validation |
+| `server/ai/` | Active | Provider-neutral contract, Groq/Gemini adapters, schemas, prompts |
+| `server/domain/scoring.js` | Active | Deterministic scoring formulas |
+| `server/pipeline/` | Active | Orchestration, deterministic pipeline stages, run metadata |
+| `server/http/` | Active | Express routes and app wiring |
 | `public/demo.html` | Active link target | Standalone system demonstration |
 | `public/pipeline.svg` | Documentation asset | Pipeline image used by README |
 
@@ -73,13 +78,13 @@ src/
 │   └── types/           # inferred/static types
 └── shared/              # reusable UI and utilities
 
-backend/
-├── api/                 # routes and transport concerns
-├── application/         # pipeline orchestration
+backend/ (achieved in Phase 1D as server/, close to this shape)
+├── http/                # routes and transport concerns
+├── pipeline/            # orchestration + deterministic stages
 ├── domain/              # formulas and decision rules
-├── ai/                  # providers, prompts, structured outputs
-├── infrastructure/      # persistence, logging, configuration
-└── tests/
+├── ai/                  # providers, prompts, structured outputs, schemas
+├── config/              # env loading, provider-config validation
+└── (tests are colocated *.test.js files, not a separate directory)
 ```
 
-This is a target boundary, not the current structure.
+The backend boundary above is now close to reality (`server/{http,pipeline,domain,ai,config}`, Phase 1D) — this map's original recommendation and the actual structure converged. The `src/` (frontend) target boundary is still aspirational; that split remains Phase 2.

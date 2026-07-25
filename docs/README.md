@@ -17,6 +17,8 @@ These documents form the engineering baseline for the post-award V2 refinement.
 
 ## Architecture decisions
 
-- [`decisions/ADR-0001-main-is-v2.md`](./decisions/ADR-0001-main-is-v2.md)
+- [`decisions/ADR-0001-main-is-v2.md`](./decisions/ADR-0001-main-is-v2.md) — why `main` is the public V2 line and the award version is preserved separately.
+- [`decisions/ADR-0002-provider-abstraction.md`](./decisions/ADR-0002-provider-abstraction.md) — why Anthropic coupling was removed in favor of a provider-neutral contract (Groq default, Gemini optional), and why not Google ADK.
+- [`decisions/ADR-0003-runtime-provider-configuration.md`](./decisions/ADR-0003-runtime-provider-configuration.md) — `.env`/`.env.local` precedence, one-provider-per-process-lifetime, and startup validation behavior.
 
 These documents describe the current implementation honestly. They do not imply that planned V2 capabilities already exist.

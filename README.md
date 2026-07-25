@@ -32,15 +32,17 @@ flowchart LR
     F -->|GET /health| B[Node.js + Express backend]
     F -->|POST /api/scenarios| B
     F -->|POST /api/decision/stream via SSE| B
-    B --> O[Pipeline orchestrator in server.mjs]
-    O --> A[Anthropic Messages API]
-    O --> D[Deterministic scoring functions]
-    A --> O
+    B --> O[Pipeline orchestrator: server/pipeline]
+    O --> P[Provider-neutral AI contract: server/ai]
+    P --> A[Configured provider: Groq default, Gemini optional]
+    O --> D[Deterministic scoring: server/domain]
+    A --> P
+    P --> O
     D --> O
-    O -->|stage updates + final JSON| F
+    O -->|stage updates + final JSON + run metadata| F
 ```
 
-The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Several functions are named “agents,” but orchestration, routing, and control remain in normal application code.
+The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Several functions are named "agents," but orchestration, routing, and control remain in normal application code. Every LLM call goes through a provider-neutral contract (`server/ai/`) — never a vendor SDK directly — so the pipeline itself has no Groq- or Gemini-specific code in it. See [`docs/decisions/ADR-0002-provider-abstraction.md`](./docs/decisions/ADR-0002-provider-abstraction.md).
 
 ## Current request pipeline
 
@@ -48,11 +50,11 @@ The current implementation is a sequential **LLM-assisted pipeline**, not a coll
 2. **Scenario analysis — LLM:** adjusts and normalizes weights for the selected business scenario.
 3. **Candidate scoring — LLM:** scores each candidate across seven criteria and returns confidence, evidence, and reasoning.
 4. **Deterministic scoring:** calculates weighted fit, risk dimensions, adaptability, expected outcome, and risk-adjusted scores.
-5. **Confidence and evidence review — deterministic:** flags low confidence and weak evidence. The current code calls this “Bias & Confidence Review,” but it does not yet perform a defensible bias audit.
-6. **Decision explanation — deterministic ranking + LLM explanation:** code selects the ranking key; the LLM generates explanations and summaries.
-7. **Pair simulation — optional LLM + deterministic formula:** estimates pair-level metrics and computes a pair score.
+5. **Confidence and evidence review — deterministic:** flags low confidence and weak evidence. Renamed from "Bias & Confidence Review" — it checks response confidence and evidence length, and is not a demographic or procedural bias audit.
+6. **Decision explanation — deterministic ranking + LLM explanation:** code selects the ranking key and computes the winner before any LLM call; the LLM only generates explanations and summaries from the already-computed result and can never change it.
+7. **Pair simulation — optional LLM + deterministic formula:** estimates pair-level metrics for the top four *ranked* candidates and computes a pair score.
 
-Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
+Every LLM-backed stage is schema-validated (Zod) before its output is used, and every response includes `run_metadata` (provider, model, prompt/schema versions, attempts, timestamps). Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
 
 ## Technology baseline
 
@@ -61,25 +63,22 @@ Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture
 | Frontend | React 18, TypeScript, Vite | Single-page interface and results rendering |
 | Styling/UI | Tailwind CSS, selected Radix/shadcn components | Layout and interface primitives |
 | Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
-| AI provider | Anthropic Messages API | Role/scenario interpretation, candidate scoring, explanations, pair estimates |
+| AI provider | Groq (default), Gemini (optional) via a provider-neutral contract | Role/scenario interpretation, candidate scoring, explanations, pair estimates |
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
-| Validation | Manual checks and JSON repair | Incomplete; Zod is installed but not used for backend schemas |
+| Validation | Zod schemas for every LLM operation | All 6 production schemas validated locally before deterministic code runs |
 | Persistence | None | Runs are not stored |
-| Automated testing | Vitest placeholder only | No meaningful coverage yet |
+| Automated testing | 159 backend + 11 frontend tests | Schemas, providers, full mocked pipeline, SSE routes, and real component rendering |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
 ## Known baseline limitations
 
-The V2 audit has already identified several high-priority issues:
+Fixed in Phase 1 (see [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITATIONS.md) for full before/after detail): pair simulation now selects the top four *ranked* candidates; the hardcoded cross-scenario-consistency value was removed and is now honestly reported as "not measured" rather than replaced with another invented number; the "bias" stage is renamed to "Confidence & Evidence Review"; model output is validated against strict Zod schemas; the frontend backend URL is environment-configurable.
 
-- pair simulation currently selects the first four submitted candidates instead of the top four ranked candidates;
-- cross-scenario consistency is hardcoded to `75`;
-- “best” and “worst” adaptability scenarios are not genuinely simulated;
-- the “bias” stage currently checks confidence and evidence length, not demographic or procedural bias;
-- model-generated JSON is not validated against strict schemas;
-- the backend URL and AI model are hardcoded;
-- the main frontend and backend files are oversized and mix responsibilities;
+Still open:
+
+- "best" and "worst" adaptability scenarios are not genuinely simulated (needs real multi-scenario execution, Phase 3);
+- the main frontend page is still oversized (backend module boundaries were split in Phase 1; frontend split is Phase 2);
 - there is no authentication, rate limiting, persistence, audit trail, or cost tracking;
 - the mathematical coefficients are prototype heuristics and have not been empirically calibrated.
 
@@ -90,7 +89,7 @@ See [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITAT
 ### Prerequisites
 
 - Node.js 18 or newer
-- An Anthropic API key for live AI evaluation
+- A Groq API key for live AI evaluation (default provider), or a Gemini API key if you set `AI_PROVIDER=gemini`
 
 ### Setup
 
@@ -99,8 +98,11 @@ npm install
 
 cp .env.example .env
 # Add your key to .env:
-# ANTHROPIC_API_KEY=your_key_here
+# AI_PROVIDER=groq
+# GROQ_API_KEY=your_key_here
 ```
+
+Prefer `.env.local` over editing `.env` directly for real credentials — it's git-ignored and takes precedence. See [`docs/decisions/ADR-0003-runtime-provider-configuration.md`](./docs/decisions/ADR-0003-runtime-provider-configuration.md).
 
 Run the backend:
 
@@ -135,6 +137,8 @@ Never commit `.env` or API keys.
 - [V2 roadmap](./docs/V2_ROADMAP.md)
 - [Learning checkpoints](./docs/LEARNING_CHECKPOINTS.md)
 - [ADR-0001: main is the V2 line](./docs/decisions/ADR-0001-main-is-v2.md)
+- [ADR-0002: provider abstraction](./docs/decisions/ADR-0002-provider-abstraction.md)
+- [ADR-0003: runtime provider configuration](./docs/decisions/ADR-0003-runtime-provider-configuration.md)
 
 ## Branch model
 
