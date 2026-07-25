@@ -60,6 +60,26 @@ the lifetime of this research). `.env.example` documents a
 verified-at-write-time example and tells the operator to re-check
 `https://ai.google.dev/gemini-api/docs/models` rather than trust it.
 
+### Gemini data-use restriction (unpaid tier)
+
+Groq remains the intended default runtime provider; Gemini is an optional
+comparison/experimentation provider, not a second production path. Do
+**not** send real CVs, candidate records, interview notes, confidential
+material, or any other personal information through Gemini while using an
+unpaid API key — Google's terms for the free tier permit using submitted
+content to improve their services, which is not an acceptable handling
+path for real candidate data. Unpaid Gemini use in this codebase must be
+limited to synthetic or explicitly non-sensitive examples (the kind of
+placeholder role/candidate text already used in `.env.example`-adjacent
+docs and tests). A public or production use of Gemini involving real
+candidate data requires a separate privacy, terms-of-service, consent, and
+paid-service review before it happens — see Google's current Gemini API
+terms and paid-tier data-handling documentation (linked from the Gemini
+API docs referenced elsewhere in this ADR) rather than relying on this
+paragraph as the terms themselves, since they can change. This is
+documentation and configuration guidance only: Phase 1A does not add a
+database, consent system, or privacy UI to enforce it.
+
 ### Why Google ADK was not selected
 
 ScenarioRank's pipeline is 5-7 fixed sequential stages with no dynamic tool
@@ -93,6 +113,52 @@ in this codebase parses the response and re-validates it against the
 caller's Zod schema (`server/ai/providerBase.js`) regardless of what the
 provider claims, and never returns unvalidated data to a caller. This is
 not optional or provider-dependent behavior.
+
+### JSON Schema portability across providers is not guaranteed
+
+Zod is the **canonical** local validation format — every stage's contract
+is written once, as a Zod schema, and that is the only shape any caller
+ever depends on. Both provider adapters convert the same canonical Zod
+schema into generated JSON Schema (`server/ai/schemaConversion.js`), but
+**Groq and Gemini do not necessarily support identical JSON Schema
+features**:
+
+- Groq's strict mode uses the schema for real constrained decoding and
+  documents specific constraints (every object needs
+  `additionalProperties: false` and every property listed in `required`
+  — see `schemaConversion.js`'s module comment for the known limitation
+  this creates for schemas with optional fields).
+- Gemini's `responseJsonSchema` documents support for a set of JSON Schema
+  keywords (`$id`, `$defs`, `$ref`, `$anchor`) but its documentation also
+  offers a separate, more restrictive `responseSchema` field explicitly
+  described as an OpenAPI 3.0 schema subset — evidence that Gemini's JSON
+  Schema support is **narrower than the full spec**, not a drop-in
+  equivalent of what Groq accepts.
+
+**A Zod schema being valid locally, and even converting to JSON Schema
+without error, does not guarantee both providers will accept the
+converted result.** Local Zod validity only proves the schema is
+internally well-formed — it says nothing about whether a specific
+provider's structured-output implementation will honor every keyword used.
+
+Consequences for Phase 1B, binding on whoever authors the six production
+schemas:
+
+- **Every production schema must have adapter request-shape and
+  compatibility tests for both Groq and Gemini** — not just one. A schema
+  that only compiles cleanly for the default provider (Groq) is not
+  Phase-1B-complete.
+- **Large, deeply nested, `$ref`-heavy, or otherwise unsupported schemas
+  must fail during development** (a failing test, a clear conversion-time
+  error) **rather than fail unpredictably during a live candidate
+  evaluation.** Prefer flatter, simpler schemas for the six production
+  contracts over schema features that merely happen to work with the
+  Zod-to-JSON-Schema converter today.
+- `toJsonSchema()` already forces `$refStrategy: "none"` (no `$ref`/
+  `definitions` indirection) specifically to sidestep the referencing
+  question rather than requiring both providers to resolve the same
+  reference style — see the strengthened test coverage in
+  `server/ai/schemaConversion.test.js`.
 
 ### Why Phase 1A does not yet migrate the active pipeline
 

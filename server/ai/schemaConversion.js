@@ -20,6 +20,17 @@
  * The schemas built in this phase are test fixtures with only required
  * fields, so this does not need solving yet — the six production pipeline
  * schemas (Phase 1B) must account for it when they have optional fields.
+ *
+ * PORTABILITY WARNING (see ADR-0002 for the full statement): Zod is the
+ * canonical local validation format, and both adapters convert the same
+ * canonical schema through the functions below — but Groq and Gemini do
+ * NOT necessarily support identical JSON Schema features. A schema that
+ * converts cleanly and validates locally is not proof either provider's
+ * structured-output implementation will accept it. Every Phase 1B
+ * production schema needs its own adapter request-shape/compatibility
+ * test against both providers, and large/deeply-nested/$ref-heavy/
+ * otherwise-unsupported schemas must fail at development time (a failing
+ * test), not unpredictably mid-evaluation.
  */
 
 import { zodToJsonSchema } from "zod-to-json-schema";
