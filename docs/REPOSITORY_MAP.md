@@ -18,7 +18,7 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 | `src/components/ui/toast.tsx` | Active transitively | Toast UI contract |
 | `server.mjs` | Active, thin (Phase 1D) | Composition root only: env loading, provider resolution, app startup |
 | `server/config/env.js` | Active | `.env`/`.env.local` loading, provider-config validation |
-| `server/ai/` | Active | Provider-neutral contract, Groq/Gemini adapters, schemas, prompts |
+| `server/ai/` | Active | Provider-neutral contract, the single OpenAI adapter, pricing, schemas, prompts (docs/decisions/ADR-0004-single-openai-provider.md) |
 | `server/domain/scoring.js` | Active | Deterministic scoring formulas |
 | `server/pipeline/` | Active | Orchestration, deterministic pipeline stages, run metadata |
 | `server/http/` | Active | Express routes and app wiring |

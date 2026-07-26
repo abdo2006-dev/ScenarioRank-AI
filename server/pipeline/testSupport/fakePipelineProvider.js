@@ -35,6 +35,16 @@ export function criteriaScoresFixture(score = 6) {
   return Object.fromEntries(CRITERIA_KEYS.map((k) => [k, { score, confidence: 0.8, evidence: "Evidence long enough to pass validation.", reasoning: "Reasoning text." }]));
 }
 
+function candidateIdsFromPrompt(prompt) {
+  // Only match a real candidate block (immediately followed by "Name:"),
+  // not a corrective-retry note that also mentions a candidate_id.
+  return [...prompt.matchAll(/candidate_id: (\S+)\nName:/g)].map((m) => m[1]);
+}
+
+function pairsFromPrompt(prompt) {
+  return [...prompt.matchAll(/candidate_id_a: ([^,\s]+), candidate_id_b: ([^,)\s]+)/g)].map((m) => [m[1], m[2]]);
+}
+
 /**
  * Builds a full set of default handlers sufficient to run the whole
  * pipeline end-to-end. `scoreByCandidateId` lets a test control each
@@ -43,33 +53,34 @@ export function criteriaScoresFixture(score = 6) {
  */
 export function defaultHandlers({ scoreByCandidateId = {} } = {}) {
   return {
-    "role-analysis": {
-      criteria: CRITERIA_KEYS,
-      baseline_weights: Object.fromEntries(CRITERIA_KEYS.map((k) => [k, Math.round(100 / CRITERIA_KEYS.length)])),
-      must_have_criteria: ["domain_expertise"],
-      role_success_definition: "Leads the org through the scenario.",
-      complexity_rating: "high",
+    "context-analysis": {
+      role_analysis: {
+        criteria: CRITERIA_KEYS,
+        baseline_weights: Object.fromEntries(CRITERIA_KEYS.map((k) => [k, Math.round(100 / CRITERIA_KEYS.length)])),
+        must_have_criteria: ["domain_expertise"],
+        role_success_definition: "Leads the org through the scenario.",
+        complexity_rating: "high",
+      },
+      scenario_analysis: {
+        priority_shifts: ["Stakeholder management weighted higher."],
+        weight_deltas: Object.fromEntries(CRITERIA_KEYS.map((k) => [k, 0])),
+        scenario_success_definition: "Integration completes smoothly.",
+        scenario_failure_definition: "Key talent departs.",
+        scenario_risks: ["Culture clash"],
+        key_pressures: ["Speed", "Sensitivity"],
+        weight_rationale: "Stakeholder management matters most here.",
+      },
     },
-    "scenario-analysis": {
-      priority_shifts: ["Stakeholder management weighted higher."],
-      weight_deltas: Object.fromEntries(CRITERIA_KEYS.map((k) => [k, 0])),
-      scenario_success_definition: "Integration completes smoothly.",
-      scenario_failure_definition: "Key talent departs.",
-      scenario_risks: ["Culture clash"],
-      key_pressures: ["Speed", "Sensitivity"],
-      weight_rationale: "Stakeholder management matters most here.",
-    },
-    "candidate-scoring": (request) => {
-      const idMatch = request.prompt.match(/Candidate ID: (\S+)/);
-      const id = idMatch?.[1] ?? "unknown";
-      const score = scoreByCandidateId[id] ?? 6;
+    "batch-candidate-scoring": (request) => {
+      const ids = candidateIdsFromPrompt(request.prompt);
       return {
-        candidate_id: id,
-        candidate_name: id,
-        criteria_scores: criteriaScoresFixture(score),
-        strengths: ["Strong stakeholder trust"],
-        weaknesses: ["Limited digital experience"],
-        best_fit_contexts: ["Post-merger integration"],
+        results: ids.map((id) => ({
+          candidate_id: id,
+          criteria_scores: criteriaScoresFixture(scoreByCandidateId[id] ?? 6),
+          strengths: ["Strong stakeholder trust"],
+          weaknesses: ["Limited digital experience"],
+          best_fit_contexts: ["Post-merger integration"],
+        })),
       };
     },
     "decision-explanation": {
@@ -84,10 +95,16 @@ export function defaultHandlers({ scoreByCandidateId = {} } = {}) {
         opportunity_cost: "Minimal.", adaptability: "Strong.", alternative: "Runner-up",
       },
     },
-    "pairing-analysis": {
-      scenario_coverage: 0.8, complementarity: 0.7, overlap_risk: 0.2,
-      conflict_risk: 0.1, execution_cohesion: 0.75, pair_adaptability: 0.65,
-      explanation: "Complementary strengths with low overlap.",
+    "batch-pairing-analysis": (request) => {
+      const pairs = pairsFromPrompt(request.prompt);
+      return {
+        results: pairs.map(([a, b]) => ({
+          candidate_id_a: a, candidate_id_b: b,
+          scenario_coverage: 0.8, complementarity: 0.7, overlap_risk: 0.2,
+          conflict_risk: 0.1, execution_cohesion: 0.75, pair_adaptability: 0.65,
+          explanation: "Complementary strengths with low overlap.",
+        })),
+      };
     },
   };
 }

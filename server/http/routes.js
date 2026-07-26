@@ -16,20 +16,21 @@ const PIPELINE_TIMEOUT_MS = 150_000; // 2.5 minutes
 
 /**
  * @param {import("express").Express} app
- * @param {{ provider: import("../ai/types.js").AIProvider | null, aiEnabled: boolean, candidateConcurrency: number }} deps
+ * @param {{ provider: import("../ai/types.js").AIProvider | null, aiEnabled: boolean, maxCandidates: number, maxProviderRequestsPerRun: number }} deps
  *   `provider` is resolved exactly once at process startup (see
  *   server.mjs) and reused for every request — this is what guarantees
  *   every run uses the same provider/model, since there is only ever one
- *   instance in the process for the app's whole lifetime. `candidateConcurrency`
- *   is likewise resolved once at startup (server/config/env.js) — routes
- *   never read process.env directly.
+ *   instance in the process for the app's whole lifetime. `maxCandidates`
+ *   and `maxProviderRequestsPerRun` are likewise resolved once at startup
+ *   (server/config/env.js) — routes never read process.env directly.
  */
-export function registerRoutes(app, { provider, aiEnabled, candidateConcurrency }) {
+export function registerRoutes(app, { provider, aiEnabled, maxCandidates, maxProviderRequestsPerRun }) {
   app.get("/health", (_req, res) => {
     res.json({
       status: "ok",
       ai_enabled: aiEnabled,
       ai_provider: aiEnabled ? provider?.name ?? null : null,
+      ai_model: aiEnabled ? provider?.model ?? null : null,
     });
   });
 
@@ -49,13 +50,16 @@ export function registerRoutes(app, { provider, aiEnabled, candidateConcurrency 
     if (!input.scenario) return res.status(400).json({ error: "scenario required" });
     if (!input.decision_mode) return res.status(400).json({ error: "decision_mode required" });
     if (!Array.isArray(input.candidates) || input.candidates.length < 2) return res.status(400).json({ error: "2+ candidates required" });
-    if (!aiEnabled) return res.status(503).json({ error: "AI pipeline is unavailable: the configured AI provider is not ready. Check server AI_PROVIDER configuration." });
+    if (input.candidates.length > maxCandidates) {
+      return res.status(400).json({ error: `At most ${maxCandidates} candidates are supported per evaluation (AI_MAX_CANDIDATES=${maxCandidates}).` });
+    }
+    if (!aiEnabled) return res.status(503).json({ error: "AI pipeline is unavailable: the OpenAI provider is not ready. Check server OPENAI_API_KEY configuration." });
 
     try {
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error(`Pipeline timed out after ${PIPELINE_TIMEOUT_MS / 1000}s. Try fewer candidates or a shorter description.`)), PIPELINE_TIMEOUT_MS)
       );
-      const result = await Promise.race([runPipeline(provider, provider.model, input, undefined, { candidateConcurrency }), timeoutPromise]);
+      const result = await Promise.race([runPipeline(provider, provider.model, input, undefined, { maxCandidates, maxProviderRequestsPerRun }), timeoutPromise]);
       res.json(result);
     } catch (err) {
       console.error("Pipeline error:", err.message);
@@ -88,8 +92,14 @@ export function registerRoutes(app, { provider, aiEnabled, candidateConcurrency 
       res.end();
       return;
     }
+    if (input.candidates.length > maxCandidates) {
+      send("error", { message: `At most ${maxCandidates} candidates are supported per evaluation (AI_MAX_CANDIDATES=${maxCandidates}).` });
+      clearInterval(heartbeat);
+      res.end();
+      return;
+    }
     if (!aiEnabled) {
-      send("error", { message: "AI pipeline is unavailable: the configured AI provider is not ready. Check server AI_PROVIDER configuration." });
+      send("error", { message: "AI pipeline is unavailable: the OpenAI provider is not ready. Check server OPENAI_API_KEY configuration." });
       clearInterval(heartbeat);
       res.end();
       return;
@@ -100,7 +110,7 @@ export function registerRoutes(app, { provider, aiEnabled, candidateConcurrency 
         setTimeout(() => reject(new Error(`Pipeline timed out after ${PIPELINE_TIMEOUT_MS / 1000}s. Try fewer candidates or a shorter description.`)), PIPELINE_TIMEOUT_MS)
       );
       const result = await Promise.race([
-        runPipeline(provider, provider.model, input, (stages) => send("stage_update", stages), { candidateConcurrency }),
+        runPipeline(provider, provider.model, input, (stages) => send("stage_update", stages), { maxCandidates, maxProviderRequestsPerRun }),
         timeoutPromise,
       ]);
       send("complete", result);

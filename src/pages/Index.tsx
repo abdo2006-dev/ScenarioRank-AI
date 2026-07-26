@@ -35,7 +35,10 @@ interface PairResult { pair: [string, string]; pair_score: number; explanation: 
 // when every pair evaluation fails, the backend returns an honest
 // "unavailable" result instead of an invented best_pair.
 type PairingResult = { status: "ok"; best_pair: PairResult; top_pairs: PairResult[]; } | { status: "unavailable"; reason: string; best_pair: null; top_pairs: []; };
-interface RunMetadata { provider: string; model: string; candidateConcurrency?: number; promptVersions: Record<string, string>; schemaVersions: Record<string, string>; attempts: Record<string, number>; startedAt: string; completedAt: string; }
+// Cost/usage fields are always present but may be 0 or null (e.g.
+// estimatedCostUsd is null for an unrecognized model — never a guessed
+// number, see server/ai/pricing/openaiPricing.js).
+interface RunMetadata { provider: string; model: string; providerRequestCount: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningTokens: number; totalTokens: number; estimatedCostUsd: number | null; promptVersions: Record<string, string>; schemaVersions: Record<string, string>; attempts: Record<string, number>; startedAt: string; completedAt: string; }
 interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { title: string; key_requirements: string[]; complexity: string; }; scenario_analysis: { scenario: string; key_pressures: string[]; weight_rationale: string; }; candidate_evaluations: CandidateEvaluation[]; confidence_evidence_reviews: ConfidenceEvidenceReview[]; decision_result: DecisionResult; pairing_result?: PairingResult; trade_offs: TradeOffCard[]; adaptability_profiles: AdaptabilityProfile[]; pipeline_stage_outputs: PipelineStageOutput[]; executive_summary: { recommendation: string; reason: string; trade_off: string; opportunity_cost: string; adaptability: string; alternative: string; }; run_metadata?: RunMetadata; }
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -68,14 +71,20 @@ const DEFAULT_CANDIDATES: CandidateInput[] = [
   { id: "c5", name: "Samuel Okafor", description: "Ex-McKinsey People & Org specialist. Led DEI turnarounds in three multinational firms. High strategic clarity, strong executive presence. Can be perceived as too top-down by grassroots teams." },
 ];
 
+// Matches server/pipeline/runPipeline.js's stage list. "Context Analysis"
+// covers what used to be two separate stages (Role Analysis + Scenario
+// Analysis) — one combined provider request now produces both
+// (docs/decisions/ADR-0004-single-openai-provider.md), though the
+// backend still reports them as distinct pipeline_stage_outputs entries.
 const INITIAL_STAGES: PipelineStage[] = [
-  { id: "role", label: "Role Analysis", status: "pending" },
-  { id: "scenario", label: "Scenario Analysis", status: "pending" },
+  { id: "input", label: "Input Received", status: "pending" },
+  { id: "context", label: "Context Analysis", status: "pending" },
   { id: "scoring", label: "Candidate Scoring", status: "pending" },
   { id: "confidence_review", label: "Confidence & Evidence Review", status: "pending" },
   { id: "outcome", label: "Outcome Modeling", status: "pending" },
-  { id: "decision", label: "Decision Engine", status: "pending" },
   { id: "pairing", label: "Pair Simulation", status: "pending" },
+  { id: "decision", label: "Decision Engine", status: "pending" },
+  { id: "complete", label: "Completed", status: "pending" },
 ];
 
 // ─── SERVICE ──────────────────────────────────────────────────────────────────
@@ -1086,8 +1095,17 @@ export function Results({ response }: { response: PipelineResponse }) {
       )}
 
       {response.run_metadata && (
-        <div className="text-center text-[11px] text-white/25 pt-2">
-          Evaluated with {response.run_metadata.provider} ({response.run_metadata.model})
+        <div className="text-center text-[11px] text-white/25 pt-2 space-y-1">
+          <div>
+            Evaluated with {response.run_metadata.provider} ({response.run_metadata.model}) ·{" "}
+            {response.run_metadata.providerRequestCount} request{response.run_metadata.providerRequestCount === 1 ? "" : "s"} ·{" "}
+            {response.run_metadata.totalTokens.toLocaleString()} tokens
+          </div>
+          <div>
+            {response.run_metadata.estimatedCostUsd !== null
+              ? `Estimated cost: ~$${response.run_metadata.estimatedCostUsd.toFixed(4)} (approximate, not an invoice)`
+              : "Estimated cost: unavailable for this model"}
+          </div>
         </div>
       )}
     </div>

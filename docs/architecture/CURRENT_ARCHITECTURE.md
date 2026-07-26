@@ -6,10 +6,10 @@ The baseline is a small two-process web application:
 
 - a client-rendered React single-page application;
 - a Node.js/Express API process;
-- a configurable, externally hosted LLM provider (Groq by default, Gemini optional);
+- a single externally hosted LLM provider — OpenAI (`gpt-5-mini`);
 - no persistence layer.
 
-It is best described as an **LLM-assisted sequential decision pipeline with deterministic scoring**, not as a fully autonomous multi-agent system, and (since Phase 1B) as **provider-neutral** — the pipeline calls an `AIProvider` interface, never a specific vendor's SDK directly.
+It is best described as an **LLM-assisted sequential decision pipeline with deterministic scoring**, not as a fully autonomous multi-agent system, and (since Phase 1B) as **provider-neutral** — the pipeline calls an `AIProvider` interface, never a specific vendor's SDK directly, even though there is currently exactly one supported provider. Groq and Gemini were real, tested integrations from an earlier phase, removed after a live end-to-end test showed neither could reliably complete a full run on its free tier — see [`docs/decisions/ADR-0004-single-openai-provider.md`](../decisions/ADR-0004-single-openai-provider.md).
 
 ## Component diagram
 
@@ -29,7 +29,7 @@ flowchart TB
         MATH[server/domain/scoring.js\ndeterministic formulas]
     end
 
-    PROVIDER[Configured provider: Groq default, Gemini optional]
+    PROVIDER[OpenAI: gpt-5-mini]
 
     UI --> STATE
     STATE --> HTTP
@@ -98,24 +98,24 @@ No state is persisted across page refreshes.
 - Express 5;
 - permissive CORS configuration;
 - JSON request bodies up to 10 MB;
-- calls the configured AI provider (Groq or Gemini) through `server/ai/`, never a vendor SDK directly from route or pipeline code;
+- calls OpenAI through `server/ai/`, never the `openai` package directly from route or pipeline code;
 - environment loaded from `.env`/`.env.local` with real-process-env taking priority (`server/config/env.js`; see `docs/decisions/ADR-0003-runtime-provider-configuration.md`).
 
-### Module boundaries (Phase 1D modularization)
+### Module boundaries (Phase 1D modularization; Phase 1 post-review simplification, ADR-0004)
 
 | Directory | Responsibility |
 |---|---|
-| `server.mjs` | Composition root only: load env, resolve one provider for the process's lifetime, build the app, listen |
-| `server/config/` | `.env`/`.env.local` loading and provider-config validation |
-| `server/http/` | Express transport — CORS, JSON body parsing, the 4 routes. No orchestration or AI logic |
-| `server/pipeline/` | `runPipeline()` orchestration, the deterministic `confidenceEvidenceReview`/`outcomeModeling` stages, run-metadata assembly |
-| `server/ai/` | `AIProvider` contract (`types.js`), error taxonomy (`errors.js`), the single retry owner (`retry.js`), Zod->JSON-Schema conversion, `providerFactory.js`, `providers/{groq,gemini}Provider.js`, `schemas/`, `prompts/` |
+| `server.mjs` | Composition root only: load env, resolve the OpenAI provider for the process's lifetime, build the app, listen |
+| `server/config/` | `.env`/`.env.local` loading and provider-config validation, `AI_MAX_CANDIDATES`/`AI_MAX_PROVIDER_REQUESTS_PER_RUN` resolution |
+| `server/http/` | Express transport — CORS, JSON body parsing, the 4 routes, candidate-count rejection before the model is called. No orchestration or AI logic |
+| `server/pipeline/` | `runPipeline()` orchestration, batch-identity validation (`mapBatchResultsById`/`mapPairResultsByIdentity`), the deterministic `confidenceEvidenceReview`/`outcomeModeling` stages, run-metadata assembly (including token usage and estimated cost) |
+| `server/ai/` | `AIProvider` contract (`types.js`), error taxonomy (`errors.js`), the single retry owner (`retry.js`), `providerFactory.js`, `providers/openaiProvider.js` (the only adapter), `pricing/openaiPricing.js`, `schemas/`, `prompts/` |
 | `server/domain/` | Pure deterministic scoring formulas (no I/O, no provider knowledge) |
 
 This is a "reasonable boundary" split (explicit instruction in Phase 1D),
 not a full rewrite: `server/pipeline/runPipeline.js` is still one file
-covering all seven pipeline stages, and the giant frontend page is
-untouched beyond the two extractions above.
+covering every pipeline stage, and the giant frontend page is untouched
+beyond the two extractions from Phase 1D.
 
 ### Public endpoints
 
@@ -133,30 +133,31 @@ one provider instance resolved at process startup (`server.mjs`) — with a
 Zod schema from `server/ai/schemas/` and a prompt from
 `server/ai/prompts/`. The response is parsed, retried at most once on
 failure, and locally validated against that schema before any deterministic
-code sees it (`server/ai/providerBase.js`). No stage constructs or selects
-a provider itself.
+code sees it (`server/ai/providers/openaiProvider.js`). No stage constructs
+or selects a provider itself. A normal run makes **at most 4 provider
+requests** (docs/decisions/ADR-0004-single-openai-provider.md); a request
+budget (`server/pipeline/runPipeline.js`'s `createRequestBudget`,
+configured via `AI_MAX_PROVIDER_REQUESTS_PER_RUN`) is a safety net against
+a future bug making more.
 
 ### 1. Input validation
 
-The API checks that a role title and scenario exist and that at least two
-candidates are supplied. Validation is manual and incomplete; nested
-fields, string lengths, allowed decision modes, duplicate IDs are not
-strictly enforced at this layer — but the six LLM *outputs* now are,
-via the production schemas.
+The API checks that a role title and scenario exist, that at least two
+candidates are supplied, and that the candidate count does not exceed
+`AI_MAX_CANDIDATES` — rejected with a 400 before the model is ever called.
+Validation is otherwise manual and incomplete; nested fields, string
+lengths, allowed decision modes, duplicate IDs are not strictly enforced
+at this layer — but the LLM *outputs* now are, via the production schemas.
 
-### 2. Role analysis
+### 2. Context analysis (1 provider request)
 
-Calls the provider with `roleAnalysisSchema` (`server/ai/schemas/roleAnalysis.schema.js`), returning seven fixed criteria, baseline weights, must-have criteria, a role success definition, and a complexity rating.
+Calls the provider with `contextAnalysisSchema` (`server/ai/schemas/contextAnalysis.schema.js`), which combines what used to be two separate requests — role analysis and scenario analysis — into one. The response has two clearly separated nested objects, `role_analysis` and `scenario_analysis`; the pipeline still records them as distinct `pipeline_stage_outputs` entries ("Role Analysis Stage", "Scenario Analysis Stage") and the frontend still displays them separately. A logical pipeline stage does not necessarily equal one network request. Application code applies weight deltas and normalizes the final weights to 100 (`server/domain/scoring.js`).
 
-### 3. Scenario analysis
+### 3. Batch candidate scoring (1 provider request)
 
-Calls the provider with `scenarioAnalysisSchema`, returning weight deltas and scenario pressures. Application code applies deltas and normalizes the final weights to 100 (`server/domain/scoring.js`).
+Calls the provider once with `buildBatchCandidateScoringSchema(maxCandidates)`, scoring every submitted candidate in a single request (previously one request per candidate, with concurrency limited to two). Each result carries the candidate's stable ID; `mapBatchResultsById()` (`server/pipeline/runPipeline.js`) maps results back to candidates by that ID — never by array position — and rejects the whole batch (with at most one corrective retry, appending a plain-language note of exactly what was wrong) if any ID is duplicated, missing, or unrecognized. Candidate scoring must be complete: unlike pairing (below), a missing result is never silently dropped or defaulted.
 
-### 4. Candidate scoring
-
-Calls the provider with `candidateScoringSchema`, once per candidate, with concurrency limited to two (`mapWithConcurrency`, `server/pipeline/runPipeline.js`). The provider adapter's own retry (at most one, for transient/schema failures) replaced the pre-migration ad-hoc string-matching retry loop.
-
-### 5. Metric calculation
+### 4. Metric calculation
 
 Normal JavaScript functions (`server/domain/scoring.js`) compute:
 
@@ -171,7 +172,7 @@ Normal JavaScript functions (`server/domain/scoring.js`) compute:
 
 These formulas are deterministic given the LLM-produced criterion values and weights.
 
-### 6. Confidence and evidence review
+### 5. Confidence and evidence review
 
 `confidenceEvidenceReview()` (`server/pipeline/runPipeline.js`; renamed from "Bias & Confidence Review" in Phase 1C — see `docs/architecture/KNOWN_LIMITATIONS.md` P0.3) checks:
 
@@ -182,11 +183,15 @@ These formulas are deterministic given the LLM-produced criterion values and wei
 
 It does not test protected characteristics, proxy variables, disparate treatment, consistency across demographic variants, or historical outcome bias, and its name no longer implies that it does.
 
-### 7. Outcome modeling
+### 6. Outcome modeling
 
-`outcomeModeling()` is deterministic despite living alongside "Agent"-named LLM stages. It derives risk and outcome labels. **Phase 1C fix:** `cross_scenario_consistency` is no longer a fabricated `75` — it is honestly returned as the literal string `"not_measured"`, and the adaptability-score formula no longer uses that input at all (see `docs/architecture/SCORING_AND_ASSUMPTIONS.md`).
+`outcomeModeling()` is a deterministic pipeline stage, not an LLM call. It derives risk and outcome labels. **Phase 1C fix:** `cross_scenario_consistency` is no longer a fabricated `75` — it is honestly returned as the literal string `"not_measured"`, and the adaptability-score formula no longer uses that input at all (see `docs/architecture/SCORING_AND_ASSUMPTIONS.md`).
 
-### 8. Decision generation
+### 7. Batch pairing analysis (1 provider request, optional)
+
+When pairing is enabled, the pipeline derives the top four candidates from this run's actual deterministic ranking (sorted by whichever `decision_mode` was selected — Phase 1C fix, P0.1), builds every relevant pair (up to C(4,2) = 6), and evaluates them all in a single request via `batchPairingAnalysisSchema` (previously one request per pair). `mapPairResultsByIdentity()` validates the returned pairs by `candidate_id_a`/`candidate_id_b`: a duplicate or a pair that was never requested is rejected outright, but a pair the model simply omitted is tolerated as a legitimate partial result — pairing is optional and a real partial result is more useful than none. If nothing usable comes back at all, `pairing_result` is honestly `{"status":"unavailable", "reason": "...", "best_pair": null, "top_pairs": []}` — never a fabricated pair (docs/architecture/KNOWN_LIMITATIONS.md P0.5). Valid pairs are converted into a deterministic pair score (`server/domain/scoring.js`'s `computePairScore`).
+
+### 8. Decision generation (1 provider request)
 
 Application code first sorts candidates deterministically:
 
@@ -194,11 +199,7 @@ Application code first sorts candidates deterministically:
 - `risk_adjusted_score` for `lowest_risk`;
 - `expected_outcome_score` for `best_outcome`.
 
-The provider then calls `decisionExplanationSchema` to write explanations, trade-offs, and an executive summary from the already-computed ranking. This ranking-then-explanation order — enforced structurally, not just by convention — is the project's core non-negotiable boundary (`docs/PROJECT_STATUS.md`), and `server/pipeline/runPipeline.test.js` includes a boundary test proving the winner cannot change based on explanation wording.
-
-### 9. Pair simulation
-
-**Phase 1C fix (P0.1):** when enabled, pairing now receives the top four candidates from this run's actual deterministic ranking (sorted by whichever `decision_mode` was selected), not the first four as submitted. Pair combinations are evaluated via `pairingAnalysisSchema` and converted into a deterministic pair score (`server/domain/scoring.js`'s `computePairScore`).
+The provider then calls `decisionExplanationSchema` to write explanations, trade-offs, and an executive summary from the already-computed ranking (and, when pairing succeeded or was attempted, an already-known pairing summary the model may reference but never invent or contradict). This ranking-then-explanation order — enforced structurally, not just by convention — is the project's core non-negotiable boundary (`docs/PROJECT_STATUS.md`), and `server/pipeline/runPipeline.test.js` includes a boundary test proving the winner cannot change based on explanation wording.
 
 ## Communication model
 
@@ -217,17 +218,24 @@ Every completed pipeline response includes:
 
 ```json
 {
-  "provider": "groq",
-  "model": "openai/gpt-oss-120b",
-  "promptVersions": { "role": "v1", "scenario": "v1", "...": "..." },
-  "schemaVersions": { "role": "v1", "scenario": "v1", "...": "..." },
-  "attempts": { "role": 1, "scenario": 1, "...": 1 },
+  "provider": "openai",
+  "model": "gpt-5-mini",
+  "providerRequestCount": 4,
+  "inputTokens": 3200,
+  "cachedInputTokens": 0,
+  "outputTokens": 1800,
+  "reasoningTokens": 0,
+  "totalTokens": 5000,
+  "estimatedCostUsd": 0.0044,
+  "promptVersions": { "context": "v1", "scoring": "v1", "...": "..." },
+  "schemaVersions": { "context": "v1", "scoring": "v1", "...": "..." },
+  "attempts": { "context": 1, "scoring": 1, "...": 1 },
   "startedAt": "2026-...",
   "completedAt": "2026-..."
 }
 ```
 
-No secrets. Supports later debugging and reproducibility without adding a database.
+`estimatedCostUsd` is computed from actual token usage against a small versioned pricing table (`server/ai/pricing/openaiPricing.js`) and is `null`, never a guessed number, for any model that table doesn't explicitly recognize. It is a displayed estimate for the user's own budget awareness, not an invoice — OpenAI's own billing dashboard remains the source of truth. No secrets. Supports later debugging and reproducibility without adding a database.
 
 ## Data and persistence
 

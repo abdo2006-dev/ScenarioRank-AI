@@ -6,9 +6,10 @@ import {
   loadEnv,
   checkProviderConfig,
   resolveStartupAiStatus,
-  resolveCandidateConcurrency,
-  SUPPORTED_PROVIDERS,
-  DEFAULT_CANDIDATE_CONCURRENCY,
+  resolveMaxCandidates,
+  resolveMaxProviderRequestsPerRun,
+  DEFAULT_AI_MAX_CANDIDATES,
+  DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN,
 } from "./env.js";
 
 function withTempDir(files, run) {
@@ -76,49 +77,25 @@ describe("loadEnv precedence", () => {
   });
 });
 
-describe("checkProviderConfig", () => {
-  it("supports exactly groq and gemini", () => {
-    expect(SUPPORTED_PROVIDERS).toEqual(["groq", "gemini"]);
-  });
-
-  it("fails when AI_PROVIDER is unset", () => {
+describe("checkProviderConfig — single OpenAI provider (docs/decisions/ADR-0004-single-openai-provider.md)", () => {
+  it("fails when OPENAI_API_KEY is unset", () => {
     const result = checkProviderConfig({ env: {} });
     expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/AI_PROVIDER is not set/);
+    expect(result.reason).toMatch(/OPENAI_API_KEY/);
   });
 
-  it("fails for an unsupported provider name", () => {
-    const result = checkProviderConfig({ env: { AI_PROVIDER: "anthropic" } });
+  it("succeeds with only OPENAI_API_KEY set", () => {
+    expect(checkProviderConfig({ env: { OPENAI_API_KEY: "x" } })).toEqual({ ok: true });
+  });
+
+  it("fails for an invalid OPENAI_REASONING_EFFORT", () => {
+    const result = checkProviderConfig({ env: { OPENAI_API_KEY: "x", OPENAI_REASONING_EFFORT: "ultra" } });
     expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/Unsupported AI_PROVIDER/);
+    expect(result.reason).toMatch(/OPENAI_REASONING_EFFORT/);
   });
 
-  it("fails for groq without GROQ_API_KEY", () => {
-    const result = checkProviderConfig({ env: { AI_PROVIDER: "groq" } });
-    expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/GROQ_API_KEY/);
-  });
-
-  it("succeeds for groq with GROQ_API_KEY", () => {
-    const result = checkProviderConfig({ env: { AI_PROVIDER: "groq", GROQ_API_KEY: "x" } });
-    expect(result).toEqual({ ok: true, provider: "groq" });
-  });
-
-  it("fails for gemini without GEMINI_API_KEY", () => {
-    const result = checkProviderConfig({ env: { AI_PROVIDER: "gemini", GEMINI_MODEL: "gemini-x" } });
-    expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/GEMINI_API_KEY/);
-  });
-
-  it("fails for gemini without GEMINI_MODEL even with a valid key", () => {
-    const result = checkProviderConfig({ env: { AI_PROVIDER: "gemini", GEMINI_API_KEY: "x" } });
-    expect(result.ok).toBe(false);
-    expect(result.reason).toMatch(/GEMINI_MODEL/);
-  });
-
-  it("succeeds for gemini with both required values", () => {
-    const result = checkProviderConfig({ env: { AI_PROVIDER: "gemini", GEMINI_API_KEY: "x", GEMINI_MODEL: "gemini-x" } });
-    expect(result).toEqual({ ok: true, provider: "gemini" });
+  it("succeeds for a valid OPENAI_REASONING_EFFORT", () => {
+    expect(checkProviderConfig({ env: { OPENAI_API_KEY: "x", OPENAI_REASONING_EFFORT: "minimal" } })).toEqual({ ok: true });
   });
 });
 
@@ -126,7 +103,7 @@ describe("resolveStartupAiStatus", () => {
   it("in development, tolerates missing config and marks AI unavailable instead of throwing", () => {
     const status = resolveStartupAiStatus({ env: {}, nodeEnv: "development" });
     expect(status.aiEnabled).toBe(false);
-    expect(status.reason).toMatch(/AI_PROVIDER is not set/);
+    expect(status.reason).toMatch(/OPENAI_API_KEY/);
   });
 
   it("in production, throws clearly on missing/invalid config", () => {
@@ -136,54 +113,65 @@ describe("resolveStartupAiStatus", () => {
   });
 
   it("in production, starts normally with valid config", () => {
-    const status = resolveStartupAiStatus({
-      env: { AI_PROVIDER: "groq", GROQ_API_KEY: "x" },
-      nodeEnv: "production",
-    });
-    expect(status).toEqual({ aiEnabled: true, provider: "groq", reason: null });
+    const status = resolveStartupAiStatus({ env: { OPENAI_API_KEY: "x" }, nodeEnv: "production" });
+    expect(status).toEqual({ aiEnabled: true, reason: null });
   });
 
   it("in development, starts normally with valid config", () => {
-    const status = resolveStartupAiStatus({
-      env: { AI_PROVIDER: "gemini", GEMINI_API_KEY: "x", GEMINI_MODEL: "gemini-x" },
-      nodeEnv: "development",
-    });
-    expect(status).toEqual({ aiEnabled: true, provider: "gemini", reason: null });
+    const status = resolveStartupAiStatus({ env: { OPENAI_API_KEY: "x" }, nodeEnv: "development" });
+    expect(status).toEqual({ aiEnabled: true, reason: null });
   });
 });
 
-describe("resolveCandidateConcurrency", () => {
-  it("defaults to 1 when AI_CANDIDATE_CONCURRENCY is unset", () => {
-    expect(resolveCandidateConcurrency({ env: {} })).toEqual({ value: 1, usedDefault: true });
-    expect(DEFAULT_CANDIDATE_CONCURRENCY).toBe(1);
+describe("resolveMaxCandidates", () => {
+  it("defaults to 5 when AI_MAX_CANDIDATES is unset", () => {
+    expect(resolveMaxCandidates({ env: {} })).toEqual({ value: 5, usedDefault: true });
+    expect(DEFAULT_AI_MAX_CANDIDATES).toBe(5);
   });
 
-  it("defaults to 1 when the value is an empty string", () => {
-    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "" } })).toEqual({ value: 1, usedDefault: true });
+  it("defaults when the value is an empty string", () => {
+    expect(resolveMaxCandidates({ env: { AI_MAX_CANDIDATES: "" } })).toEqual({ value: 5, usedDefault: true });
   });
 
   it("accepts a valid override within range", () => {
-    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "3" } })).toEqual({ value: 3, usedDefault: false });
+    expect(resolveMaxCandidates({ env: { AI_MAX_CANDIDATES: "8" } })).toEqual({ value: 8, usedDefault: false });
   });
 
-  it("accepts the boundary values 1 and 4", () => {
-    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "1" } })).toEqual({ value: 1, usedDefault: false });
-    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "4" } })).toEqual({ value: 4, usedDefault: false });
+  it("accepts the boundary values 2 and 10", () => {
+    expect(resolveMaxCandidates({ env: { AI_MAX_CANDIDATES: "2" } })).toEqual({ value: 2, usedDefault: false });
+    expect(resolveMaxCandidates({ env: { AI_MAX_CANDIDATES: "10" } })).toEqual({ value: 10, usedDefault: false });
   });
 
   it("falls back to the default for a non-integer value", () => {
-    const result = resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "2.5" } });
-    expect(result).toEqual({ value: 1, usedDefault: true, invalidInput: "2.5" });
+    expect(resolveMaxCandidates({ env: { AI_MAX_CANDIDATES: "2.5" } })).toEqual({ value: 5, usedDefault: true, invalidInput: "2.5" });
   });
 
   it("falls back to the default for a non-numeric value", () => {
-    const result = resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "fast" } });
-    expect(result).toEqual({ value: 1, usedDefault: true, invalidInput: "fast" });
+    expect(resolveMaxCandidates({ env: { AI_MAX_CANDIDATES: "many" } })).toEqual({ value: 5, usedDefault: true, invalidInput: "many" });
   });
 
-  it("falls back to the default when the value is out of the 1-4 range", () => {
-    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "0" } })).toEqual({ value: 1, usedDefault: true, invalidInput: "0" });
-    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "5" } })).toEqual({ value: 1, usedDefault: true, invalidInput: "5" });
-    expect(resolveCandidateConcurrency({ env: { AI_CANDIDATE_CONCURRENCY: "-1" } })).toEqual({ value: 1, usedDefault: true, invalidInput: "-1" });
+  it("falls back to the default when the value is out of the 2-10 range", () => {
+    expect(resolveMaxCandidates({ env: { AI_MAX_CANDIDATES: "1" } })).toEqual({ value: 5, usedDefault: true, invalidInput: "1" });
+    expect(resolveMaxCandidates({ env: { AI_MAX_CANDIDATES: "11" } })).toEqual({ value: 5, usedDefault: true, invalidInput: "11" });
+  });
+});
+
+describe("resolveMaxProviderRequestsPerRun", () => {
+  it("defaults to 4 when AI_MAX_PROVIDER_REQUESTS_PER_RUN is unset", () => {
+    expect(resolveMaxProviderRequestsPerRun({ env: {} })).toEqual({ value: 4, usedDefault: true });
+    expect(DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN).toBe(4);
+  });
+
+  it("accepts a valid override within range", () => {
+    expect(resolveMaxProviderRequestsPerRun({ env: { AI_MAX_PROVIDER_REQUESTS_PER_RUN: "3" } })).toEqual({ value: 3, usedDefault: false });
+  });
+
+  it("falls back to the default when out of the 1-4 range", () => {
+    expect(resolveMaxProviderRequestsPerRun({ env: { AI_MAX_PROVIDER_REQUESTS_PER_RUN: "0" } })).toEqual({ value: 4, usedDefault: true, invalidInput: "0" });
+    expect(resolveMaxProviderRequestsPerRun({ env: { AI_MAX_PROVIDER_REQUESTS_PER_RUN: "5" } })).toEqual({ value: 4, usedDefault: true, invalidInput: "5" });
+  });
+
+  it("falls back to the default for a non-numeric value", () => {
+    expect(resolveMaxProviderRequestsPerRun({ env: { AI_MAX_PROVIDER_REQUESTS_PER_RUN: "many" } })).toEqual({ value: 4, usedDefault: true, invalidInput: "many" });
   });
 });

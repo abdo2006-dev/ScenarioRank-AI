@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { runPipeline, confidenceEvidenceReview, outcomeModeling } from "./runPipeline.js";
+import { runPipeline, confidenceEvidenceReview, outcomeModeling, mapBatchResultsById, mapPairResultsByIdentity } from "./runPipeline.js";
 import { createFakePipelineProvider, defaultHandlers, defaultInput, criteriaScoresFixture } from "./testSupport/fakePipelineProvider.js";
+import { BatchIntegrityError } from "../ai/errors.js";
 
 describe("runPipeline — full mocked execution", () => {
   it("completes end-to-end with no real network calls, returning a full response shape", async () => {
@@ -25,11 +26,6 @@ describe("runPipeline — one provider per run", () => {
 
     const result = await runPipeline(provider, provider.model, input, () => {});
 
-    // Every recorded call happened through the one provider instance —
-    // there is no second provider object anywhere in this test, so this
-    // is true by construction, but we also assert every stage's metadata
-    // agrees on provider/model, which is what a caller can actually
-    // observe in the response.
     const meta = result.run_metadata;
     expect(meta.provider).toBe("fake");
     expect(meta.model).toBe("fake-model");
@@ -37,7 +33,7 @@ describe("runPipeline — one provider per run", () => {
     expect(provider.calls.length).toBeGreaterThan(0); // sanity: calls recorded on the one instance
   });
 
-  it("never constructs a second provider mid-run even when pairing runs many stage calls", async () => {
+  it("never constructs a second provider mid-run even when pairing is enabled", async () => {
     let constructions = 0;
     function trackedProvider() {
       constructions += 1;
@@ -49,67 +45,47 @@ describe("runPipeline — one provider per run", () => {
   });
 });
 
-describe("runPipeline — candidate-scoring concurrency is configurable and caller-controlled", () => {
-  /**
-   * Builds a fake provider whose candidate-scoring handler tracks how many
-   * calls are in flight simultaneously, so tests can assert on the actual
-   * concurrency the pipeline used — not just the configured number.
-   */
-  function createConcurrencyTrackingProvider() {
-    let active = 0;
-    let maxObserved = 0;
-    const handlers = {
-      ...defaultHandlers(),
-      "candidate-scoring": async (request) => {
-        active += 1;
-        maxObserved = Math.max(maxObserved, active);
-        await new Promise((resolve) => setTimeout(resolve, 15));
-        active -= 1;
-        const idMatch = request.prompt.match(/Candidate ID: (\S+)/);
-        const id = idMatch?.[1] ?? "unknown";
-        return {
-          candidate_id: id,
-          candidate_name: id,
-          criteria_scores: criteriaScoresFixture(6),
-          strengths: ["s"],
-          weaknesses: ["w"],
-          best_fit_contexts: ["c"],
-        };
-      },
-    };
-    const provider = createFakePipelineProvider({ handlers });
-    return { provider, getMaxObserved: () => maxObserved };
-  }
-
-  it("defaults to concurrency 1 when no option is passed, never running two candidate-scoring calls at once", async () => {
-    const { provider, getMaxObserved } = createConcurrencyTrackingProvider();
-    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c"] }), () => {});
-    expect(getMaxObserved()).toBe(1);
-  });
-
-  it("respects an explicit candidateConcurrency of 1", async () => {
-    const { provider, getMaxObserved } = createConcurrencyTrackingProvider();
-    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c"] }), () => {}, { candidateConcurrency: 1 });
-    expect(getMaxObserved()).toBe(1);
-  });
-
-  it("respects a configured higher candidateConcurrency", async () => {
-    const { provider, getMaxObserved } = createConcurrencyTrackingProvider();
-    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c", "d"] }), () => {}, { candidateConcurrency: 3 });
-    expect(getMaxObserved()).toBe(3);
-  });
-
-  it("records the resolved concurrency in run_metadata", async () => {
+describe("runPipeline — request-count architecture (docs/decisions/ADR-0004-single-openai-provider.md)", () => {
+  it("makes exactly one provider request for combined context analysis, not two separate role/scenario requests", async () => {
     const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
-    const result = await runPipeline(provider, provider.model, defaultInput(), () => {}, { candidateConcurrency: 2 });
-    expect(result.run_metadata.candidateConcurrency).toBe(2);
+    await runPipeline(provider, provider.model, defaultInput(), () => {});
+    const contextCalls = provider.calls.filter((c) => c.promptId === "context-analysis");
+    expect(contextCalls).toHaveLength(1);
   });
 
-  it("never constructs a second provider when a non-default concurrency is used", async () => {
-    let constructions = 0;
-    const provider = (() => { constructions += 1; return createFakePipelineProvider({ handlers: defaultHandlers() }); })();
-    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c", "d"] }), () => {}, { candidateConcurrency: 4 });
-    expect(constructions).toBe(1);
+  it("scores every candidate in exactly one batch request, not one request per candidate", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c", "d", "e"] }), () => {});
+    const scoringCalls = provider.calls.filter((c) => c.promptId === "batch-candidate-scoring");
+    expect(scoringCalls).toHaveLength(1);
+  });
+
+  it("evaluates every relevant top-four pair in exactly one batch request, not one request per pair", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c", "d", "e"], enablePairing: true }), () => {});
+    const pairingCalls = provider.calls.filter((c) => c.promptId === "batch-pairing-analysis");
+    expect(pairingCalls).toHaveLength(1);
+  });
+
+  it("makes at most 4 total provider requests for a normal run with pairing enabled", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    const result = await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c", "d", "e"], enablePairing: true }), () => {});
+    expect(provider.calls.length).toBeLessThanOrEqual(4);
+    expect(result.run_metadata.providerRequestCount).toBeLessThanOrEqual(4);
+    expect(result.run_metadata.providerRequestCount).toBe(4);
+  });
+
+  it("makes at most 3 total provider requests for a normal run with pairing disabled", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    const result = await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b", "c"] }), () => {});
+    expect(result.run_metadata.providerRequestCount).toBe(3);
+  });
+
+  it("rejects a run with more candidates than AI_MAX_CANDIDATES before calling the model", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    const input = defaultInput({ candidateIds: ["a", "b", "c", "d", "e", "f"] });
+    await expect(runPipeline(provider, provider.model, input, () => {}, { maxCandidates: 5 })).rejects.toThrow(/Too many candidates/);
+    expect(provider.calls.length).toBe(0);
   });
 });
 
@@ -202,33 +178,83 @@ describe("runPipeline — unmeasured cross-scenario consistency (docs/architectu
 });
 
 describe("runPipeline — run metadata", () => {
-  it("records provider, model, prompt/schema versions, attempts, and timestamps", async () => {
+  it("records provider, model, prompt/schema versions, attempts, timestamps, and usage/cost aggregates", async () => {
     const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
     const result = await runPipeline(provider, provider.model, defaultInput(), () => {});
 
     const meta = result.run_metadata;
     expect(meta.provider).toBe("fake");
     expect(meta.model).toBe("fake-model");
-    expect(meta.promptVersions.role).toBe("v1");
-    expect(meta.schemaVersions.role).toBe("v1");
-    expect(meta.attempts.role).toBe(1);
+    expect(meta.promptVersions.context).toBe("v1");
+    expect(meta.schemaVersions.context).toBe("v1");
+    expect(meta.attempts.context).toBe(1);
+    // Regression: every stage that calls the provider must record its own
+    // attempts entry — a prior bug destructured the wrong return value for
+    // the scoring stage, silently leaving meta.attempts.scoring undefined
+    // even though the real call succeeded.
+    expect(meta.attempts.scoring).toBe(1);
+    expect(meta.attempts.decision).toBe(1);
     expect(new Date(meta.startedAt).getTime()).not.toBeNaN();
     expect(new Date(meta.completedAt).getTime()).not.toBeNaN();
     expect(new Date(meta.completedAt).getTime()).toBeGreaterThanOrEqual(new Date(meta.startedAt).getTime());
+
+    // Usage/cost aggregates are always present (0 when the provider/model
+    // report no usage, e.g. this fake), never absent — see
+    // docs/PROJECT_STATUS.md, "cost and usage visibility".
+    expect(typeof meta.providerRequestCount).toBe("number");
+    expect(typeof meta.inputTokens).toBe("number");
+    expect(typeof meta.cachedInputTokens).toBe("number");
+    expect(typeof meta.outputTokens).toBe("number");
+    expect(typeof meta.reasoningTokens).toBe("number");
+    expect(typeof meta.totalTokens).toBe("number");
+    // "fake-model" has no recorded pricing, so cost must be null, never guessed.
+    expect(meta.estimatedCostUsd).toBeNull();
+  });
+
+  it("aggregates real usage into run_metadata and estimates a real cost for a priced model", async () => {
+    const provider = createFakePipelineProviderWithUsage();
+    const result = await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b"] }), () => {});
+    expect(result.run_metadata.inputTokens).toBeGreaterThan(0);
+    expect(result.run_metadata.outputTokens).toBeGreaterThan(0);
+    expect(result.run_metadata.totalTokens).toBeGreaterThan(0);
+    expect(result.run_metadata.estimatedCostUsd).toBeGreaterThan(0);
   });
 });
 
+function createFakePipelineProviderWithUsage() {
+  const handlers = defaultHandlers();
+  const calls = [];
+  return {
+    name: "openai",
+    model: "gpt-5-mini",
+    async generateStructured(request) {
+      calls.push({ promptId: request.promptId });
+      const handler = handlers[request.promptId];
+      const result = typeof handler === "function" ? await handler(request) : handler;
+      const data = request.schema.parse(result);
+      return {
+        data,
+        meta: {
+          provider: "openai", model: "gpt-5-mini", latencyMs: 1, attempts: 1,
+          usage: { inputTokens: 500, cachedInputTokens: 0, outputTokens: 200, reasoningTokens: 0, totalTokens: 700 },
+        },
+      };
+    },
+    get calls() { return calls; },
+  };
+}
+
 describe("runPipeline — structured validation failure and no-hang propagation", () => {
-  it("propagates a role-analysis failure as a rejected pipeline (never hangs)", async () => {
-    const handlers = { ...defaultHandlers(), "role-analysis": () => { throw new Error("schema validation failed"); } };
+  it("propagates a context-analysis failure as a rejected pipeline (never hangs)", async () => {
+    const handlers = { ...defaultHandlers(), "context-analysis": () => { throw new Error("schema validation failed"); } };
     const provider = createFakePipelineProvider({ handlers });
     const stagesSeen = [];
 
     await expect(runPipeline(provider, provider.model, defaultInput(), (s) => stagesSeen.push(s))).rejects.toThrow(/schema validation failed/);
 
     const lastStages = stagesSeen.at(-1);
-    const roleStage = lastStages.find((s) => s.id === "role");
-    expect(roleStage.status).toBe("failed");
+    const contextStage = lastStages.find((s) => s.id === "context");
+    expect(contextStage.status).toBe("failed");
   });
 
   it("falls back to a computed-metrics-only explanation when the decision-explanation call fails, without failing the whole pipeline", async () => {
@@ -240,35 +266,122 @@ describe("runPipeline — structured validation failure and no-hang propagation"
     expect(result.decision_result.key_reason).toMatch(/ranked highest/);
   });
 
-  it("does not fail the whole run when pairing calls fail — pairing is reported as honestly unavailable", async () => {
-    const handlers = { ...defaultHandlers(), "pairing-analysis": () => { throw new Error("pairing provider error"); } };
+  it("does not fail the whole run when the pairing batch request itself fails — pairing is reported as honestly unavailable", async () => {
+    const handlers = { ...defaultHandlers(), "batch-pairing-analysis": () => { throw new Error("pairing provider error"); } };
     const provider = createFakePipelineProvider({ handlers });
 
     const result = await runPipeline(provider, provider.model, defaultInput({ enablePairing: true }), () => {});
     expect(result.decision_result.recommended_candidate_id).toBeTruthy();
-    // Every pair call failed. Correction (docs/architecture/KNOWN_LIMITATIONS.md
-    // P0.5): no fabricated pair is invented — the pipeline reports pairing
-    // as unavailable instead of hanging, throwing, or making one up.
     expect(result.pairing_result.status).toBe("unavailable");
     expect(result.pairing_result.best_pair).toBeNull();
     expect(result.pairing_result.top_pairs).toEqual([]);
   });
 });
 
-describe("runPipeline — pairing failure modes never fabricate a pair (docs/architecture/KNOWN_LIMITATIONS.md P0.5)", () => {
-  it("returns a real best pair from the pairs that succeeded when only some pair evaluations fail", async () => {
-    // 4 top candidates -> 6 pairwise combinations. Fail the pair
-    // involving both "a" and "b" only; the other 5 combinations succeed.
+describe("runPipeline — batch candidate scoring identity validation", () => {
+  it("maps results by candidate_id (order-independent), never by array position", () => {
+    const results = [{ candidate_id: "b" }, { candidate_id: "a" }];
+    expect(mapBatchResultsById(results, ["a", "b"])).toEqual([{ candidate_id: "a" }, { candidate_id: "b" }]);
+  });
+
+  it("rejects a batch missing a result for a submitted candidate", () => {
+    const results = [{ candidate_id: "a" }];
+    expect(() => mapBatchResultsById(results, ["a", "b"])).toThrow(BatchIntegrityError);
+  });
+
+  it("rejects a batch containing an unknown candidate_id", () => {
+    const results = [{ candidate_id: "a" }, { candidate_id: "z" }];
+    expect(() => mapBatchResultsById(results, ["a"])).toThrow(BatchIntegrityError);
+  });
+
+  it("rejects a batch with a duplicate candidate_id", () => {
+    const results = [{ candidate_id: "a" }, { candidate_id: "a" }];
+    expect(() => mapBatchResultsById(results, ["a"])).toThrow(BatchIntegrityError);
+  });
+
+  it("does not insert a default score for a missing candidate — the pipeline fails the stage honestly instead", async () => {
     const handlers = {
       ...defaultHandlers(),
-      "pairing-analysis": (request) => {
-        if (/^a: /m.test(request.prompt) && /^b: /m.test(request.prompt)) {
-          throw new Error("pairing provider error");
-        }
+      "batch-candidate-scoring": (request) => {
+        // Deliberately omit candidate "b" from the response.
+        const ids = [...request.prompt.matchAll(/candidate_id: (\S+)/g)].map((m) => m[1]).filter((id) => id !== "b");
+        return { results: ids.map((id) => ({ candidate_id: id, criteria_scores: criteriaScoresFixture(6), strengths: ["s"], weaknesses: ["w"], best_fit_contexts: ["c"] })) };
+      },
+    };
+    const provider = createFakePipelineProvider({ handlers });
+    await expect(runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b"] }), () => {})).rejects.toThrow();
+  });
+
+  it("performs at most one corrective retry, then fails, when the batch never becomes complete", async () => {
+    const provider = createFakePipelineProvider({
+      handlers: { ...defaultHandlers(), "batch-candidate-scoring": () => ({ results: [{ candidate_id: "a", criteria_scores: criteriaScoresFixture(6), strengths: [], weaknesses: [], best_fit_contexts: [] }] }) },
+    });
+    await expect(runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b"] }), () => {})).rejects.toThrow();
+    const scoringCalls = provider.calls.filter((c) => c.promptId === "batch-candidate-scoring");
+    expect(scoringCalls).toHaveLength(2); // one initial attempt + one corrective retry, never more
+  });
+
+  it("succeeds on the corrective retry when the second attempt is complete", async () => {
+    let attempt = 0;
+    const provider = createFakePipelineProvider({
+      handlers: {
+        ...defaultHandlers(),
+        "batch-candidate-scoring": (request) => {
+          attempt += 1;
+          // Only match a real candidate block (immediately followed by
+          // "Name:"), not the corrective-retry note's own mention of the
+          // same candidate_id.
+          const ids = [...request.prompt.matchAll(/candidate_id: (\S+)\nName:/g)].map((m) => m[1]);
+          const usable = attempt === 1 ? ids.slice(0, 1) : ids; // first attempt incomplete, second complete
+          return { results: usable.map((id) => ({ candidate_id: id, criteria_scores: criteriaScoresFixture(6), strengths: [], weaknesses: [], best_fit_contexts: [] })) };
+        },
+      },
+    });
+    const result = await runPipeline(provider, provider.model, defaultInput({ candidateIds: ["a", "b"] }), () => {});
+    expect(result.candidate_evaluations).toHaveLength(2);
+  });
+});
+
+describe("runPipeline — batch pairing identity validation", () => {
+  it("maps pair results by candidate_id_a/candidate_id_b, order-independent", () => {
+    const results = [{ candidate_id_a: "b", candidate_id_b: "a" }];
+    const mapped = mapPairResultsByIdentity(results, [["a", "b"]]);
+    expect(mapped).toHaveLength(1);
+  });
+
+  it("tolerates a partial result (some expected pairs missing) as a legitimate partial success", () => {
+    const results = [{ candidate_id_a: "a", candidate_id_b: "b" }];
+    const mapped = mapPairResultsByIdentity(results, [["a", "b"], ["a", "c"], ["b", "c"]]);
+    expect(mapped).toHaveLength(1);
+  });
+
+  it("rejects a batch containing an unrequested pair", () => {
+    const results = [{ candidate_id_a: "x", candidate_id_b: "y" }];
+    expect(() => mapPairResultsByIdentity(results, [["a", "b"]])).toThrow(BatchIntegrityError);
+  });
+
+  it("rejects a batch with a duplicate pair", () => {
+    const results = [{ candidate_id_a: "a", candidate_id_b: "b" }, { candidate_id_a: "b", candidate_id_b: "a" }];
+    expect(() => mapPairResultsByIdentity(results, [["a", "b"]])).toThrow(BatchIntegrityError);
+  });
+
+  it("returns a real best pair from whatever valid subset of pairs the batch included", async () => {
+    // 4 top candidates -> 6 pairwise combinations. The fake model omits
+    // the pair involving both "a" and "b" (simulating a real model that
+    // just didn't cover every requested pair) but returns the other 5 —
+    // a legitimate partial result, not an integrity violation.
+    const handlers = {
+      ...defaultHandlers(),
+      "batch-pairing-analysis": (request) => {
+        const pairs = [...request.prompt.matchAll(/candidate_id_a: ([^,\s]+), candidate_id_b: ([^,)\s]+)/g)].map((m) => [m[1], m[2]]);
+        const usable = pairs.filter(([a, b]) => !(new Set([a, b]).has("a") && new Set([a, b]).has("b")));
         return {
-          scenario_coverage: 0.8, complementarity: 0.7, overlap_risk: 0.2,
-          conflict_risk: 0.1, execution_cohesion: 0.75, pair_adaptability: 0.65,
-          explanation: "Complementary strengths with low overlap.",
+          results: usable.map(([a, b]) => ({
+            candidate_id_a: a, candidate_id_b: b,
+            scenario_coverage: 0.8, complementarity: 0.7, overlap_risk: 0.2,
+            conflict_risk: 0.1, execution_cohesion: 0.75, pair_adaptability: 0.65,
+            explanation: "Complementary strengths with low overlap.",
+          })),
         };
       },
     };
@@ -283,8 +396,8 @@ describe("runPipeline — pairing failure modes never fabricate a pair (docs/arc
     expect(pairedNames.has("a") && pairedNames.has("b")).toBe(false);
   });
 
-  it("reports an honest unavailable result with no invented pair name, score, or metric when every pair evaluation fails", async () => {
-    const handlers = { ...defaultHandlers(), "pairing-analysis": () => { throw new Error("pairing provider error"); } };
+  it("reports an honest unavailable result with no invented pair name, score, or metric when pairing produces no usable pairs", async () => {
+    const handlers = { ...defaultHandlers(), "batch-pairing-analysis": () => { throw new Error("pairing provider error"); } };
     const provider = createFakePipelineProvider({ handlers });
 
     const result = await runPipeline(provider, provider.model, defaultInput({ enablePairing: true }), () => {});
@@ -297,7 +410,7 @@ describe("runPipeline — pairing failure modes never fabricate a pair (docs/arc
     });
 
     const serialized = JSON.stringify(result.pairing_result);
-    // These are the exact fabricated values the previous "Default pair"
+    // These are the exact fabricated values the old "Default pair"
     // fallback invented — none may appear anywhere in an unavailable result.
     expect(serialized).not.toMatch(/7\.0/);
     expect(serialized).not.toMatch(/0\.75/);
@@ -306,7 +419,7 @@ describe("runPipeline — pairing failure modes never fabricate a pair (docs/arc
   });
 
   it("still produces a full decision result (pairing is optional) when pairing is unavailable", async () => {
-    const handlers = { ...defaultHandlers(), "pairing-analysis": () => { throw new Error("pairing provider error"); } };
+    const handlers = { ...defaultHandlers(), "batch-pairing-analysis": () => { throw new Error("pairing provider error"); } };
     const provider = createFakePipelineProvider({ handlers });
 
     const result = await runPipeline(provider, provider.model, defaultInput({ enablePairing: true }), () => {});

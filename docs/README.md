@@ -18,7 +18,8 @@ These documents form the engineering baseline for the post-award V2 refinement.
 ## Architecture decisions
 
 - [`decisions/ADR-0001-main-is-v2.md`](./decisions/ADR-0001-main-is-v2.md) — why `main` is the public V2 line and the award version is preserved separately.
-- [`decisions/ADR-0002-provider-abstraction.md`](./decisions/ADR-0002-provider-abstraction.md) — why Anthropic coupling was removed in favor of a provider-neutral contract (Groq default, Gemini optional), and why not Google ADK.
+- [`decisions/ADR-0002-provider-abstraction.md`](./decisions/ADR-0002-provider-abstraction.md) — why Anthropic coupling was removed in favor of a provider-neutral contract, why Groq/Gemini were the first two providers built, and why not Google ADK. **Its choice of providers is superseded by ADR-0004** — kept as the honest historical record of that real, tested work.
 - [`decisions/ADR-0003-runtime-provider-configuration.md`](./decisions/ADR-0003-runtime-provider-configuration.md) — `.env`/`.env.local` precedence, one-provider-per-process-lifetime, and startup validation behavior.
+- [`decisions/ADR-0004-single-openai-provider.md`](./decisions/ADR-0004-single-openai-provider.md) — why ScenarioRank simplified to a single OpenAI provider after a real end-to-end test showed neither Groq nor Gemini could reliably complete a full run on its free tier, and why the provider-neutral contract is still worth keeping with one provider.
 
 These documents describe the current implementation honestly. They do not imply that planned V2 capabilities already exist.

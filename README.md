@@ -34,27 +34,28 @@ flowchart LR
     F -->|POST /api/decision/stream via SSE| B
     B --> O[Pipeline orchestrator: server/pipeline]
     O --> P[Provider-neutral AI contract: server/ai]
-    P --> A[Configured provider: Groq default, Gemini optional]
+    P --> A[OpenAI: gpt-5-mini]
     O --> D[Deterministic scoring: server/domain]
     A --> P
     P --> O
     D --> O
-    O -->|stage updates + final JSON + run metadata| F
+    O -->|stage updates + final JSON + run metadata + cost estimate| F
 ```
 
-The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Several functions are named "agents," but orchestration, routing, and control remain in normal application code. Every LLM call goes through a provider-neutral contract (`server/ai/`) — never a vendor SDK directly — so the pipeline itself has no Groq- or Gemini-specific code in it. See [`docs/decisions/ADR-0002-provider-abstraction.md`](./docs/decisions/ADR-0002-provider-abstraction.md).
+The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Every LLM call goes through a provider-neutral contract (`server/ai/`) — never a vendor SDK directly from the pipeline — so `runPipeline.js` has no OpenAI-specific code in it, even though there is currently exactly one supported provider. See [`docs/decisions/ADR-0004-single-openai-provider.md`](./docs/decisions/ADR-0004-single-openai-provider.md) for why Groq and Gemini (both real, tested integrations from an earlier phase) were removed rather than kept as dormant alternatives, and [`docs/decisions/ADR-0002-provider-abstraction.md`](./docs/decisions/ADR-0002-provider-abstraction.md) for why the contract itself still exists with a single provider.
 
 ## Current request pipeline
 
-1. **Role analysis — LLM:** derives evaluation criteria, base weights, must-haves, and complexity.
-2. **Scenario analysis — LLM:** adjusts and normalizes weights for the selected business scenario.
-3. **Candidate scoring — LLM:** scores each candidate across seven criteria and returns confidence, evidence, and reasoning.
-4. **Deterministic scoring:** calculates weighted fit, risk dimensions, adaptability, expected outcome, and risk-adjusted scores.
-5. **Confidence and evidence review — deterministic:** flags low confidence and weak evidence. Renamed from "Bias & Confidence Review" — it checks response confidence and evidence length, and is not a demographic or procedural bias audit.
-6. **Decision explanation — deterministic ranking + LLM explanation:** code selects the ranking key and computes the winner before any LLM call; the LLM only generates explanations and summaries from the already-computed result and can never change it.
-7. **Pair simulation — optional LLM + deterministic formula:** estimates pair-level metrics for the top four *ranked* candidates and computes a pair score.
+A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing enabled) makes **at most 4 OpenAI requests**:
 
-Every LLM-backed stage is schema-validated (Zod) before its output is used, and every response includes `run_metadata` (provider, model, prompt/schema versions, attempts, timestamps). Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
+1. **Combined context analysis — LLM, one request:** derives evaluation criteria, base weights, must-haves, complexity, and the scenario's weight adjustments together. The UI still shows "Role Analysis" and "Scenario Analysis" as separate pipeline stages — one provider request now produces both; a logical pipeline stage does not necessarily equal one network request.
+2. **Batch candidate scoring — LLM, one request:** scores every submitted candidate across seven criteria in a single request, returning confidence, evidence, and reasoning per candidate. Results are mapped back to candidates by a stable ID, never by array position; a duplicate, missing, or unknown result is rejected (with at most one corrective retry), never silently defaulted.
+3. **Deterministic scoring:** calculates weighted fit, risk dimensions, adaptability, expected outcome, risk-adjusted scores, and the top-four ranking.
+4. **Confidence and evidence review — deterministic:** flags low confidence and weak evidence. Not a demographic or procedural bias audit.
+5. **Batch pairing analysis — optional LLM, one request:** evaluates every relevant pair among the top four *ranked* candidates in a single request. A pair the model omits is tolerated as a partial result; a duplicate or unrequested pair is rejected. If nothing usable comes back, the response honestly reports `{"status":"unavailable", ...}` — never a fabricated pair.
+6. **Decision explanation — deterministic ranking + LLM explanation:** code selects the ranking key and computes the winner before this call; the LLM only generates explanations and summaries from the already-computed result (optionally referencing the pairing result) and can never change the ranking.
+
+Every LLM-backed stage is schema-validated (Zod) before its output is used. Every response includes `run_metadata`: provider, model, exact provider request count, input/cached-input/output/reasoning/total token counts, an estimated cost (or `null` for an unrecognized model — never a guessed number), prompt/schema versions, attempts, and timestamps. Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
 
 ## Technology baseline
 
@@ -63,24 +64,25 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used, and 
 | Frontend | React 18, TypeScript, Vite | Single-page interface and results rendering |
 | Styling/UI | Tailwind CSS, selected Radix/shadcn components | Layout and interface primitives |
 | Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
-| AI provider | Groq (default), Gemini (optional) via a provider-neutral contract | Role/scenario interpretation, candidate scoring, explanations, pair estimates |
+| AI provider | OpenAI (`gpt-5-mini`) via a provider-neutral contract, Responses API + Structured Outputs | Role/scenario interpretation, batch candidate scoring, explanations, batch pair estimates |
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
-| Validation | Zod schemas for every LLM operation | All 6 production schemas validated locally before deterministic code runs |
+| Validation | Zod schemas for every LLM operation | Every production schema validated locally before deterministic code runs, even though the OpenAI SDK's own Zod helper already validates once |
 | Persistence | None | Runs are not stored |
-| Automated testing | 159 backend + 11 frontend tests | Schemas, providers, full mocked pipeline, SSE routes, and real component rendering |
+| Automated testing | 155 backend + 16 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (including batching/request-budget behavior), SSE routes, and real component rendering |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
 ## Known baseline limitations
 
-Fixed in Phase 1 (see [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITATIONS.md) for full before/after detail): pair simulation now selects the top four *ranked* candidates; the hardcoded cross-scenario-consistency value was removed and is now honestly reported as "not measured" rather than replaced with another invented number; the "bias" stage is renamed to "Confidence & Evidence Review"; model output is validated against strict Zod schemas; the frontend backend URL is environment-configurable.
+Fixed in Phase 1 (see [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITATIONS.md) for full before/after detail): pair simulation now selects the top four *ranked* candidates; the hardcoded cross-scenario-consistency value was removed and is now honestly reported as "not measured" rather than replaced with another invented number; the "bias" stage is renamed to "Confidence & Evidence Review"; model output is validated against strict Zod schemas; the frontend backend URL is environment-configurable; the pipeline runs on a single, real-account-verified OpenAI model instead of two providers neither of which could reliably complete a full run on its free tier (see ADR-0004).
 
 Still open:
 
 - "best" and "worst" adaptability scenarios are not genuinely simulated (needs real multi-scenario execution, Phase 3);
 - the main frontend page is still oversized (backend module boundaries were split in Phase 1; frontend split is Phase 2);
-- there is no authentication, rate limiting, persistence, audit trail, or cost tracking;
-- the mathematical coefficients are prototype heuristics and have not been empirically calibrated.
+- there is no authentication, rate limiting, persistence, audit trail, or a hard dollar-budget enforcement (only a request-count safety net);
+- the mathematical coefficients are prototype heuristics and have not been empirically calibrated;
+- displayed cost is an estimate for the user's own awareness, not an invoice — OpenAI's own billing dashboard remains the source of truth.
 
 See [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITATIONS.md).
 
@@ -89,7 +91,7 @@ See [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITAT
 ### Prerequisites
 
 - Node.js 18 or newer
-- A Groq API key for live AI evaluation (default provider), or a Gemini API key if you set `AI_PROVIDER=gemini`
+- An OpenAI API key for live AI evaluation
 
 ### Setup
 
@@ -98,8 +100,8 @@ npm install
 
 cp .env.example .env
 # Add your key to .env:
-# AI_PROVIDER=groq
-# GROQ_API_KEY=your_key_here
+# OPENAI_API_KEY=your_key_here
+# OPENAI_MODEL=gpt-5-mini
 ```
 
 Prefer `.env.local` over editing `.env` directly for real credentials — it's git-ignored and takes precedence. See [`docs/decisions/ADR-0003-runtime-provider-configuration.md`](./docs/decisions/ADR-0003-runtime-provider-configuration.md).
@@ -137,8 +139,9 @@ Never commit `.env` or API keys.
 - [V2 roadmap](./docs/V2_ROADMAP.md)
 - [Learning checkpoints](./docs/LEARNING_CHECKPOINTS.md)
 - [ADR-0001: main is the V2 line](./docs/decisions/ADR-0001-main-is-v2.md)
-- [ADR-0002: provider abstraction](./docs/decisions/ADR-0002-provider-abstraction.md)
+- [ADR-0002: provider abstraction (superseded by ADR-0004)](./docs/decisions/ADR-0002-provider-abstraction.md)
 - [ADR-0003: runtime provider configuration](./docs/decisions/ADR-0003-runtime-provider-configuration.md)
+- [ADR-0004: single OpenAI provider](./docs/decisions/ADR-0004-single-openai-provider.md)
 
 ## Branch model
 

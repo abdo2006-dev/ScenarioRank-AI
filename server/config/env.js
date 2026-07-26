@@ -1,5 +1,6 @@
 /**
- * @file Environment loading and provider-config validation (Phase 1B).
+ * @file Environment loading and provider-config validation
+ * (docs/decisions/ADR-0004-single-openai-provider.md).
  *
  * Precedence (highest wins):
  *   1. real process environment (already set before loadEnv() runs — e.g.
@@ -12,11 +13,15 @@
  * before .env, its values win whenever both files define the same key.
  * Because every pass checks "not already present" before writing, nothing
  * ever overwrites a value that was already in the real process environment
- * when loadEnv() started running.
+ * when loadEnv() started running. This precedence behavior is unchanged
+ * by ADR-0004 — only which keys are read has changed (OPENAI_-prefixed
+ * variables instead of AI_PROVIDER, GROQ_-prefixed, and GEMINI_-prefixed
+ * variables).
  */
 
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
+import { REASONING_EFFORT_VALUES } from "../ai/providers/openaiProvider.js";
 
 function parseEnvFile(path) {
   const result = {};
@@ -58,88 +63,35 @@ export function loadEnv({ cwd = process.cwd(), env = process.env } = {}) {
   return { loadedFiles };
 }
 
-export const SUPPORTED_PROVIDERS = Object.freeze(["groq", "gemini"]);
-
 /**
  * Pure check — does not throw, does not read files, does not log. Used by
- * both startup validation and /health.
+ * both startup validation and /health. There is exactly one supported
+ * provider (OpenAI), so this only ever checks OPENAI_API_KEY.
  * @param {{env?: Record<string,string|undefined>}} [options]
- * @returns {{ok: true, provider: "groq"|"gemini"} | {ok: false, provider: string|undefined, reason: string}}
+ * @returns {{ok: true} | {ok: false, reason: string}}
  */
 export function checkProviderConfig({ env = process.env } = {}) {
-  const provider = env.AI_PROVIDER;
-  if (!provider) {
-    return { ok: false, provider: undefined, reason: "AI_PROVIDER is not set." };
+  if (!env.OPENAI_API_KEY) {
+    return { ok: false, reason: "OPENAI_API_KEY is required." };
   }
-  if (!SUPPORTED_PROVIDERS.includes(provider)) {
+  const rawEffort = env.OPENAI_REASONING_EFFORT;
+  if (rawEffort !== undefined && rawEffort.trim() !== "" && !REASONING_EFFORT_VALUES.includes(rawEffort)) {
     return {
       ok: false,
-      provider,
-      reason: `Unsupported AI_PROVIDER "${provider}". Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}.`,
+      reason: `Invalid OPENAI_REASONING_EFFORT "${rawEffort}". Supported values: ${REASONING_EFFORT_VALUES.join(", ")}.`,
     };
   }
-  if (provider === "groq" && !env.GROQ_API_KEY) {
-    return { ok: false, provider, reason: 'GROQ_API_KEY is required when AI_PROVIDER="groq".' };
-  }
-  if (provider === "gemini") {
-    if (!env.GEMINI_API_KEY) {
-      return { ok: false, provider, reason: 'GEMINI_API_KEY is required when AI_PROVIDER="gemini".' };
-    }
-    if (!env.GEMINI_MODEL) {
-      return {
-        ok: false,
-        provider,
-        reason: 'GEMINI_MODEL is required when AI_PROVIDER="gemini" (no built-in default — model IDs change over time).',
-      };
-    }
-  }
-  return { ok: true, provider };
-}
-
-export const DEFAULT_CANDIDATE_CONCURRENCY = 1;
-export const MIN_CANDIDATE_CONCURRENCY = 1;
-export const MAX_CANDIDATE_CONCURRENCY = 4;
-
-/**
- * Resolves AI_CANDIDATE_CONCURRENCY — how many candidate-scoring requests
- * run at once. Defaults to 1: a real Groq smoke test during Phase 1D
- * showed the default account tier returning HTTP 429 the moment two
- * candidate-scoring requests ran concurrently, while sequential calls
- * succeeded reliably (see docs/PROJECT_STATUS.md and
- * docs/decisions/ADR-0003-runtime-provider-configuration.md). Operators
- * with a higher provider quota may deliberately raise this — see
- * .env.example.
- *
- * This is a performance/reliability tuning knob, not a correctness
- * requirement, so an invalid value falls back to the safe default with a
- * clear reason rather than failing startup (unlike provider
- * configuration, which does fail startup in production).
- * @param {{env?: Record<string,string|undefined>}} [options]
- * @returns {{ value: number, usedDefault: boolean, invalidInput?: string }}
- */
-export function resolveCandidateConcurrency({ env = process.env } = {}) {
-  const raw = env.AI_CANDIDATE_CONCURRENCY;
-  if (raw === undefined || raw.trim() === "") {
-    return { value: DEFAULT_CANDIDATE_CONCURRENCY, usedDefault: true };
-  }
-  const parsed = Number(raw);
-  const isValidInteger = Number.isInteger(parsed);
-  if (!isValidInteger || parsed < MIN_CANDIDATE_CONCURRENCY || parsed > MAX_CANDIDATE_CONCURRENCY) {
-    return { value: DEFAULT_CANDIDATE_CONCURRENCY, usedDefault: true, invalidInput: raw };
-  }
-  return { value: parsed, usedDefault: false };
+  return { ok: true };
 }
 
 /**
- * Startup gate. In production, invalid/missing selected-provider
- * configuration fails the process immediately and clearly (throws) rather
- * than starting in a half-broken state. In development, it's tolerated:
- * the server starts with AI marked unavailable so the rest of the app
- * (frontend work, non-AI routes) stays usable without live credentials —
- * mirroring the tolerant behavior the codebase already had for
- * ANTHROPIC_API_KEY before this migration.
+ * Startup gate. In production, invalid/missing provider configuration
+ * fails the process immediately and clearly (throws) rather than starting
+ * in a half-broken state. In development, it's tolerated: the server
+ * starts with AI marked unavailable so the rest of the app (frontend
+ * work, non-AI routes) stays usable without live credentials.
  * @param {{env?: Record<string,string|undefined>, nodeEnv?: string}} [options]
- * @returns {{ aiEnabled: boolean, provider: string|undefined, reason: string|null }}
+ * @returns {{ aiEnabled: boolean, reason: string|null }}
  */
 export function resolveStartupAiStatus({ env = process.env, nodeEnv = env.NODE_ENV || "development" } = {}) {
   const check = checkProviderConfig({ env });
@@ -147,7 +99,64 @@ export function resolveStartupAiStatus({ env = process.env, nodeEnv = env.NODE_E
     if (nodeEnv === "production") {
       throw new Error(`AI provider configuration is invalid at startup: ${check.reason}`);
     }
-    return { aiEnabled: false, provider: check.provider, reason: check.reason };
+    return { aiEnabled: false, reason: check.reason };
   }
-  return { aiEnabled: true, provider: check.provider, reason: null };
+  return { aiEnabled: true, reason: null };
+}
+
+// ===== CANDIDATE-COUNT SAFEGUARD =====
+
+export const DEFAULT_AI_MAX_CANDIDATES = 5;
+export const MIN_AI_MAX_CANDIDATES = 2; // matches the existing "2+ candidates" input requirement
+export const MAX_AI_MAX_CANDIDATES = 10; // hard technical ceiling — see docs/PROJECT_STATUS.md for why 5 is the default
+
+/**
+ * Resolves AI_MAX_CANDIDATES — the most candidates a single evaluation run
+ * may batch-score in one provider request. Rejecting an over-limit request
+ * before calling the model (server/http/routes.js) is what actually
+ * protects API budget; this is a tuning knob for that ceiling, not a
+ * correctness requirement, so an invalid value falls back to the safe
+ * default with a clear reason rather than failing startup.
+ * @param {{env?: Record<string,string|undefined>}} [options]
+ * @returns {{ value: number, usedDefault: boolean, invalidInput?: string }}
+ */
+export function resolveMaxCandidates({ env = process.env } = {}) {
+  const raw = env.AI_MAX_CANDIDATES;
+  if (raw === undefined || raw.trim() === "") {
+    return { value: DEFAULT_AI_MAX_CANDIDATES, usedDefault: true };
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < MIN_AI_MAX_CANDIDATES || parsed > MAX_AI_MAX_CANDIDATES) {
+    return { value: DEFAULT_AI_MAX_CANDIDATES, usedDefault: true, invalidInput: raw };
+  }
+  return { value: parsed, usedDefault: false };
+}
+
+// ===== PROVIDER-REQUEST-BUDGET SAFEGUARD =====
+
+export const DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN = 4;
+export const MIN_AI_MAX_PROVIDER_REQUESTS_PER_RUN = 1;
+export const MAX_AI_MAX_PROVIDER_REQUESTS_PER_RUN = 4; // this architecture never legitimately needs more than 4 — see server/pipeline/runPipeline.js
+
+/**
+ * Resolves AI_MAX_PROVIDER_REQUESTS_PER_RUN — a safety net, not a normal-
+ * path limiter. The pipeline's own architecture never needs more than 4
+ * provider requests for a normal run (combined context analysis, batch
+ * scoring, batch pairing, decision explanation); this cap exists so a bug
+ * or future code change that accidentally made more requests fails safely
+ * instead of silently spending API credit. An invalid value falls back to
+ * the safe default with a clear reason.
+ * @param {{env?: Record<string,string|undefined>}} [options]
+ * @returns {{ value: number, usedDefault: boolean, invalidInput?: string }}
+ */
+export function resolveMaxProviderRequestsPerRun({ env = process.env } = {}) {
+  const raw = env.AI_MAX_PROVIDER_REQUESTS_PER_RUN;
+  if (raw === undefined || raw.trim() === "") {
+    return { value: DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN, usedDefault: true };
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < MIN_AI_MAX_PROVIDER_REQUESTS_PER_RUN || parsed > MAX_AI_MAX_PROVIDER_REQUESTS_PER_RUN) {
+    return { value: DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN, usedDefault: true, invalidInput: raw };
+  }
+  return { value: parsed, usedDefault: false };
 }

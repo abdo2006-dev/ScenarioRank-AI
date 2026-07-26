@@ -96,3 +96,69 @@ export class RetryExhaustedError extends AIProviderError {
     this.lastError = lastError;
   }
 }
+
+/**
+ * The model declined to produce the requested content (a distinct
+ * response state from a malformed or schema-invalid response — see
+ * docs/decisions/ADR-0004-single-openai-provider.md). Never blindly
+ * retried: a refusal is the model's decision, not a transient failure, so
+ * retrying identically is not expected to change the outcome.
+ */
+export class RefusalError extends AIProviderError {
+  constructor(message, opts = {}) {
+    super(message, { code: "refusal", retryable: false, ...opts });
+  }
+}
+
+/**
+ * The response was cut off before completing (e.g. OpenAI's
+ * `status: "incomplete"` with `incomplete_details.reason ===
+ * "max_output_tokens"`). Retryable so the single retry owner can attempt
+ * again — but only the caller (the adapter) may decide to raise the
+ * output-token budget on that one retry; retry.js itself never invents a
+ * larger budget, and this error must never be retried twice with the same
+ * insufficient budget.
+ */
+export class IncompleteOutputError extends AIProviderError {
+  constructor(message, opts = {}) {
+    super(message, { code: "incomplete_output", retryable: true, ...opts });
+  }
+}
+
+/**
+ * A batch response (candidate scoring or pairing analysis) passed Zod
+ * schema validation for every individual item, but the set of IDs it
+ * covered did not exactly match what was submitted — a duplicate, a
+ * missing entry, or an ID/pair that was never asked about. This is
+ * business-level integrity, not shape validation, so it is detected by
+ * the pipeline after a successful `generateStructured()` call, not by the
+ * provider adapter itself. Retryable: treated the same as a schema
+ * failure — one controlled corrective retry, never a fabricated fallback
+ * for the missing entries.
+ */
+export class BatchIntegrityError extends AIProviderError {
+  /**
+   * @param {string} message
+   * @param {{ missing?: string[], unknown?: string[], duplicate?: string[] }} [details]
+   */
+  constructor(message, { missing, unknown, duplicate, ...opts } = {}) {
+    super(message, { code: "batch_integrity", retryable: true, ...opts });
+    this.missing = missing ?? [];
+    this.unknown = unknown ?? [];
+    this.duplicate = duplicate ?? [];
+  }
+}
+
+/**
+ * A safety net, not a normal-path limiter: the pipeline tracks how many
+ * provider requests a single run has made and refuses to make another
+ * once the configured cap (AI_MAX_PROVIDER_REQUESTS_PER_RUN) would be
+ * exceeded. Firing this means a bug or a future code change made more
+ * provider requests than this architecture is designed to need — fail
+ * safely rather than spend API credit unexpectedly. Never retryable.
+ */
+export class ProviderRequestBudgetExceededError extends AIProviderError {
+  constructor(message, opts = {}) {
+    super(message, { code: "request_budget_exceeded", retryable: false, ...opts });
+  }
+}

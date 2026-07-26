@@ -25,7 +25,7 @@ resolved in place, not deleted or renumbered.
 
 ### P0.5 Fallback values can hide failed model assessments — RESOLVED (Phase 1B/1D)
 
-~~The pairing stage's *outer* fallback — returning a generic default pair when every pair call in a run fails — means a result can look complete when the underlying evaluation didn't succeed for any pair.~~ The pairing stage's `?? default`-style fallbacks for individual metric fields were removed in Phase 1B (the production schema now requires all six pairing metrics, so a response missing one is rejected and retried rather than defaulted). Post-review correction (Phase 1D): the remaining *outer* fallback — a fabricated "Default pair" with invented scores (`pair_score: 7.0`, `scenario_coverage: 0.75`, etc.) — was removed entirely. When every pair evaluation in a run fails, `pairing_result` is now `{ "status": "unavailable", "reason": "All pair evaluations failed.", "best_pair": null, "top_pairs": [] }` instead of an invented pair, and the frontend's pairing tab shows a plain "Pairing Unavailable" message rather than a fake recommendation. Regression tests (`server/pipeline/runPipeline.test.js`, "pairing failure modes never fabricate a pair") cover full success, partial pair failure, and all-pairs-failed, and assert none of the old fabricated values appear anywhere in the response.
+~~The pairing stage's *outer* fallback — returning a generic default pair when every pair call in a run fails — means a result can look complete when the underlying evaluation didn't succeed for any pair.~~ The pairing stage's `?? default`-style fallbacks for individual metric fields were removed in Phase 1B (the production schema now requires all six pairing metrics, so a response missing one is rejected and retried rather than defaulted). Post-review correction (Phase 1D): the remaining *outer* fallback — a fabricated "Default pair" with invented scores (`pair_score: 7.0`, `scenario_coverage: 0.75`, etc.) — was removed entirely. When every pair evaluation in a run fails, `pairing_result` is now `{ "status": "unavailable", "reason": "All pair evaluations failed.", "best_pair": null, "top_pairs": [] }` instead of an invented pair, and the frontend's pairing tab shows a plain "Pairing Unavailable" message rather than a fake recommendation. Regression tests (`server/pipeline/runPipeline.test.js`, "pairing failure modes never fabricate a pair") cover full success, partial pair failure, and all-pairs-failed, and assert none of the old fabricated values appear anywhere in the response. **Post-review correction (ADR-0004):** pairing was later redesigned from one provider request per pair to a single batch request for every relevant pair; the same honesty guarantee carries over — a duplicate or unrequested pair in the batch is rejected, a merely-*missing* pair is tolerated as a partial result, and only a batch with zero usable pairs falls back to the `"unavailable"` shape above.
 
 ### P0.6 Candidate scoring depends on very limited evidence
 
@@ -47,7 +47,7 @@ Still open — unchanged. Pipeline types exist inside the active page and in `sr
 
 ### P1.4 Hardcoded deployment configuration — PARTIALLY RESOLVED (Phase 1C)
 
-~~The frontend backend URL and backend model identifier are hardcoded.~~ The frontend backend URL is now `VITE_BACKEND_URL`-configurable (`src/lib/backendUrl.ts`), with the previous hardcoded value kept only as a development fallback. The backend model identifier is configurable via `GROQ_MODEL`/`GEMINI_MODEL` (Phase 1A/1B). The application still assumes a single backend origin per environment and one configured provider at a time — by design, not as an unaddressed gap (see `docs/decisions/ADR-0003-runtime-provider-configuration.md`).
+~~The frontend backend URL and backend model identifier are hardcoded.~~ The frontend backend URL is now `VITE_BACKEND_URL`-configurable (`src/lib/backendUrl.ts`), with the previous hardcoded value kept only as a development fallback. The backend model identifier is configurable via `OPENAI_MODEL` (Phase 1A/1B; single-provider since the Phase 1 post-review corrections — see `docs/decisions/ADR-0004-single-openai-provider.md`). The application still assumes a single backend origin per environment and exactly one configured provider — by design, not as an unaddressed gap (see `docs/decisions/ADR-0003-runtime-provider-configuration.md`).
 
 ### P1.5 Provider integration is coupled to orchestration — RESOLVED (Phase 1B)
 
@@ -73,7 +73,7 @@ Still open — unchanged. There are no golden examples, expected score ranges, c
 
 ### P2.4 No reproducibility controls — RESOLVED (Phase 1B)
 
-~~The response does not persist prompt version, model identifier returned by the provider, token usage, latency per model call, or model output snapshots.~~ Every response now includes `run_metadata`: provider, model, per-stage prompt/schema versions, per-stage attempt counts, and start/completion timestamps (`server/pipeline/runPipeline.js`). Token usage is captured by the adapters when the provider reports it but is not yet surfaced in `run_metadata` — a small follow-up, not a full persistence layer (still no database, by design).
+~~The response does not persist prompt version, model identifier returned by the provider, token usage, latency per model call, or model output snapshots.~~ Every response now includes `run_metadata`: provider, model, per-stage prompt/schema versions, per-stage attempt counts, and start/completion timestamps (`server/pipeline/runPipeline.js`). **Post-review correction (ADR-0004):** token usage is now fully surfaced too — `providerRequestCount`, `inputTokens`, `cachedInputTokens`, `outputTokens`, `reasoningTokens`, `totalTokens`, and an `estimatedCostUsd` computed from a small versioned pricing table (`server/ai/pricing/openaiPricing.js`), `null` rather than guessed for any unrecognized model. This is still a per-response value, not a persistence layer (still no database, by design).
 
 ## Priority 3 — security, privacy, and operations
 
@@ -81,9 +81,9 @@ Still open — unchanged. There are no golden examples, expected score ranges, c
 
 Still open — unchanged and explicitly out of scope through Phase 1D.
 
-### P3.2 No rate limiting or budget controls
+### P3.2 No rate limiting or budget controls — PARTIALLY RESOLVED (Phase 1 post-review, ADR-0004)
 
-Still open — unchanged and explicitly out of scope through Phase 1D.
+~~No rate limiting or budget controls.~~ Two safety nets exist now, but neither is a rate limiter or a real dollar-budget enforcement: `AI_MAX_CANDIDATES` rejects an oversized request before the model is ever called (protects per-run cost/output size), and `AI_MAX_PROVIDER_REQUESTS_PER_RUN` fails safely if a bug ever made more provider requests than this architecture's fixed 4-request design needs (protects against unexpected spend from a code defect, not from a malicious high-volume client). There is still no per-client rate limiting, no authenticated quota, and no hard dollar cap enforced server-side — a public deployment without a reverse-proxy rate limiter in front of it could still be used to run many evaluations back-to-back.
 
 ### P3.3 Broad CORS policy
 
@@ -95,7 +95,7 @@ Still open. `run_metadata` (P2.4) is a step toward reproducibility but is per-re
 
 ### P3.5 Candidate data is sent to an external provider
 
-Still open, with one addition: `docs/decisions/ADR-0002-provider-abstraction.md` now documents a specific data-use restriction for unpaid Gemini use (synthetic/non-sensitive data only; real candidate data needs a separate privacy/consent/paid-service review). This is documentation and configuration guidance, not an enforced technical control — the underlying gap (no consent, minimization, retention, redaction, or deletion workflow) remains.
+Still open. The OpenAI adapter sets `store: false` on every request (`server/ai/providers/openaiProvider.js`) so responses are not retained by OpenAI for later retrieval by default — a data-minimization step, not a full solution. `docs/decisions/ADR-0002-provider-abstraction.md`'s Gemini-specific unpaid-tier data-use restriction is now historical (Gemini was removed, ADR-0004) but the underlying gap it described is unchanged for OpenAI too: no consent flow, minimization beyond `store: false`, retention policy, redaction, or deletion workflow exists in this codebase. Real candidate data sent to any external LLM provider still requires its own privacy/consent/terms review before any production or public use.
 
 ### P3.6 No observability
 

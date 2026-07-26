@@ -92,7 +92,29 @@ provider-architecture reasoning.
      pipeline" (true in Phase 1A, false since Phase 1B) were corrected.
 
   See `docs/PROJECT_STATUS.md` for the exact test counts, verification
-  results, and the real Groq end-to-end retest at concurrency 1.
+  results, and the real Groq/Gemini end-to-end retest at concurrency 1
+  (both failed to complete — see the next entry).
+- **Phase 1 single-OpenAI-provider simplification — Done, on the same PR
+  #2 (not yet merged; not a new phase number).** The real Groq/Gemini
+  retest above showed neither provider could reliably complete a full run
+  on its free tier. Rather than keep chasing quota/token-budget fixes for
+  two providers with no actual product requirement to run more than one,
+  ScenarioRank simplified to a single provider and reduced request count:
+  Groq and Gemini adapters, tests, and dependencies removed entirely;
+  `server/ai/providers/openaiProvider.js` added as the only `AIProvider`
+  implementation (OpenAI Responses API + Structured Outputs, model
+  `gpt-5-mini` verified live against the project's own account); a normal
+  run reduced from six-to-nine provider requests to at most 4 by combining
+  role+scenario analysis into one request and batching candidate scoring
+  and pairing analysis (previously one request per candidate/pair) into
+  one request each, with real-world-identity validation (never array
+  position) and an honest failure/partial-success policy per stage;
+  `AI_MAX_CANDIDATES`/`AI_MAX_PROVIDER_REQUESTS_PER_RUN` safety nets added;
+  full cost/usage visibility (`run_metadata.estimatedCostUsd` and token
+  counts) added via a small versioned pricing table. See
+  `docs/decisions/ADR-0004-single-openai-provider.md` for the full
+  reasoning and `docs/PROJECT_STATUS.md` for the real OpenAI smoke test
+  result (reached `complete` successfully, ~1 cent).
 
 Deferred out of Phase 1 entirely, unchanged (see `docs/architecture/KNOWN_LIMITATIONS.md`):
 replacing misleading opportunity-cost terminology with a real comparative

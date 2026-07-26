@@ -68,44 +68,63 @@ cannot change based on explanation wording.
 ## Current architecture
 
 - React + Vite frontend, Express/Node backend, no persistence layer.
-- **The live pipeline calls a configurable AI provider — Groq by default,
-  Gemini as an optional alternative — through a provider-neutral contract.
-  The Anthropic-specific integration has been fully removed** (no runtime
-  code, dependency, or environment variable for it remains; it survives
-  only in git history and the preserved `archive/bmw-award-original`
-  branch).
+- **The live pipeline calls exactly one AI provider — OpenAI (`gpt-5-mini`)
+  — through a provider-neutral contract.** Groq and Gemini were real,
+  tested integrations from an earlier phase, removed after a live
+  end-to-end test showed neither could reliably complete a full pipeline
+  run on its free tier; the Anthropic-specific integration from an even
+  earlier phase was fully removed before that. None of the three survive
+  as runtime code, a dependency, or an environment variable — only in git
+  history, the preserved `archive/bmw-award-original` branch, and (for
+  Groq/Gemini) [`decisions/ADR-0002-provider-abstraction.md`](decisions/ADR-0002-provider-abstraction.md)
+  and [`decisions/ADR-0004-single-openai-provider.md`](decisions/ADR-0004-single-openai-provider.md).
 - One provider instance is resolved once at process startup
   (`server.mjs`) and reused for the process's entire lifetime — every
   request and every pipeline stage uses the same provider/model. No code
-  path constructs a second provider or falls back silently to the other
-  one.
-- Every one of the six LLM operations (role analysis, scenario analysis,
-  candidate scoring, decision explanation, pairing analysis, scenario
-  generation) is schema-validated (`server/ai/schemas/`) before its output
-  reaches deterministic code.
+  path constructs a second provider.
+- A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing
+  enabled) makes **at most 4 OpenAI requests**: one combined role+scenario
+  context-analysis request, one batch request scoring every candidate, one
+  batch request evaluating every relevant top-four pair, and one decision-
+  explanation request — down from the six-to-nine calls the pre-batching
+  architecture made per candidate/pair. `AI_MAX_PROVIDER_REQUESTS_PER_RUN`
+  is a safety net (not a normal-path limiter) against a future bug making
+  more.
+- Every LLM operation is schema-validated (`server/ai/schemas/`) before
+  its output reaches deterministic code — the OpenAI adapter validates
+  twice (once via the SDK's own `zodTextFormat()` helper, once explicitly)
+  and never trusts the provider-side guarantee alone.
+- Batch responses (candidate scoring, pairing) are mapped back to their
+  real-world identity (candidate ID, pair identity) by the pipeline, never
+  by array position. Candidate scoring must be complete — a duplicate,
+  missing, or unknown candidate result fails the stage (with one
+  corrective retry) rather than being silently dropped or defaulted.
+  Pairing tolerates a merely-missing pair as a partial success (pairing
+  already has an honest "unavailable" fallback for total failure) but
+  still rejects a duplicate or unrequested pair.
 - Deterministic scoring lives in
   [`server/domain/scoring.js`](../server/domain/scoring.js). One formula
   changed intentionally (adaptability — see "Decisions already made"
   below); everything else is unchanged from the original implementation.
 - The backend is split into clear module boundaries:
-  `server/config` (env loading), `server/ai` (provider contract, adapters,
-  schemas, prompts), `server/domain` (pure formulas), `server/pipeline`
-  (orchestration), `server/http` (Express transport). `server.mjs` is a
-  thin composition root.
-- Candidate-scoring concurrency is configurable via `AI_CANDIDATE_CONCURRENCY`
-  (default 1, integer 1-4, validated with a safe-default fallback), resolved
-  once by `server.mjs` and passed down explicitly — `server/pipeline` and
-  `server/http` never read `process.env` themselves. All other LLM calls in
-  a run (role analysis, scenario analysis, decision explanation, and each
-  pairing evaluation) already execute strictly one at a time regardless of
-  this setting; it only controls how many candidates are scored at once.
-- 175 backend tests and 15 frontend tests now run (was 0 backend, 1
+  `server/config` (env loading), `server/ai` (provider contract, the one
+  OpenAI adapter, pricing, schemas, prompts), `server/domain` (pure
+  formulas), `server/pipeline` (orchestration), `server/http` (Express
+  transport). `server.mjs` is a thin composition root.
+- Every completed response includes `run_metadata` with the exact
+  provider request count, input/cached-input/output/reasoning/total token
+  counts, and an estimated cost (`server/ai/pricing/openaiPricing.js`,
+  `null` — never guessed — for any model without recorded pricing). This
+  is a displayed estimate for the user's own budget awareness, not an
+  invoice.
+- 155 backend tests and 16 frontend tests now run (was 0 backend, 1
   frontend placeholder before Phase 1A).
 
 Details: [`architecture/CURRENT_ARCHITECTURE.md`](architecture/CURRENT_ARCHITECTURE.md),
 [`architecture/TECHNOLOGY_INVENTORY.md`](architecture/TECHNOLOGY_INVENTORY.md),
-[`decisions/ADR-0002-provider-abstraction.md`](decisions/ADR-0002-provider-abstraction.md),
-[`decisions/ADR-0003-runtime-provider-configuration.md`](decisions/ADR-0003-runtime-provider-configuration.md).
+[`decisions/ADR-0002-provider-abstraction.md`](decisions/ADR-0002-provider-abstraction.md) (superseded by ADR-0004),
+[`decisions/ADR-0003-runtime-provider-configuration.md`](decisions/ADR-0003-runtime-provider-configuration.md),
+[`decisions/ADR-0004-single-openai-provider.md`](decisions/ADR-0004-single-openai-provider.md).
 
 ## Completed milestones
 
@@ -347,45 +366,247 @@ deliberately not force-applied:
 | `vite`, `esbuild` | `vite` direct, `esbuild` transitive | dev-only (build tool + dev server; CVEs are about the dev server serving arbitrary files / accepting cross-origin requests) | high / moderate | Low — only matters if `npm run dev` is exposed on an untrusted network, which it isn't here | Deliberate vite 5->8 upgrade later, with a full frontend build/test pass since it's a major bump |
 | `react-router`, `react-router-dom` | `react-router-dom` direct, `react-router` transitive | **production** — ships in the actual browser bundle | moderate | Low in this app's current usage — the CVEs involve untrusted dynamic `Link`/`useNavigate` targets or SSR; this app has one static route (`/`) plus a catch-all, no SSR, and no user-controlled route targets | Track for a deliberate react-router-dom 6->7 migration with real testing — this is the one production-facing item on this list and shouldn't be deferred indefinitely |
 
+### Phase 1 single-OpenAI-provider simplification — completed, same PR #2, not yet merged
+
+Following the post-review corrections above, a further instruction asked
+for a **final architectural decision**: simplify ScenarioRank to exactly
+one AI provider (OpenAI) and reduce the number of provider requests a
+normal run makes, since Groq and Gemini had *both* failed to complete a
+real end-to-end run on their free tiers (see the real-provider retest
+above) and the owner has only a small real OpenAI budget (~$3) to work
+with. Implemented entirely on the same branch, `v2/phase-1-completion`,
+updating the same draft PR #2:
+
+1. **Removed Groq and Gemini completely.** `groqProvider.js`,
+   `geminiProvider.js`, `providerContract.shared.js`, their fake-SDK-client
+   test support, `providerBase.js` (the JSON-string-based generic runner
+   they shared — no longer fits the Responses API's own parse-and-validate
+   flow), and `schemaConversion.js` (the standalone Zod→JSON-Schema
+   converter — the `openai` package vendors its own via
+   `openai/helpers/zod`) were all deleted, not archived in the active
+   tree. `groq-sdk`, `@google/genai`, and `zod-to-json-schema` were
+   uninstalled. `AI_PROVIDER`, `GROQ_API_KEY`, `GROQ_MODEL`,
+   `GEMINI_API_KEY`, `GEMINI_MODEL`, and `AI_CANDIDATE_CONCURRENCY` (no
+   longer meaningful once candidate scoring became one batch request, not
+   N concurrent ones) were all removed from `server/config/env.js`,
+   `.env.example`, and every runtime code path. See
+   [`decisions/ADR-0004-single-openai-provider.md`](decisions/ADR-0004-single-openai-provider.md)
+   for the full reasoning, including why the provider-neutral contract,
+   error taxonomy, and single retry owner were all *kept* — this is a
+   provider-count reduction, not an abstraction rollback.
+2. **Added `server/ai/providers/openaiProvider.js`** as the only
+   `AIProvider` implementation, using the official `openai` npm package
+   (v6.49.0) and the Responses API's Structured Outputs via the SDK's own
+   `zodTextFormat()` helper. Every response is still re-validated against
+   the canonical Zod schema a second time, explicitly, in this codebase —
+   never trusting the provider-side guarantee alone (same principle as
+   ADR-0002's Groq strict-mode caveat). Refusal (`RefusalError`, never
+   retried), truncation (`IncompleteOutputError`, retried once with a
+   1.5× larger output-token budget, never the same insufficient one
+   twice), and a distinct "policy content-filter" incomplete reason
+   (treated like a refusal) are all handled as separate response states,
+   not folded into a generic parse failure. A safe, capped
+   (2-second-max) Retry-After delay is honored on a rate limit when the
+   API reports one. `store: false` is set on every request (no
+   unnecessary response retention).
+3. **Model choice: `gpt-5-mini`, verified live against this project's own
+   OpenAI account**, not assumed from documentation or training data — see
+   ADR-0004 for the exact probe: a minimal real API call confirmed
+   `gpt-5-mini` is available to this account, returns a correctly
+   schema-validated result, and accepts `reasoning: { effort: "minimal" }`
+   (`gpt-5.4-mini`, tried as a comparison, rejected `"minimal"` with a real
+   `400` listing its own supported subset — a genuine, observed example of
+   "not every reasoning model supports every effort value"). Since all
+   three stated conditions (available, Structured-Outputs-capable,
+   SDK-compatible) were met on a real probe, no fallback to a different or
+   more expensive model was needed.
+4. **Reduced a normal run from six-to-nine provider requests down to at
+   most 4**, by combining and batching what used to be N separate calls:
+   - **Combined context analysis** (was 2 requests: role analysis,
+     scenario analysis) — `contextAnalysisSchema`
+     (`server/ai/schemas/contextAnalysis.schema.js`) returns both as
+     clearly separated nested objects in one response. The pipeline still
+     records "Role Analysis Stage" and "Scenario Analysis Stage" as
+     distinct `pipeline_stage_outputs` entries and the frontend still
+     displays them separately — a logical pipeline stage does not
+     necessarily equal one network request.
+   - **Batch candidate scoring** (was 1 request per candidate) —
+     `buildBatchCandidateScoringSchema(maxCandidates)`
+     (`server/ai/schemas/batchCandidateScoring.schema.js`) scores every
+     submitted candidate in one request. `mapBatchResultsById()`
+     (`server/pipeline/runPipeline.js`) maps results back to candidates by
+     their stable ID — never by array position — and rejects the whole
+     batch (with one corrective retry, then an honest failure, never a
+     default score) if any ID is duplicated, missing, or unrecognized.
+   - **Batch pairing analysis** (was 1 request per pair, up to 6) —
+     `batchPairingAnalysisSchema`
+     (`server/ai/schemas/batchPairingAnalysis.schema.js`) evaluates every
+     relevant top-four pair in one request. `mapPairResultsByIdentity()`
+     rejects a duplicate or unrequested pair outright, but tolerates a
+     merely-*missing* expected pair as a legitimate partial result —
+     pairing already has an honest `"unavailable"` fallback for total
+     failure, so a real partial result is more useful than discarding it.
+   - **Decision explanation** (unchanged, 1 request) now runs *after*
+     pairing (previously pairing ran after decision) so its prompt can
+     optionally reference an already-known, already-deterministic pairing
+     summary — prompt context only, not a new schema field, since pairing
+     is fully computed before this call and the model is never asked to
+     invent anything about it.
+   - Output-token budgets for the batch stages scale with the actual
+     candidate/pair count plus a fixed overhead (`server/pipeline/runPipeline.js`),
+     not a single hardcoded constant, so they stay justified as
+     `AI_MAX_CANDIDATES` changes.
+5. **`AI_MAX_CANDIDATES`** (default 5, validated integer 2-10) rejects an
+   oversized request with a clear 400/SSE-error **before** the model is
+   ever called (`server/http/routes.js`), never silently truncating the
+   candidate list. **`AI_MAX_PROVIDER_REQUESTS_PER_RUN`** (default 4,
+   validated integer 1-4) is a safety net, not a normal-path limiter — the
+   pipeline's own fixed architecture never needs more than 4 requests, so
+   this cap only ever fires if a future bug adds a 5th call site
+   (`server/pipeline/runPipeline.js`'s `createRequestBudget`).
+6. **Cost and usage visibility.** Every response's `run_metadata` now
+   includes `providerRequestCount`, `inputTokens`, `cachedInputTokens`,
+   `outputTokens`, `reasoningTokens` (a labeled subset of `outputTokens`,
+   never billed or summed again on top of it), `totalTokens`, and
+   `estimatedCostUsd`. The estimate comes from a small versioned pricing
+   table, `server/ai/pricing/openaiPricing.js` — `gpt-5-mini: $0.25/1M
+   input, $0.025/1M cached input, $2.00/1M output`, retrieved directly
+   from OpenAI's own model-specific documentation page on 2026-07-26 (it
+   no longer appears in OpenAI's primary "Standard pricing" comparison
+   table, which now leads with the newer `gpt-5.6`/`gpt-5.4` families, but
+   its own page was live and not marked deprecated). `estimateCostUsd()`
+   returns `null` — never a guessed number — for any model this table
+   doesn't explicitly recognize. This is a displayed *estimate* for the
+   user's own budget awareness, not an invoice; OpenAI's own billing
+   dashboard remains the source of truth. The frontend footer now shows
+   provider, model, request count, total tokens, and the estimated cost
+   (or "unavailable" when null) alongside the existing pairing/cross-scenario/
+   confidence-evidence displays, which were otherwise left alone — no
+   visual redesign.
+7. **`/health`** now also reports `ai_model` alongside `ai_enabled`/`ai_provider`,
+   still never a secret. `AI_PROVIDER` provider-selection was removed
+   entirely (not just defaulted) — `createProvider()` takes no
+   provider-name argument, since there is no other branch to select
+   (`docs/decisions/ADR-0003-runtime-provider-configuration.md`, updated).
+8. **Node over Python, reaffirmed, not re-litigated.** The backend stays
+   JavaScript/Node: it is already modularized and tested
+   (`server/{config,ai,domain,pipeline,http}`), and rewriting Express,
+   Zod, Vitest, SSE, retries, schemas, and orchestration in Python/FastAPI
+   would duplicate completed, working, tested code for no product
+   requirement this project currently has. Python becomes justified later
+   only if ScenarioRank adopts Python-first ML/data libraries, custom
+   model inference, PyTorch/Hugging Face Transformers, or similar —
+   stack diversity should be learned through a separate project, not by
+   rewriting working code for its own sake. No new ADR was created for
+   this — it is the same reasoning already recorded in
+   `docs/architecture/TECHNOLOGY_INVENTORY.md` and `docs/V2_ROADMAP.md`,
+   reaffirmed rather than revisited.
+
+**Test totals after this round: 155 backend tests (was 175; net change
+reflects deleting the Groq/Gemini-specific adapter/schema-conversion test
+suites — `groqProvider.test.js`, `geminiProvider.test.js`,
+`providerContract.shared.js`, `schemaConversion.test.js` — and replacing
+them with `openaiProvider.test.js` (28 tests covering valid responses,
+refusal, truncation-with-larger-retry-budget, malformed/missing content,
+schema-invalid re-validation, the full provider-neutral error-mapping
+taxonomy including a real Retry-After delay, no secret/raw-payload
+leakage, reasoning/token-budget configuration, and usage extraction) and
+substantially rewriting `runPipeline.test.js` and `productionSchemas.test.js`
+for the new batched schemas/architecture) and 16 frontend tests (was 15:
++1 covering the new cost-unavailable display state).** All 171 tests
+pass; `npm run lint` and `npm run lint:server` are both 0 problems;
+`npm run build` passes; `node --check server.mjs` passes; `npm audit`
+remains at 9 vulnerabilities (unchanged — no new vulnerable dependencies;
+removing `groq-sdk`/`@google/genai`/`zod-to-json-schema` and adding
+`openai` was net-neutral for the audit).
+
+#### Real OpenAI smoke test (honest result)
+
+A real, complete, synthetic end-to-end evaluation was run against the
+live OpenAI API — 3 fictional candidates (no real people, no CVs), pair
+simulation enabled, all normal pipeline stages, default `AI_MAX_CANDIDATES`
+(5) and `AI_MAX_PROVIDER_REQUESTS_PER_RUN` (4) both active. **Unlike the
+Groq/Gemini retest earlier in this document, this run reached the final
+completion response successfully:**
+
+| Field | Result |
+|---|---|
+| Provider / model | `openai` / `gpt-5-mini` |
+| Provider requests made | **4** (exactly the target: context, batch scoring, batch pairing, decision) |
+| Stages completed | `input, context, scoring, confidence_review, outcome, pairing, decision, complete` — all `"completed"`, none `"failed"` |
+| Duration | ~130 seconds total across all stages |
+| Attempts per stage | context: 1; scoring: 1; **pairing: 2** (one schema/identity corrective retry, then succeeded); **decision: 2** (one retry, then succeeded) |
+| Input tokens | 1,646 |
+| Cached input tokens | 0 |
+| Output tokens | 4,792 (includes 2,624 reasoning tokens — not billed separately, already a subset) |
+| Total tokens | 6,438 |
+| Estimated cost | **$0.009996** (~1 cent) |
+| Schema validation | succeeded for every stage (with 2 of 4 stages needing their one allowed retry) |
+| Deterministic winner produced | yes |
+| Pairing status | **`"ok"`** — a real best pair was produced, not an invented one |
+
+This is the first real end-to-end smoke test in this project's history to
+actually reach `complete` without falling back to a mocked or partial
+result. Total real API spend across this round's verification (one tiny
+model-availability probe, one context-analysis-sized probe, and this one
+full smoke test) was under 2 cents — well inside the ~$0.20 implementation-testing
+budget and the owner's ~$3 total budget. **This smoke test also caught a
+real bug**: `run_metadata.attempts.scoring` was silently missing because
+the orchestrator destructured the wrong field from `runBatchCandidateScoring()`'s
+return value (`const { scorings } = ...` instead of `const { scorings, meta } = ...`,
+then read the non-existent `scorings.meta`). Fixed in
+`server/pipeline/runPipeline.js`, with a new regression assertion in
+`server/pipeline/runPipeline.test.js` asserting `meta.attempts.scoring`
+and `meta.attempts.decision` are present — the mocked test suite alone
+had not caught this because no test asserted on that specific field.
+
+**Recommendation**: OpenAI (`gpt-5-mini`) can now be presented as a
+genuinely reliable default for a live demo — this is a demonstrated
+result, not an assumption, and the request-count reduction plus batch
+integrity validation both worked exactly as designed on live traffic
+(two stages needed their one allowed retry and recovered cleanly, and
+none of the three earlier providers' era-specific failure modes recurred).
+
 ## Current known correctness issues
 
 Fixed in Phase 1C: pairing top-four selection, fabricated
 `cross_scenario_consistency`, "Bias Agent" naming, confidence-as-
 probability UI wording, hardcoded frontend backend URL. Fixed in the
-Phase 1 post-review corrections above: the pairing stage's fabricated
-outer fallback, the unsupported best/worst-scenario claims, the
+Phase 1 post-review corrections: the pairing stage's fabricated outer
+fallback, the unsupported best/worst-scenario claims, the
 `bias_confidence_reviews`/`bias_flags` field names, and the "agent"
-terminology throughout the active pipeline. Still open:
+terminology throughout the active pipeline. **Fixed in the Phase 1
+single-OpenAI-provider simplification above**: neither Groq nor Gemini
+could reliably complete a live run on their free tiers (documented as
+open in the previous round) — resolved by removing both and running on
+OpenAI (`gpt-5-mini`) instead, with a real smoke test that reached
+`complete` successfully. Still open:
 
-1. **New, from the real-provider retest above**: neither Groq (rate
-   limiting, even at concurrency 1) nor Gemini (response truncation from
-   an under-sized `maxOutputTokens` for a reasoning-capable model)
-   demonstrably completed a full live pipeline run in this session. The
-   mocked test suite (175 backend + 15 frontend tests) still passes and
-   proves the pipeline's own logic is correct, but a real end-to-end demo
-   currently needs either a higher-tier API key or a fix to Gemini's
-   token budgeting before it can be presented as reliably working live.
-2. Candidate scoring depends on very limited evidence (short free-text
+1. Candidate scoring depends on very limited evidence (short free-text
    descriptions).
-3. The active frontend page remains one large file (backend module
+2. The active frontend page remains one large file (backend module
    boundaries were split in Phase 1D; the frontend split is Phase 2).
-4. Duplicated contracts: pipeline types exist both inline in the frontend
+3. Duplicated contracts: pipeline types exist both inline in the frontend
    page and in `src/types/pipeline.ts` (the latter, plus
-   `src/components/v3/*`, are confirmed dead code still using the
-   retired "bias"/"agent" naming — Phase 2 cleanup).
-5. Backup files, an older dataset, and unused component families are
+   `src/components/v3/*` and `src/components/AgentFlowSection.tsx`, are
+   confirmed dead code still using the retired "bias"/"agent" naming —
+   Phase 2 cleanup).
+4. Backup files, an older dataset, and unused component families are
    still present (Phase 2 cleanup).
-6. No model evaluation dataset, golden examples, or prompt-regression
+5. No model evaluation dataset, golden examples, or prompt-regression
    checks yet (Phase 3).
-7. Opportunity-cost risk is still misnamed (averages risks rather than
+6. Opportunity-cost risk is still misnamed (averages risks rather than
    comparing forgone benefits) — deliberately deferred, needs design work.
-8. Formula coefficients remain unvalidated heuristics (the P0.2 fix
+7. Formula coefficients remain unvalidated heuristics (the P0.2 fix
    changed which inputs feed adaptability, not the general validation gap).
-9. Authentication, rate limiting, persistence, real privacy controls, and
-   production deployment are all later-phase work (Phase 5).
-10. `react-router-dom` is on a version with known moderate-severity CVEs;
-    fixing it needs a deliberate major-version migration (see the audit
-    table above).
+8. Authentication, persistence, real privacy controls, and production
+   deployment are all later-phase work (Phase 5). `AI_MAX_CANDIDATES`/
+   `AI_MAX_PROVIDER_REQUESTS_PER_RUN` are cost/bug safety nets, not a real
+   rate limiter or a per-client quota — a public deployment still needs a
+   reverse-proxy rate limiter in front of it (`docs/architecture/KNOWN_LIMITATIONS.md` P3.2).
+9. `react-router-dom` is on a version with known moderate-severity CVEs;
+   fixing it needs a deliberate major-version migration (see the audit
+   table above).
 
 Full detail: [`architecture/KNOWN_LIMITATIONS.md`](architecture/KNOWN_LIMITATIONS.md).
 
@@ -394,10 +615,10 @@ Full detail: [`architecture/KNOWN_LIMITATIONS.md`](architecture/KNOWN_LIMITATION
 - `main` represents ScenarioRank V2.
 - Temporary implementation branches are merged and deleted; they are not
   permanent project branches.
-- Groq and Gemini are supported through provider adapters; **Groq is the
-  live default runtime provider** (no longer just "intended").
-- Gemini unpaid usage is limited to synthetic or explicitly non-sensitive
-  data.
+- **OpenAI (`gpt-5-mini`) is the only supported provider** (superseded:
+  Groq and Gemini were both real, tested integrations, removed after
+  neither could reliably complete a live run on its free tier — see
+  `docs/decisions/ADR-0004-single-openai-provider.md`).
 - Google ADK is not currently justified because ScenarioRank follows a
   controlled sequential pipeline rather than autonomous agent planning.
 - Zod is the canonical local validation layer, and is now actually used by
@@ -439,11 +660,35 @@ Full detail: [`architecture/KNOWN_LIMITATIONS.md`](architecture/KNOWN_LIMITATION
   (account-tier rate limits, a reasoning model's token-budget behavior);
   when that happens, the honest response is to document the failure and
   its cause, not to claim success based on mocked tests alone.
+- **New in the Phase 1 single-OpenAI-provider simplification:** keeping an
+  unused provider adapter "for later" is not free — each one carries its
+  own SDK dependency, environment variables, tests, and failure modes to
+  reason about. A provider is removed, not left dormant, once nothing
+  actually depends on it; re-adding one later means writing a real new
+  adapter deliberately, with its own ADR, not un-commenting something
+  dormant (docs/decisions/ADR-0004-single-openai-provider.md).
+- **New in the Phase 1 single-OpenAI-provider simplification:** a
+  provider-neutral contract is worth keeping even with exactly one
+  provider — it isolates SDK-specific plumbing (request shape,
+  refusal/truncation detection, error mapping, usage extraction) from the
+  orchestrator, and that separation's value doesn't depend on provider
+  count.
+- **New in the Phase 1 single-OpenAI-provider simplification:** batch
+  responses must be validated by real-world identity (candidate ID, pair
+  identity), never by array position or count alone — and "missing" is
+  not always an error: it's a hard failure for something that must be
+  complete (candidate scoring) and a tolerated partial result for
+  something optional with its own honest-unavailable fallback (pairing).
+- **New in the Phase 1 single-OpenAI-provider simplification:** an
+  estimated cost must come from actual token usage against a table of
+  models this codebase has actually verified pricing for, and must return
+  `null` — never an extrapolated guess — for anything outside that table.
 
 ## Next planned milestone
 
 **Immediate next step: get explicit approval on the corrected draft PR
-#2.** Phase 1 (including this post-review correction round) is complete
+#2.** Phase 1 (including both post-review rounds — the correctness/naming
+corrections and the single-OpenAI-provider simplification) is complete
 and awaiting the owner's explicit review and merge approval — the owner
 has stated not to merge until they explicitly approve. No further Phase 1
 work is planned unless another review round requests changes.
@@ -463,11 +708,11 @@ Per `docs/V2_ROADMAP.md`, planned to:
   `src/components/AgentFlowSection.tsx`, which still use the retired
   "bias"/"agent" naming);
 - decide, via ADR, whether to retain Node/Express or migrate the backend
-  to Python/FastAPI;
-- separately: investigate and fix the Gemini `maxOutputTokens` truncation
-  found during this round's real-provider retest, and/or verify a
-  higher-tier Groq key, so a real end-to-end demo can be shown reliably
-  live rather than only via the mocked test suite.
+  to Python/FastAPI (reaffirmed as Node for now — see the Phase 1
+  single-OpenAI-provider simplification milestone above);
+- the real end-to-end demo concern from the earlier Groq/Gemini retest is
+  now resolved — the real OpenAI smoke test (above) reached `complete`
+  successfully, so this is no longer an open follow-up.
 
 ## Later roadmap
 
@@ -493,11 +738,16 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
   targeting `main`.
 - A review of that draft PR requested 7 specific corrections (concurrency
   configurability, pairing fabrication, cross-scenario claims, bias
-  naming, agent terminology, stale comments, this documentation pass),
-  all completed **on the same branch, updating the same draft PR #2** —
-  no new branch was created, per explicit instruction.
+  naming, agent terminology, stale comments, a documentation pass), all
+  completed **on the same branch, updating the same draft PR #2** — no
+  new branch was created, per explicit instruction.
+- A further instruction then asked for a final architectural
+  simplification — one AI provider (OpenAI) instead of two, and a
+  request-count reduction — again completed **on the same branch,
+  updating the same draft PR #2**, per explicit instruction not to create
+  another branch and not to merge.
 - **PR #2 is still a draft, still not merged, awaiting explicit owner
-  approval of this corrected version before merge.**
+  approval of this simplified, corrected version before merge.**
 - Temporary branches are merged and deleted; they are not permanent
   project branches.
 - New implementation branches should only be created when work begins.
@@ -508,10 +758,11 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
 Concepts the owner should understand now that Phase 1 is complete:
 
 - What an adapter is, concretely, and what would change (and what
-  wouldn't) if a third provider were added.
-- Why the pipeline depends on an interface rather than Groq directly.
-- Why Zod validation is still required even when a provider guarantees
-  structured output.
+  wouldn't) if a second provider were added back.
+- Why the pipeline depends on an interface rather than the `openai`
+  package directly, even with exactly one provider.
+- Why Zod validation is still required even though the OpenAI SDK's own
+  `zodTextFormat()` helper already re-validates once internally.
 - Where retries occur, and why there is exactly one retry owner.
 - Why one provider instance is resolved once at process startup — not
   once per request — and why that's a stronger guarantee than "one per
@@ -521,8 +772,13 @@ Concepts the owner should understand now that Phase 1 is complete:
   precedence between it, `.env`, and a real shell-exported variable.
 - Why the cross-scenario-consistency fix removed an input instead of
   computing a "better" replacement number.
-- Why the pairing fix and the provider migration were sequenced as
-  separate, reviewable changes rather than combined.
+- Why Groq and Gemini were removed rather than kept as unused
+  alternatives, and what real test result drove that decision.
+- Why a missing candidate in a batch scoring response is a hard failure,
+  while a missing pair in a batch pairing response is a tolerated partial
+  result.
+- Why `estimatedCostUsd` is `null` for an unrecognized model instead of an
+  extrapolated guess.
 
 Full detail: [`LEARNING_CHECKPOINTS.md`](LEARNING_CHECKPOINTS.md).
 

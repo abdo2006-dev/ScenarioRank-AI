@@ -1,6 +1,20 @@
 # ADR-0003: Runtime environment and provider configuration
 
-- **Status:** Accepted
+- **Status:** Accepted; updated 2026-07-26 for the single-OpenAI-provider
+  simplification ([`ADR-0004-single-openai-provider.md`](ADR-0004-single-openai-provider.md)).
+  **What changed:** `AI_PROVIDER` (the "which provider" selector) no longer
+  exists — there is exactly one provider, so selecting one at runtime has
+  no value (see "Decision: no runtime provider selection" below, replacing
+  the old provider-selection text). `GROQ_*`/`GEMINI_*` variables are gone,
+  replaced by `OPENAI_API_KEY`/`OPENAI_MODEL` (and the new
+  `OPENAI_REASONING_EFFORT`, `AI_MAX_CANDIDATES`,
+  `AI_MAX_PROVIDER_REQUESTS_PER_RUN` — see ADR-0004 and
+  `docs/PROJECT_STATUS.md`). **What did not change:** every decision
+  below about `.env`/`.env.local` precedence, resolving exactly one
+  provider instance for the process's entire lifetime, environment-
+  dependent startup strictness, and never silently falling back between
+  providers — all of it still applies exactly as written, just with
+  "the selected provider" read as "OpenAI" throughout.
 - **Date:** 2026-07-25
 
 ## Context
@@ -29,12 +43,25 @@ touched. No new dependency was added — this is the same hand-rolled
 `.env` parser style the codebase already used, extended to a second file
 with clear precedence.
 
+## Decision: no runtime provider selection
+
+Before ADR-0004, `AI_PROVIDER` selected between `"groq"` and `"gemini"` at
+startup. With exactly one supported provider, a selector variable adds a
+configuration surface with no real choice behind it — `createProvider()`
+now takes no provider-name argument at all; it directly constructs the
+OpenAI provider from `OPENAI_API_KEY`/`OPENAI_MODEL`. This is not a
+"provider defaults to OpenAI" behavior that could silently drift to
+something else later — there is no other branch in the code for it to
+fall into. Adding a second provider back in the future means adding a
+real selector and a real second `createXProvider()` branch again,
+deliberately, with its own ADR — not un-commenting something dormant.
+
 ## Decision: one provider instance for the process's lifetime
 
 `server.mjs` resolves the provider **once**, at process startup:
 
 ```
-loadEnv() -> resolveStartupAiStatus() -> createProvider(providerName) -> createApp({ provider, aiEnabled })
+loadEnv() -> resolveStartupAiStatus() -> createProvider() -> createApp({ provider, aiEnabled })
 ```
 
 That single instance is threaded through `createApp` -> `registerRoutes`
@@ -63,7 +90,7 @@ startup) is the only way the active provider changes.
 `/health` reflects this without exposing anything secret:
 
 ```json
-{ "status": "ok", "ai_enabled": true, "ai_provider": "groq" }
+{ "status": "ok", "ai_enabled": true, "ai_provider": "openai", "ai_model": "gpt-5-mini" }
 ```
 
 `status` is basic liveness (the process is up and answering); `ai_enabled`
@@ -72,14 +99,16 @@ config-validation error message.
 
 ## Decision: no silent provider fallback
 
-If the selected provider fails (auth error, rate limit, exhausted
-retries), the pipeline stage fails and the SSE route emits an `error`
-event. Nothing in this codebase catches a Groq failure and silently
-retries the same request against Gemini, or vice versa. This is
-deliberate: a run that silently changed providers partway through would
-produce candidates judged under different conditions (see ADR-0002, "why
-one provider must be used consistently"), and a user-visible failure is
-more honest than an invisible provider switch.
+If OpenAI fails (auth error, rate limit, exhausted retries), the pipeline
+stage fails and the SSE route emits an `error` event. There is no second
+provider to fall back to, and even when there were two (Groq/Gemini, see
+ADR-0002/ADR-0004), nothing in this codebase ever caught a failure on one
+and silently retried against the other. This is deliberate and unchanged
+by the single-provider simplification: a run that silently changed
+providers or models partway through would produce candidates judged under
+different conditions (see ADR-0002, "why one provider must be used
+consistently"), and a user-visible failure is more honest than an
+invisible provider switch.
 
 ## Consequences
 

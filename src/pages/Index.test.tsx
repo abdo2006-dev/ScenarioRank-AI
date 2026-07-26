@@ -63,14 +63,31 @@ describe("Results — cross-scenario consistency is shown as not measured", () =
   });
 });
 
-describe("Results — provider/model run metadata", () => {
-  it("shows the provider and model footer when run_metadata is present", () => {
-    const response = buildResponse({
-      run_metadata: { provider: "groq", model: "openai/gpt-oss-120b", promptVersions: {}, schemaVersions: {}, attempts: {}, startedAt: "", completedAt: "" },
-    });
+describe("Results — provider/model/cost run metadata", () => {
+  function runMetadataFixture(overrides: Record<string, unknown> = {}) {
+    return {
+      provider: "openai", model: "gpt-5-mini", providerRequestCount: 4,
+      inputTokens: 1000, cachedInputTokens: 0, outputTokens: 500, reasoningTokens: 0, totalTokens: 1500,
+      estimatedCostUsd: 0.00125,
+      promptVersions: {}, schemaVersions: {}, attempts: {}, startedAt: "", completedAt: "",
+      ...overrides,
+    };
+  }
+
+  it("shows the provider, model, request count, token usage, and estimated cost footer when run_metadata is present", () => {
+    const response = buildResponse({ run_metadata: runMetadataFixture() });
     render(<Results response={response as never} />);
-    expect(screen.getByText(/groq/)).toBeInTheDocument();
-    expect(screen.getByText(/openai\/gpt-oss-120b/)).toBeInTheDocument();
+    expect(screen.getByText(/openai/)).toBeInTheDocument();
+    expect(screen.getByText(/gpt-5-mini/)).toBeInTheDocument();
+    expect(screen.getByText(/4 requests/)).toBeInTheDocument();
+    expect(screen.getByText(/1,500 tokens/)).toBeInTheDocument();
+    expect(screen.getByText(/approximate, not an invoice/i)).toBeInTheDocument();
+  });
+
+  it("shows the cost as unavailable, never a guessed number, when the model has no recorded pricing", () => {
+    const response = buildResponse({ run_metadata: runMetadataFixture({ estimatedCostUsd: null }) });
+    render(<Results response={response as never} />);
+    expect(screen.getByText(/Estimated cost: unavailable/i)).toBeInTheDocument();
   });
 
   it("shows no metadata footer when run_metadata is absent", () => {

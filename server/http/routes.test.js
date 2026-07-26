@@ -2,9 +2,11 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createApp } from "./app.js";
 import { createFakePipelineProvider, defaultHandlers, defaultInput } from "../pipeline/testSupport/fakePipelineProvider.js";
 
+const DEFAULT_TEST_DEPS = { maxCandidates: 5, maxProviderRequestsPerRun: 4 };
+
 /** Starts the real Express app on an ephemeral port; no new test dependency. */
 function startServer(deps) {
-  const app = createApp(deps);
+  const app = createApp({ ...DEFAULT_TEST_DEPS, ...deps });
   return new Promise((resolve) => {
     const server = app.listen(0, () => resolve(server));
   });
@@ -30,7 +32,7 @@ afterEach(async () => {
 });
 
 describe("/health", () => {
-  it("reports liveness and AI readiness without exposing secrets", async () => {
+  it("reports liveness, AI readiness, and the configured model, without exposing secrets", async () => {
     const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
     activeServer = await startServer({ provider, aiEnabled: true });
     const port = activeServer.address().port;
@@ -38,16 +40,16 @@ describe("/health", () => {
     const res = await fetch(`http://localhost:${port}/health`);
     const body = await res.json();
 
-    expect(body).toEqual({ status: "ok", ai_enabled: true, ai_provider: "fake" });
+    expect(body).toEqual({ status: "ok", ai_enabled: true, ai_provider: "fake", ai_model: "fake-model" });
     expect(JSON.stringify(body)).not.toMatch(/key|secret|token/i);
   });
 
-  it("reports ai_enabled:false and ai_provider:null when AI is unavailable", async () => {
+  it("reports ai_enabled:false, ai_provider:null, ai_model:null when AI is unavailable", async () => {
     activeServer = await startServer({ provider: null, aiEnabled: false });
     const port = activeServer.address().port;
 
     const res = await fetch(`http://localhost:${port}/health`);
-    expect(await res.json()).toEqual({ status: "ok", ai_enabled: false, ai_provider: null });
+    expect(await res.json()).toEqual({ status: "ok", ai_enabled: false, ai_provider: null, ai_model: null });
   });
 });
 
@@ -74,7 +76,7 @@ describe("POST /api/decision/stream", () => {
     // every stage completed, in the declared order, ending with "complete".
     const lastStageUpdate = [...events].reverse().find((e) => e.event === "stage_update");
     const ids = lastStageUpdate.data.map((s) => s.id);
-    expect(ids).toEqual(["input", "role", "scenario", "scoring", "confidence_review", "outcome", "decision", "complete"]);
+    expect(ids).toEqual(["input", "context", "scoring", "confidence_review", "outcome", "decision", "complete"]);
     expect(lastStageUpdate.data.every((s) => s.status === "completed")).toBe(true);
   });
 
@@ -93,8 +95,22 @@ describe("POST /api/decision/stream", () => {
     expect(events[0].data.message).toMatch(/role.title/);
   });
 
+  it("emits an error event when the submitted candidate count exceeds AI_MAX_CANDIDATES", async () => {
+    activeServer = await startServer({ provider: createFakePipelineProvider({ handlers: defaultHandlers() }), aiEnabled: true, maxCandidates: 2 });
+    const port = activeServer.address().port;
+
+    const res = await fetch(`http://localhost:${port}/api/decision/stream`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(defaultInput({ candidateIds: ["a", "b", "c"] })),
+    });
+    const events = parseSseEvents(await res.text());
+    expect(events).toHaveLength(1);
+    expect(events[0].event).toBe("error");
+    expect(events[0].data.message).toMatch(/At most 2 candidates/);
+  });
+
   it("emits an error event and closes cleanly when a pipeline stage fails — never hangs", async () => {
-    const handlers = { ...defaultHandlers(), "role-analysis": () => { throw new Error("simulated provider failure"); } };
+    const handlers = { ...defaultHandlers(), "context-analysis": () => { throw new Error("simulated provider failure"); } };
     activeServer = await startServer({ provider: createFakePipelineProvider({ handlers }), aiEnabled: true });
     const port = activeServer.address().port;
 
@@ -137,6 +153,21 @@ describe("POST /api/decision (non-streaming)", () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.decision_result.recommended_candidate_id).toBeTruthy();
+    expect(body.run_metadata.providerRequestCount).toBeGreaterThan(0);
+  });
+
+  it("returns 400 when the submitted candidate count exceeds AI_MAX_CANDIDATES", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    activeServer = await startServer({ provider, aiEnabled: true, maxCandidates: 2 });
+    const port = activeServer.address().port;
+
+    const res = await fetch(`http://localhost:${port}/api/decision`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(defaultInput({ candidateIds: ["a", "b", "c"] })),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/At most 2 candidates/);
   });
 
   it("returns 503 when AI is unavailable, without a secret-revealing message", async () => {

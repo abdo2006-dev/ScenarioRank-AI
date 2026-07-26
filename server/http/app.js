@@ -8,7 +8,7 @@ import cors from "cors";
 import { registerRoutes } from "./routes.js";
 
 /**
- * @param {{ provider: import("../ai/types.js").AIProvider | null, aiEnabled: boolean, candidateConcurrency: number }} deps
+ * @param {{ provider: import("../ai/types.js").AIProvider | null, aiEnabled: boolean, maxCandidates: number, maxProviderRequestsPerRun: number }} deps
  */
 export function createApp(deps) {
   const app = express();

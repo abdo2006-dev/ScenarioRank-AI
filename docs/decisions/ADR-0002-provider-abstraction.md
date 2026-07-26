@@ -1,7 +1,17 @@
 # ADR-0002: Provider-neutral AI integration (Groq default, Gemini optional)
 
-- **Status:** Accepted and implemented (Phase 1A built the abstraction; Phase 1B completed the pipeline cutover — the Anthropic-specific path described below has since been removed, see the note at the end of "Why Phase 1A does not yet migrate the active pipeline")
-- **Date:** 2026-07-25 (Phase 1A); cutover completed in the same overall Phase 1 effort
+- **Status:** Partially superseded by [`ADR-0004-single-openai-provider.md`](ADR-0004-single-openai-provider.md).
+  **This ADR's *choice of providers* (Groq default, Gemini optional) is
+  superseded — both were removed from the active codebase after a real
+  end-to-end smoke test showed neither could reliably complete a full
+  pipeline run on its free/low tier (see ADR-0004).** This ADR's
+  *reasoning for a provider-neutral contract at all* is not superseded —
+  ADR-0004 keeps that contract and explains why it is still worth having
+  with a single provider. Kept in full, unedited below, as the honest
+  historical record of what was actually built and verified in Phase
+  1A/1B, not retroactively rewritten to hide that Groq and Gemini were
+  real, tested, working integrations before they were removed.
+- **Date:** 2026-07-25 (Phase 1A); cutover completed in the same overall Phase 1 effort; superseded 2026-07-26 (ADR-0004)
 
 ## Context
 
