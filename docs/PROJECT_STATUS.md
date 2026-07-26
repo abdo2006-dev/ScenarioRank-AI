@@ -8,6 +8,37 @@ and current state without re-reading every commit. It intentionally does
 not duplicate the detailed architecture documents — it summarizes and
 links to them.
 
+## Current status (read this first)
+
+**Phase 1 is complete and merged.** PR #2 was approved by the owner and
+squash-merged into `main` as commit `8f19bb7` ("feat: complete
+ScenarioRank V2 Phase 1"). The temporary implementation branch
+`v2/phase-1-completion` has been deleted, both locally and on the remote
+— `main` is now the sole active public V2 line, with no outstanding Phase
+1 branch or PR. The preserved award snapshot (`archive/bmw-award-original`
+branch and `bmw-award-original` tag) is untouched.
+
+The active AI provider is OpenAI (`gpt-5-mini`), reached only through the
+provider-neutral contract (`server/ai/types.js`) — never a vendor SDK
+directly from the pipeline. A normal evaluation uses 3 logical
+model-backed pipeline stages without pairing, or 4 with pairing enabled;
+real OpenAI attempts (including retries and batch-integrity corrective
+calls) are tracked separately via `run_metadata.providerAttemptCount`,
+never conflated with the fixed logical-stage count. A successful pairing
+result requires complete coverage of every expected top-four pair — a
+subset is never reported as successful. A real, synthetic, end-to-end
+OpenAI smoke test completed successfully (reached `complete`, 6,438
+total tokens, ~$0.01 estimated cost) — see "Real OpenAI smoke test"
+below. Current status: 175 tests passing (159 backend + 16 frontend), 0
+lint problems, clean build, 9 known `npm audit` findings (all requiring a
+deliberate major-version bump, none force-applied).
+
+**Phase 2 has not started — no Phase 2 code exists.** The exact next
+milestone is Phase 2 planning and understanding (architecture and
+maintainability: frontend feature-folder split, one contract source of
+truth, dead-code removal, a Node-vs-Python ADR) before any
+implementation begins. See "Next planned milestone" below.
+
 ## Project objective
 
 ScenarioRank AI V2 is a post-award engineering refinement of the BMW
@@ -82,14 +113,15 @@ cannot change based on explanation wording.
   (`server.mjs`) and reused for the process's entire lifetime — every
   request and every pipeline stage uses the same provider/model. No code
   path constructs a second provider.
-- A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing
-  enabled) uses **at most 4 logical model-backed pipeline stages**: one
-  combined role+scenario context-analysis stage, one batch stage scoring
-  every candidate, one batch stage evaluating every relevant top-four
-  pair, and one decision-explanation stage — down from the six-to-nine
-  real calls the pre-batching architecture made per candidate/pair. This
-  is a fixed count of *logical stages*, not the same claim as "at most 4
-  real OpenAI API requests": a stage's own retry or a batch-integrity
+- A normal evaluation (up to `AI_MAX_CANDIDATES` candidates) uses **3
+  logical model-backed pipeline stages without pairing, or 4 with pairing
+  enabled**: one combined role+scenario context-analysis stage, one batch
+  stage scoring every candidate, one optional batch stage evaluating
+  every relevant top-four pair, and one decision-explanation stage — down
+  from the six-to-nine real calls the pre-batching architecture made per
+  candidate/pair. This is a fixed count of *logical stages*, not the same
+  claim as "at most 4 real OpenAI API requests": a stage's own retry or a
+  batch-integrity
   corrective call adds real attempts without adding a stage, which is why
   `run_metadata` separately reports `logicalProviderStageCount` (bounded
   at 4, `server/pipeline/runPipeline.js`'s fixed `MAX_LOGICAL_PROVIDER_STAGES`
@@ -230,7 +262,7 @@ Details: [`architecture/CURRENT_ARCHITECTURE.md`](architecture/CURRENT_ARCHITECT
   CURRENT_ARCHITECTURE, KNOWN_LIMITATIONS, SCORING_AND_ASSUMPTIONS,
   TECHNOLOGY_INVENTORY, LEARNING_CHECKPOINTS, ADR-0002, new ADR-0003).
 
-### Phase 1 post-review corrections — completed, same PR #2, not yet merged
+### Phase 1 post-review corrections — completed, merged via PR #2 (squash commit `8f19bb7`)
 
 A review of the completed Phase 1B/1C/1D work (draft PR #2) found remaining
 behavior and terminology that still contradicted V2's honesty and
@@ -385,7 +417,7 @@ deliberately not force-applied:
 | `vite`, `esbuild` | `vite` direct, `esbuild` transitive | dev-only (build tool + dev server; CVEs are about the dev server serving arbitrary files / accepting cross-origin requests) | high / moderate | Low — only matters if `npm run dev` is exposed on an untrusted network, which it isn't here | Deliberate vite 5->8 upgrade later, with a full frontend build/test pass since it's a major bump |
 | `react-router`, `react-router-dom` | `react-router-dom` direct, `react-router` transitive | **production** — ships in the actual browser bundle | moderate | Low in this app's current usage — the CVEs involve untrusted dynamic `Link`/`useNavigate` targets or SSR; this app has one static route (`/`) plus a catch-all, no SSR, and no user-controlled route targets | Track for a deliberate react-router-dom 6->7 migration with real testing — this is the one production-facing item on this list and shouldn't be deferred indefinitely |
 
-### Phase 1 single-OpenAI-provider simplification — completed, same PR #2, not yet merged
+### Phase 1 single-OpenAI-provider simplification — completed, merged via PR #2 (squash commit `8f19bb7`)
 
 Following the post-review corrections above, a further instruction asked
 for a **final architectural decision**: simplify ScenarioRank to exactly
@@ -586,7 +618,7 @@ integrity validation both worked exactly as designed on live traffic
 (two stages needed their one allowed retry and recovered cleanly, and
 none of the three earlier providers' era-specific failure modes recurred).
 
-### Phase 1 metadata/pairing-completeness correction round — completed, same PR #2, not yet merged
+### Phase 1 metadata/pairing-completeness correction round — completed, merged via PR #2 (squash commit `8f19bb7`)
 
 A further review of the single-OpenAI-provider simplification above found
 two remaining issues: the request-count terminology still conflated a
@@ -856,19 +888,18 @@ Full detail: [`architecture/KNOWN_LIMITATIONS.md`](architecture/KNOWN_LIMITATION
 
 ## Next planned milestone
 
-**Immediate next step: get explicit approval on the corrected draft PR
-#2.** Phase 1 (including all three post-review rounds — the
-correctness/naming corrections, the single-OpenAI-provider
-simplification, and the metadata/pairing-completeness correction round)
-is complete and awaiting the owner's explicit review and merge approval —
-the owner has stated not to merge until they explicitly approve. No
-further Phase 1 work is planned unless another review round requests
-changes.
+**Phase 1 is complete and merged.** PR #2 (including all three
+post-review rounds — the correctness/naming corrections, the
+single-OpenAI-provider simplification, and the metadata/pairing-
+completeness correction round) was approved by the owner and squash-
+merged into `main` as commit `8f19bb7`. No further Phase 1 work is
+planned.
 
-**After PR #2 is merged: Phase 2 — architecture and maintainability. Not
-started.**
+**The exact next milestone is Phase 2 planning and understanding, before
+any implementation** — architecture and maintainability work. **Phase 2
+has not started; no Phase 2 code has been written.**
 
-Per `docs/V2_ROADMAP.md`, planned to:
+Per `docs/V2_ROADMAP.md`, Phase 2 is planned to:
 
 - split the frontend into feature components, an API client, schemas, and
   hooks (the backend side of this was done in Phase 1D);
@@ -911,25 +942,36 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
 - A review of that draft PR requested 7 specific corrections (concurrency
   configurability, pairing fabrication, cross-scenario claims, bias
   naming, agent terminology, stale comments, a documentation pass), all
-  completed **on the same branch, updating the same draft PR #2** — no
-  new branch was created, per explicit instruction.
+  completed on the same branch, updating the same draft PR #2 — no new
+  branch was created, per explicit instruction.
 - A further instruction then asked for a final architectural
   simplification — one AI provider (OpenAI) instead of two, and a
-  request-count reduction — again completed **on the same branch,
-  updating the same draft PR #2**, per explicit instruction not to create
-  another branch and not to merge.
+  request-count reduction — again completed on the same branch, updating
+  the same draft PR #2.
 - A further review then requested the metadata/pairing-completeness
   correction round documented above (logical-stage vs. real-attempt
   accounting, complete pair coverage, stale comment cleanup) — again
-  completed **on the same branch, updating the same draft PR #2**, per
-  explicit instruction not to create another branch, not to merge, and not
-  to re-run the real OpenAI smoke test since this round's changes don't
+  completed on the same branch, updating the same draft PR #2, without
+  re-running the real OpenAI smoke test since that round's changes didn't
   affect the request format.
-- **PR #2 is still a draft, still not merged, awaiting explicit owner
-  approval of this simplified, corrected version before merge.**
+- **The owner reviewed and explicitly approved this final version. PR #2
+  was marked ready for review and squash-merged into `main` as commit
+  `8f19bb7` (title: "feat: complete ScenarioRank V2 Phase 1").** The
+  temporary branch `v2/phase-1-completion` was deleted both locally and
+  on the remote after the merge (a force-delete of the local branch is
+  expected and safe after a squash merge, since the original branch's
+  individual commits are not — and were never meant to be — direct
+  ancestors of the squash commit; the full history is preserved in the
+  merged PR itself).
+- `main` is now the sole active line for this work — there is no
+  outstanding Phase 1 branch or PR.
+- `archive/bmw-award-original` (branch) and `bmw-award-original` (tag)
+  are untouched and permanent — they are never merged, rebased, or
+  deleted.
 - Temporary branches are merged and deleted; they are not permanent
   project branches.
-- New implementation branches should only be created when work begins.
+- New implementation branches should only be created when work begins —
+  no Phase 2 branch exists yet, since Phase 2 has not started.
 - Prefer one active implementation branch at a time.
 
 ## Learning checkpoints
