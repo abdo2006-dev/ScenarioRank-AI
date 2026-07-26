@@ -8,6 +8,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { BACKEND_URL } from "@/lib/backendUrl";
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -15,19 +16,39 @@ interface CandidateInput { id: string; name: string; description: string; }
 interface PipelineStage { id: string; label: string; status: "pending" | "running" | "completed" | "failed"; summary?: string; duration_ms?: number; }
 interface CriterionScore { score: number; confidence: number; evidence: string; reasoning: string; }
 interface RiskProfile { execution_risk: number; culture_risk: number; time_risk: number; adaptability_risk: number; confidence_risk: number; opportunity_cost_risk: number; }
-interface OutcomeModel { expected_execution_success: number; scenario_fit: number; adaptability_score: number; likely_outcome: string; strategic_label: string; expected_outcome_score?: number; }
+interface OutcomeModel { expected_execution_success: number; scenario_fit: number; adaptability_score: number; likely_outcome: string; strategic_label: string; expected_outcome_score?: number; cross_scenario_consistency?: "not_measured" | null; }
 interface CandidateEvaluation { candidate_id: string; candidate_name: string; rank: number; weighted_fit_score: number; risk_adjusted_score: number; expected_outcome_score: number; overall_confidence: number; strategic_labels: string[]; winner_reason?: string; trade_off_note?: string; criteria_scores: Record<string, CriterionScore>; strengths: string[]; weaknesses: string[]; risk_profile: RiskProfile; outcome_model: OutcomeModel; }
 interface DecisionResult { recommended_candidate_id: string; recommended_candidate_name: string; decision_mode: string; scenario: string; final_label: string; key_reason: string; overall_confidence: number; executive_interpretation: string; }
 interface TradeOffCard { title: string; description: string; type: string; severity?: string; }
-interface AdaptabilityProfile { candidate_name: string; adaptability_score: number; best_scenario: string; worst_scenario: string; resilience_note: string; }
-interface AgentOutput { agent_name: string; agent_role: string; inputs: string[]; outputs: string[]; summary: string; }
-interface BiasReview { candidate_id: string; candidate_name: string; overall_confidence: number; bias_flags: Array<{ type: string; severity: string; description: string; }>; recommend_human_review: boolean; }
+// best_scenario/worst_scenario are always "not_measured" until real
+// multi-scenario execution exists (docs/architecture/KNOWN_LIMITATIONS.md
+// P0.2) — typed as a union so a future real value remains representable.
+interface AdaptabilityProfile { candidate_name: string; adaptability_score: number; best_scenario: string | "not_measured"; worst_scenario: string | "not_measured"; resilience_note: string; cross_scenario_consistency?: "not_measured" | null; }
+// Renamed from AgentOutput: ScenarioRank is a fixed orchestrated pipeline,
+// not a multi-agent system — see docs/decisions/ADR-0002-provider-abstraction.md.
+interface PipelineStageOutput { stage_name: string; stage_role: string; inputs: string[]; outputs: string[]; summary: string; }
+// Renamed from BiasReview/bias_flags: this stage checks response
+// confidence and evidence length, not demographic or legal bias.
+interface ConfidenceEvidenceReview { candidate_id: string; candidate_name: string; overall_confidence: number; confidence_evidence_flags: Array<{ type: string; severity: string; description: string; }>; recommend_human_review: boolean; }
 interface PairResult { pair: [string, string]; pair_score: number; explanation: string; scenario_coverage?: number; complementarity?: number; overlap_risk?: number; conflict_risk?: number; execution_cohesion?: number; pair_adaptability?: number; }
-interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { title: string; key_requirements: string[]; complexity: string; }; scenario_analysis: { scenario: string; key_pressures: string[]; weight_rationale: string; }; candidate_evaluations: CandidateEvaluation[]; bias_confidence_reviews: BiasReview[]; decision_result: DecisionResult; pairing_result?: { best_pair: PairResult; top_pairs: PairResult[]; }; trade_offs: TradeOffCard[]; adaptability_profiles: AdaptabilityProfile[]; agent_outputs: AgentOutput[]; executive_summary: { recommendation: string; reason: string; trade_off: string; opportunity_cost: string; adaptability: string; alternative: string; }; }
+// No fabricated fallback pair (docs/architecture/KNOWN_LIMITATIONS.md P0.5):
+// when every pair evaluation fails, the backend returns an honest
+// "unavailable" result instead of an invented best_pair.
+type PairingResult = { status: "ok"; best_pair: PairResult; top_pairs: PairResult[]; } | { status: "unavailable"; reason: string; best_pair: null; top_pairs: []; };
+// Cost/usage fields are always present but may be 0 or null (e.g.
+// estimatedCostUsd is null for an unrecognized model — never a guessed
+// number, see server/ai/pricing/openaiPricing.js).
+// logicalProviderStageCount: number of logical model-backed pipeline
+// stages used this run (a fixed architectural fact, normally 3 or 4).
+// providerAttemptCount: the real, aggregated number of OpenAI attempts
+// actually made, including retries and batch-integrity corrective calls —
+// this can exceed logicalProviderStageCount and is the more honest number
+// for "how many times did this run actually call OpenAI."
+interface RunMetadata { provider: string; model: string; logicalProviderStageCount: number; providerAttemptCount: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningTokens: number; totalTokens: number; estimatedCostUsd: number | null; promptVersions: Record<string, string>; schemaVersions: Record<string, string>; attempts: Record<string, number>; startedAt: string; completedAt: string; }
+interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { title: string; key_requirements: string[]; complexity: string; }; scenario_analysis: { scenario: string; key_pressures: string[]; weight_rationale: string; }; candidate_evaluations: CandidateEvaluation[]; confidence_evidence_reviews: ConfidenceEvidenceReview[]; decision_result: DecisionResult; pairing_result?: PairingResult; trade_offs: TradeOffCard[]; adaptability_profiles: AdaptabilityProfile[]; pipeline_stage_outputs: PipelineStageOutput[]; executive_summary: { recommendation: string; reason: string; trade_off: string; opportunity_cost: string; adaptability: string; alternative: string; }; run_metadata?: RunMetadata; }
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
-const BACKEND_URL = "http://localhost:3001";
 
 const DEFAULT_ROLE = {
   title: "VP of People & Culture",
@@ -56,14 +77,20 @@ const DEFAULT_CANDIDATES: CandidateInput[] = [
   { id: "c5", name: "Samuel Okafor", description: "Ex-McKinsey People & Org specialist. Led DEI turnarounds in three multinational firms. High strategic clarity, strong executive presence. Can be perceived as too top-down by grassroots teams." },
 ];
 
+// Matches server/pipeline/runPipeline.js's stage list. "Context Analysis"
+// covers what used to be two separate stages (Role Analysis + Scenario
+// Analysis) — one combined provider request now produces both
+// (docs/decisions/ADR-0004-single-openai-provider.md), though the
+// backend still reports them as distinct pipeline_stage_outputs entries.
 const INITIAL_STAGES: PipelineStage[] = [
-  { id: "role", label: "Role Analysis", status: "pending" },
-  { id: "scenario", label: "Scenario Analysis", status: "pending" },
+  { id: "input", label: "Input Received", status: "pending" },
+  { id: "context", label: "Context Analysis", status: "pending" },
   { id: "scoring", label: "Candidate Scoring", status: "pending" },
-  { id: "bias", label: "Bias & Confidence Review", status: "pending" },
+  { id: "confidence_review", label: "Confidence & Evidence Review", status: "pending" },
   { id: "outcome", label: "Outcome Modeling", status: "pending" },
-  { id: "decision", label: "Decision Engine", status: "pending" },
   { id: "pairing", label: "Pair Simulation", status: "pending" },
+  { id: "decision", label: "Decision Engine", status: "pending" },
+  { id: "complete", label: "Completed", status: "pending" },
 ];
 
 // ─── SERVICE ──────────────────────────────────────────────────────────────────
@@ -565,7 +592,7 @@ function Landing({ onStart }: { onStart: () => void }) {
   );
 }
 
-function EvalForm({
+export function EvalForm({
   role, setRole, scenarios, setScenarios, scenario, setScenario, decisionMode, setDecisionMode,
   candidates, setCandidates, enablePairing, setEnablePairing, onRun, isRunning,
   onGenerateScenarios, isGeneratingScenarios, onLoadDefaults, onResetInputs, aiEnabled,
@@ -778,7 +805,7 @@ function PipelineProgress({ stages }: { stages: PipelineStage[] }) {
   return (
     <div className="max-w-3xl mx-auto px-6 py-6">
       <Card>
-        <h3 className="text-sm font-semibold text-white/60 mb-4 uppercase tracking-widest">Agent Pipeline</h3>
+        <h3 className="text-sm font-semibold text-white/60 mb-4 uppercase tracking-widest">Decision Pipeline</h3>
         <div className="space-y-2">
           {stages.map(s => (
             <div key={s.id} className="flex items-center gap-3">
@@ -827,8 +854,8 @@ function CriterionScoringPanel({ criteriaScores }: { criteriaScores: Record<stri
                   {CRITERION_LABELS[key] ?? key}
                 </span>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs text-white/40">
-                    Conf: {Math.round(cs.confidence * 100)}%
+                  <span className="text-xs text-white/40" title="Model-reported confidence — not a calibrated probability of correctness">
+                    Model conf: {Math.round(cs.confidence * 100)}%
                   </span>
                   <span className="text-sm font-bold text-amber-400">
                     {cs.score}/10
@@ -846,8 +873,8 @@ function CriterionScoringPanel({ criteriaScores }: { criteriaScores: Record<stri
   );
 }
 
-function Results({ response }: { response: PipelineResponse }) {
-  const [tab, setTab] = useState<"overview" | "candidates" | "analysis" | "pairing" | "agents">("overview");
+export function Results({ response }: { response: PipelineResponse }) {
+  const [tab, setTab] = useState<"overview" | "candidates" | "analysis" | "pairing" | "pipeline">("overview");
   const winner = response.candidate_evaluations[0];
   const hasPairing = !!response.pairing_result;
 
@@ -868,7 +895,7 @@ function Results({ response }: { response: PipelineResponse }) {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white/5 rounded-xl p-1">
-        {(["overview", "candidates", "analysis", ...(hasPairing ? ["pairing"] : []), "agents"] as const).map(t => (
+        {(["overview", "candidates", "analysis", ...(hasPairing ? ["pairing"] : []), "pipeline"] as const).map(t => (
           <button key={t} onClick={() => setTab(t as typeof tab)}
             className={cn("flex-1 py-1.5 rounded-lg text-xs font-medium capitalize transition-all", tab === t ? "bg-white/10 text-white" : "text-white/40 hover:text-white/60")}
           >{t}</button>
@@ -928,7 +955,7 @@ function Results({ response }: { response: PipelineResponse }) {
               <div className="grid grid-cols-3 gap-3 mb-3 text-xs text-center">
                 <div><div className="text-white font-semibold">{c.risk_adjusted_score.toFixed(1)}</div><div className="text-white/40">Risk Adj.</div></div>
                 <div><div className="text-white font-semibold">{c.expected_outcome_score.toFixed(1)}</div><div className="text-white/40">Outcome</div></div>
-                <div><div className="text-white font-semibold">{Math.round(c.overall_confidence * 100)}%</div><div className="text-white/40">Confidence</div></div>
+                <div><div className="text-white font-semibold">{Math.round(c.overall_confidence * 100)}%</div><div className="text-white/40" title="Model-reported confidence — not a calibrated probability of correctness">Model Conf.</div></div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
@@ -969,18 +996,21 @@ function Results({ response }: { response: PipelineResponse }) {
                   </div>
                   <ScoreBar value={p.adaptability_score} max={100} color="#34d399" />
                   <div className="text-xs text-white/40 italic">{p.resilience_note}</div>
+                  {p.cross_scenario_consistency === "not_measured" && (
+                    <div className="text-[11px] text-white/30 italic">Cross-scenario consistency: not measured (requires running multiple scenarios).</div>
+                  )}
                 </div>
               ))}
             </div>
           </Card>
 
-          {response.bias_confidence_reviews.some(r => r.bias_flags.length > 0) && (
+          {response.confidence_evidence_reviews.some(r => r.confidence_evidence_flags.length > 0) && (
             <Card>
-              <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Bias Flags</h3>
-              {response.bias_confidence_reviews.filter(r => r.bias_flags.length > 0).map(r => (
+              <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Confidence & Evidence Flags</h3>
+              {response.confidence_evidence_reviews.filter(r => r.confidence_evidence_flags.length > 0).map(r => (
                 <div key={r.candidate_id} className="mb-3">
                   <div className="text-sm font-medium text-white mb-1">{r.candidate_name}</div>
-                  {r.bias_flags.map((f, i) => (
+                  {r.confidence_evidence_flags.map((f, i) => (
                     <div key={i} className="text-xs border-l-2 border-amber-400/40 pl-2 mb-1">
                       <span className="text-amber-300">{f.type}</span>
                       <span className="text-white/40 ml-2">{f.description}</span>
@@ -993,7 +1023,19 @@ function Results({ response }: { response: PipelineResponse }) {
         </div>
       )}
 
-      {tab === "pairing" && response.pairing_result && (
+      {tab === "pairing" && response.pairing_result && response.pairing_result.status === "unavailable" && (
+        <div className="space-y-4">
+          <Card className="border-white/10">
+            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Pairing Unavailable</h3>
+            <p className="text-sm text-white/70 leading-relaxed">
+              We couldn't evaluate leadership pairs for this run. No pair result is available — nothing below is a real recommendation.
+            </p>
+            <p className="text-xs text-white/40 mt-2">You can try running the evaluation again.</p>
+          </Card>
+        </div>
+      )}
+
+      {tab === "pairing" && response.pairing_result && response.pairing_result.status === "ok" && (
         <div className="space-y-4">
           <Card className="border-amber-400/20">
             <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Best Leadership Pair</h3>
@@ -1039,15 +1081,15 @@ function Results({ response }: { response: PipelineResponse }) {
         </div>
       )}
 
-      {tab === "agents" && (
+      {tab === "pipeline" && (
         <div className="space-y-3">
-          {response.agent_outputs.map(a => (
-            <Card key={a.agent_name}>
+          {response.pipeline_stage_outputs.map(a => (
+            <Card key={a.stage_name}>
               <div className="flex justify-between items-start mb-2">
-                <div className="font-semibold text-sm text-white">{a.agent_name}</div>
-                <Badge>{a.agent_role.includes("LLM") ? "LLM" : "Deterministic"}</Badge>
+                <div className="font-semibold text-sm text-white">{a.stage_name}</div>
+                <Badge>{a.stage_role.includes("LLM") ? "LLM" : "Deterministic"}</Badge>
               </div>
-              <p className="text-xs text-white/50 mb-3">{a.agent_role}</p>
+              <p className="text-xs text-white/50 mb-3">{a.stage_role}</p>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div><div className="text-white/30 mb-1">Inputs</div>{a.inputs.map(i => <div key={i} className="text-white/60">→ {i}</div>)}</div>
                 <div><div className="text-white/30 mb-1">Outputs</div>{a.outputs.map(o => <div key={o} className="text-white/60">← {o}</div>)}</div>
@@ -1055,6 +1097,22 @@ function Results({ response }: { response: PipelineResponse }) {
               <p className="text-xs text-white/40 mt-3 italic border-t border-white/10 pt-3">{a.summary}</p>
             </Card>
           ))}
+        </div>
+      )}
+
+      {response.run_metadata && (
+        <div className="text-center text-[11px] text-white/25 pt-2 space-y-1">
+          <div>
+            Evaluated with {response.run_metadata.provider} ({response.run_metadata.model}) ·{" "}
+            {response.run_metadata.logicalProviderStageCount} stage{response.run_metadata.logicalProviderStageCount === 1 ? "" : "s"} ·{" "}
+            {response.run_metadata.providerAttemptCount} OpenAI call{response.run_metadata.providerAttemptCount === 1 ? "" : "s"} ·{" "}
+            {response.run_metadata.totalTokens.toLocaleString()} tokens
+          </div>
+          <div>
+            {response.run_metadata.estimatedCostUsd !== null
+              ? `Estimated cost: ~$${response.run_metadata.estimatedCostUsd.toFixed(4)} (approximate, not an invoice)`
+              : "Estimated cost: unavailable for this model"}
+          </div>
         </div>
       )}
     </div>
@@ -1124,10 +1182,11 @@ export default function Index() {
     setIsGeneratingScenarios(true);
     setError(null);
     try {
-      // FIX #1: Was 25000ms — the server's own Claude timeout for this call is 20000ms.
-      // With only 5s of headroom, network latency and server overhead routinely pushed
-      // us past the deadline, so the frontend aborted before the server's fallback JSON
-      // even arrived. Raised to 35000ms to give a reliable 15s buffer.
+      // FIX #1: Was 25000ms — the server's own request timeout for this call is 20000ms
+      // (SCENARIO_GENERATION_TIMEOUT_MS, server/pipeline/scenarioGeneration.js). With only
+      // 5s of headroom, network latency and server overhead routinely pushed us past the
+      // deadline, so the frontend aborted before the server's fallback JSON even arrived.
+      // Raised to 35000ms to give a reliable 15s buffer.
       const res = await fetchWithTimeout(`${BACKEND_URL}/api/scenarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

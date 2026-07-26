@@ -1,16 +1,17 @@
 /**
- * @file The single retry owner for provider adapters (Phase 1A).
+ * @file The single retry owner for the OpenAI provider adapter
+ * (docs/decisions/ADR-0004-single-openai-provider.md).
  *
- * Both SDK clients are constructed with their own automatic retries turned
- * off (Groq: `maxRetries: 0`; Gemini: `httpOptions.retryOptions.attempts: 1`
- * — confirmed against each SDK's installed type definitions), so this is
- * the only place in the codebase that decides whether to try an LLM call
- * again. Whether an error is retryable at all is decided once, in
- * errors.js (`error.retryable`) — this function never re-derives that.
+ * The OpenAI client is constructed with its own automatic retries turned
+ * off (`maxRetries: 0` — confirmed against the installed SDK's own type
+ * definitions), so this is the only place in the codebase that decides
+ * whether to try an LLM call again. Whether an error is retryable at all
+ * is decided once, in errors.js (`error.retryable`) — this function never
+ * re-derives that.
  *
- * No backoff/jitter delay is used: Phase 1A prioritizes deterministic,
- * fast tests over production backoff tuning, which can be layered on in
- * a later phase without changing this function's contract.
+ * No generic backoff/jitter delay is used here; the OpenAI adapter itself
+ * separately honors a safe, capped Retry-After delay for rate limits
+ * before this function's next attempt runs (server/ai/providers/openaiProvider.js).
  */
 
 import { AIProviderError, RetryExhaustedError } from "./errors.js";

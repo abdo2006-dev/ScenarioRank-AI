@@ -54,8 +54,25 @@ export function computeTimeRisk(s, wfs) {
   return clamp(Math.round((100 - (0.40 * (s.domain_expertise ?? 0) * 10 + 0.35 * (s.operational_execution ?? 0) * 10 + 0.25 * wfs)) * 100) / 100);
 }
 
-export function computeAdaptabilityScore(s, consistency) {
-  return clamp(Math.round((0.35 * consistency + 0.25 * (s.transformation_leadership ?? 0) * 10 + 0.20 * (s.stakeholder_management ?? 0) * 10 + 0.20 * (s.innovation_digital ?? 0) * 10) * 100) / 100);
+// Phase 1C correctness fix (docs/architecture/KNOWN_LIMITATIONS.md P0.2,
+// docs/decisions/ADR-0003): this formula previously took a hardcoded
+// `cross_scenario_consistency` input of 75 from its caller, contributing
+// 0.35 of the score regardless of any real signal — meaning even a
+// candidate scoring 0 on every real criterion still received a 26.25
+// floor. That fabricated input has been removed, not replaced with
+// another constant. The three genuinely model-derived criteria keep their
+// relative weight to each other (0.25 : 0.20 : 0.20), renormalized to sum
+// to 1.0 so the output stays on a comparable 0-100 scale using only real
+// signals. This intentionally changes adaptability_score (and anything
+// derived from it) — see the updated characterization tests in
+// scoring.test.js and the regression coverage in
+// server/pipeline/runPipeline.test.js.
+export function computeAdaptabilityScore(s) {
+  const raw =
+    0.25 * (s.transformation_leadership ?? 0) * 10 +
+    0.20 * (s.stakeholder_management ?? 0) * 10 +
+    0.20 * (s.innovation_digital ?? 0) * 10;
+  return clamp(Math.round((raw / 0.65) * 100) / 100);
 }
 
 export function computeExpectedOutcomeScore(p) {

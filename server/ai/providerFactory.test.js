@@ -1,47 +1,34 @@
 import { describe, it, expect } from "vitest";
-import { createProvider, SUPPORTED_PROVIDERS } from "./providerFactory.js";
+import { createProvider } from "./providerFactory.js";
 import { ConfigurationError } from "./errors.js";
+import { DEFAULT_OPENAI_MODEL } from "./providers/openaiProvider.js";
 
-describe("createProvider — validation (explicit invocation only)", () => {
-  it("supports exactly groq and gemini", () => {
-    expect(SUPPORTED_PROVIDERS).toEqual(["groq", "gemini"]);
+describe("createProvider — single OpenAI provider (docs/decisions/ADR-0004-single-openai-provider.md)", () => {
+  it("rejects construction when OPENAI_API_KEY is missing", () => {
+    expect(() => createProvider({ env: {} })).toThrow(ConfigurationError);
+    expect(() => createProvider({ env: {} })).toThrow(/OPENAI_API_KEY/);
   });
 
-  it("rejects an unsupported provider name", () => {
-    expect(() => createProvider("anthropic", { env: {} })).toThrow(ConfigurationError);
-    expect(() => createProvider("openai", { env: {} })).toThrow(ConfigurationError);
-    expect(() => createProvider("", { env: {} })).toThrow(ConfigurationError);
+  it("builds an openai provider with the default model when OPENAI_MODEL is unset", () => {
+    const provider = createProvider({ env: { OPENAI_API_KEY: "fake" } });
+    expect(provider.name).toBe("openai");
+    expect(provider.model).toBe(DEFAULT_OPENAI_MODEL);
   });
 
-  it("rejects groq when GROQ_API_KEY is missing", () => {
-    expect(() => createProvider("groq", { env: {} })).toThrow(/GROQ_API_KEY/);
+  it("honors a custom OPENAI_MODEL", () => {
+    const provider = createProvider({ env: { OPENAI_API_KEY: "fake", OPENAI_MODEL: "gpt-5.4-mini" } });
+    expect(provider.model).toBe("gpt-5.4-mini");
   });
 
-  it("builds a groq provider with the default model when GROQ_MODEL is unset", () => {
-    const provider = createProvider("groq", { env: { GROQ_API_KEY: "fake" } });
-    expect(provider.name).toBe("groq");
+  it("accepts a valid OPENAI_REASONING_EFFORT", () => {
+    expect(() => createProvider({ env: { OPENAI_API_KEY: "fake", OPENAI_REASONING_EFFORT: "minimal" } })).not.toThrow();
   });
 
-  it("honors a custom GROQ_MODEL", () => {
-    const provider = createProvider("groq", { env: { GROQ_API_KEY: "fake", GROQ_MODEL: "some-other-model" } });
-    expect(provider.name).toBe("groq");
+  it("rejects an invalid OPENAI_REASONING_EFFORT", () => {
+    expect(() => createProvider({ env: { OPENAI_API_KEY: "fake", OPENAI_REASONING_EFFORT: "ultra" } })).toThrow(ConfigurationError);
   });
 
-  it("rejects gemini when GEMINI_API_KEY is missing", () => {
-    expect(() => createProvider("gemini", { env: { GEMINI_MODEL: "gemini-x" } })).toThrow(/GEMINI_API_KEY/);
-  });
-
-  it("rejects gemini when GEMINI_MODEL is missing, even with a valid key", () => {
-    expect(() => createProvider("gemini", { env: { GEMINI_API_KEY: "fake" } })).toThrow(/GEMINI_MODEL/);
-  });
-
-  it("builds a gemini provider when both GEMINI_API_KEY and GEMINI_MODEL are set", () => {
-    const provider = createProvider("gemini", { env: { GEMINI_API_KEY: "fake", GEMINI_MODEL: "gemini-x" } });
-    expect(provider.name).toBe("gemini");
-  });
-
-  it("does not require the non-selected provider's key to be present", () => {
-    // Selecting groq must not fail just because GEMINI_API_KEY/GEMINI_MODEL are unset.
-    expect(() => createProvider("groq", { env: { GROQ_API_KEY: "fake" } })).not.toThrow();
+  it("does not require OPENAI_REASONING_EFFORT to be set", () => {
+    expect(() => createProvider({ env: { OPENAI_API_KEY: "fake" } })).not.toThrow();
   });
 });

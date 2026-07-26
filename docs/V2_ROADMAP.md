@@ -20,33 +20,148 @@ fixes, and the test/documentation work stay independently reviewable and
 revertable. See `docs/decisions/ADR-0002-provider-abstraction.md` for the
 provider-architecture reasoning.
 
-- **Phase 1A — provider abstraction and test foundation (done, on
-  `v2/phase-1a-provider-abstraction`, not yet merged to `main`).** Added a
-  real backend test runner (`server/**/*.test.js` under a Node-environment
-  Vitest config, previously not executed at all); characterization-tested
-  and verbatim-moved the deterministic scoring formulas to
-  `server/domain/scoring.js`; built a provider-neutral contract
-  (`server/ai/types.js`, `errors.js`, `providerFactory.js`) with tested Groq
-  and Gemini adapters. **The active pipeline still calls Anthropic directly
-  through `server.mjs`'s `callClaudeJSON()` — nothing in this subphase is
-  wired into a real request yet.**
-- **Phase 1B — structured-outputs cutover (not started).** Migrate the six
-  `callClaudeJSON()` call sites onto the Phase 1A provider abstraction, one
-  stage at a time, each verified end-to-end before the next; author the six
-  production Zod schemas; retire the Anthropic-specific request/JSON-repair
-  code once every stage is migrated.
-- **Phase 1C — correctness fixes (not started).**
-  1. select actual top-ranked candidates for pair simulation;
-  2. relabel (not reformulate) hardcoded cross-scenario consistency — a
-     real fix needs multi-scenario execution, deferred to Phase 3;
-  3. rename “Bias & Confidence Review” to “Confidence & Evidence Review”;
-  4. caveat LLM self-reported confidence as uncalibrated in copy.
-- **Phase 1D — tests, cleanup, documentation (not started).** Route/SSE
-  integration tests, pre-existing lint-error cleanup, dependency-audit
-  classification, environment-safe backend URL configuration for the
-  frontend, final documentation pass.
+- **Phase 1A — provider abstraction and test foundation. Done, merged to
+  `main`** (PR #1, squash commit `f6d3058`). Added a real backend test
+  runner, characterization-tested and moved deterministic scoring to
+  `server/domain/scoring.js`, built the provider-neutral contract with
+  tested Groq and Gemini adapters. The active pipeline still called
+  Anthropic directly at the end of this subphase.
+- **Phase 1B — structured-outputs cutover. Done.** All six former
+  `callClaudeJSON()` call sites (role analysis, scenario analysis,
+  candidate scoring, decision explanation, pairing, scenario generation)
+  now go through `provider.generateStructured()` with production Zod
+  schemas (`server/ai/schemas/`) and extracted prompts
+  (`server/ai/prompts/`). One provider instance is resolved once at
+  process startup and reused for the process's entire lifetime — a
+  stronger guarantee than "once per run." The Anthropic-specific request
+  path, its manual JSON repair, and its environment variable have all been
+  removed (see `docs/decisions/ADR-0003-runtime-provider-configuration.md`).
+  Run metadata (provider, model, prompt/schema versions, attempts,
+  timestamps) is included in every response.
+- **Phase 1C — correctness fixes. Done.**
+  1. pairing selects the actual top four ranked candidates, with a
+     regression test proving submission order no longer matters;
+  2. the hardcoded `cross_scenario_consistency: 75` was removed (not
+     replaced by another constant) — the adaptability formula now uses
+     only real model-derived criteria, and the concept is honestly exposed
+     as `"not_measured"` in the API. Real multi-scenario measurement is
+     still Phase 3;
+  3. "Bias & Confidence Review" renamed to "Confidence & Evidence Review"
+     everywhere (stage label, SSE, frontend, `agent_outputs`, docs);
+  4. UI confidence labels now read "Model conf." with a tooltip clarifying
+     it is not a calibrated probability;
+  5. the frontend backend URL is now `VITE_BACKEND_URL`-configurable.
+- **Phase 1D — tests, cleanup, documentation. Done.** 159 backend tests
+  (was 0 running at all before Phase 1A) and 11 frontend tests (was 1
+  placeholder) including full mocked-pipeline, provider-contract, and
+  SSE-route coverage; the pre-existing general lint baseline (3 errors, 7
+  warnings) is now 0 problems; `npm audit` went from 22 to 9
+  vulnerabilities via safe in-range fixes only (no `--force`, no major
+  version bumps); the backend was split into `server/{config,ai,domain,
+  pipeline,http}` module boundaries; this full documentation pass.
+- **Phase 1 post-review corrections — Done, on the same PR #2 (not yet
+  merged; not a new phase number).** A review of the completed Phase
+  1B/1C/1D work (PR #2) found remaining behavior/terminology that still
+  contradicted the honesty and technical-defensibility goals above.
+  Corrected on `v2/phase-1-completion`, still awaiting explicit approval
+  to merge:
+  1. candidate-scoring concurrency is now a configurable, validated
+     `AI_CANDIDATE_CONCURRENCY` env var (default 1) instead of a hardcoded
+     `2`, resolved once by `server.mjs` and passed down explicitly —
+     `server/pipeline/runPipeline.js` never reads `process.env` itself;
+  2. the pairing stage's remaining fabricated "Default pair" fallback (P0.5
+     above described this as narrowed, not fully resolved — it is now
+     fully resolved) was removed; an all-pairs-failed run now returns an
+     honest `{"status":"unavailable", ...}` result instead of an invented
+     pair;
+  3. `adaptability_profiles[].best_scenario`/`.worst_scenario` no longer
+     claim a candidate performs best in the current scenario or would
+     struggle in a "Rapid crisis/pivot scenario" — both are always
+     `"not_measured"` until real multi-scenario execution exists (Phase 3);
+  4. `bias_confidence_reviews`/`bias_flags` were renamed to
+     `confidence_evidence_reviews`/`confidence_evidence_flags` (no
+     compatibility alias kept — this is still pre-production);
+  5. `agent_outputs`/`agent_name`/`agent_role` and every "X Agent" stage
+     display name were renamed to `pipeline_stage_outputs`/`stage_name`/
+     `stage_role`/"X ... Stage" (backend, frontend rendering, and the
+     live-progress "Decision Pipeline" heading, previously "Agent
+     Pipeline") — ScenarioRank is a fixed orchestrated pipeline, not a
+     multi-agent architecture (P1.6);
+  6. stale header comments on `server/ai/providers/groqProvider.js` and
+     `geminiProvider.js` claiming they were "not wired into the active
+     pipeline" (true in Phase 1A, false since Phase 1B) were corrected.
 
-Deferred out of Phase 1 entirely (see `docs/architecture/KNOWN_LIMITATIONS.md`):
+  See `docs/PROJECT_STATUS.md` for the exact test counts, verification
+  results, and the real Groq/Gemini end-to-end retest at concurrency 1
+  (both failed to complete — see the next entry).
+- **Phase 1 single-OpenAI-provider simplification — Done, on the same PR
+  #2 (not yet merged; not a new phase number).** The real Groq/Gemini
+  retest above showed neither provider could reliably complete a full run
+  on its free tier. Rather than keep chasing quota/token-budget fixes for
+  two providers with no actual product requirement to run more than one,
+  ScenarioRank simplified to a single provider and reduced request count:
+  Groq and Gemini adapters, tests, and dependencies removed entirely;
+  `server/ai/providers/openaiProvider.js` added as the only `AIProvider`
+  implementation (OpenAI Responses API + Structured Outputs, model
+  `gpt-5-mini` verified live against the project's own account); a normal
+  run reduced from six-to-nine provider requests to at most 4 by combining
+  role+scenario analysis into one request and batching candidate scoring
+  and pairing analysis (previously one request per candidate/pair) into
+  one request each, with real-world-identity validation (never array
+  position) and an honest failure/partial-success policy per stage;
+  `AI_MAX_CANDIDATES`/`AI_MAX_PROVIDER_REQUESTS_PER_RUN` safety nets added;
+  full cost/usage visibility (`run_metadata.estimatedCostUsd` and token
+  counts) added via a small versioned pricing table. See
+  `docs/decisions/ADR-0004-single-openai-provider.md` for the full
+  reasoning and `docs/PROJECT_STATUS.md` for the real OpenAI smoke test
+  result (reached `complete` successfully, ~1 cent). **Superseded in part
+  by the metadata/pairing-completeness correction round below** —
+  `AI_MAX_PROVIDER_REQUESTS_PER_RUN` and `providerRequestCount` were later
+  renamed/removed in favor of `logicalProviderStageCount`/
+  `providerAttemptCount`, and pairing's "partial success" tolerance was
+  later removed in favor of requiring complete pair coverage.
+- **Phase 1 metadata/pairing-completeness correction round — Done, on the
+  same PR #2 (not yet merged; not a new phase number).** A further review
+  found the request-count terminology from the round above still
+  conflated a fixed architectural count with the real, variable number of
+  OpenAI attempts, and found the pairing stage's "tolerate a missing pair
+  as partial success" design (deliberately built in the round above)
+  overstated what was actually evaluated. Corrected on the same branch,
+  `v2/phase-1-completion`, still awaiting explicit approval to merge:
+  1. `run_metadata` now reports `logicalProviderStageCount` (the fixed,
+     non-configurable architectural count of model-backed stages, at most
+     4) separately from `providerAttemptCount` (the real, aggregated count
+     of OpenAI attempts across every stage, including retries and
+     batch-integrity corrective calls, which can exceed 4).
+     `AI_MAX_PROVIDER_REQUESTS_PER_RUN`/`providerRequestCount` are removed
+     entirely; `LogicalStageLimitExceededError` (renamed from
+     `ProviderRequestBudgetExceededError`) is the safety net, backed by a
+     fixed internal constant rather than an environment setting;
+  2. `callBatchWithIntegrityRetry` (`server/pipeline/runPipeline.js`) now
+     aggregates attempts and token usage across every call in its retry
+     loop, including a rejected first attempt whose result was later
+     superseded — real API spend is never silently discarded from
+     `run_metadata` just because the call's output wasn't used;
+  3. `mapPairResultsByIdentity()` now requires complete coverage of every
+     expected top-four pair — a missing pair is rejected exactly like a
+     duplicate or unknown one, with one corrective retry, then an honest
+     `{"status":"unavailable","reason":"Complete pair analysis was
+     unavailable.","best_pair":null,"top_pairs":[]}` result. A successful
+     pairing result now always means every expected pair was evaluated,
+     never a subset;
+  4. `estimatedCostUsd`'s known limitation — that usage is only available
+     from attempts with a completed response, so a hard-failed attempt's
+     real spend is excluded from the displayed total even though it still
+     counts toward `providerAttemptCount` — is now documented explicitly
+     in `server/ai/pricing/openaiPricing.js` rather than left implicit;
+  5. stale comments in `server/ai/retry.js` describing the old
+     Groq/Gemini-era retry setup were corrected to describe the current
+     single-retry-owner reality.
+
+  See `docs/PROJECT_STATUS.md` for the exact test counts and verification
+  results for this round.
+
+Deferred out of Phase 1 entirely, unchanged (see `docs/architecture/KNOWN_LIMITATIONS.md`):
 replacing misleading opportunity-cost terminology with a real comparative
 metric, and a defensible bias-detection methodology — both need design
 work beyond a correctness fix.

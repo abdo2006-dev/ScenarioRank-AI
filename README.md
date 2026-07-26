@@ -32,27 +32,30 @@ flowchart LR
     F -->|GET /health| B[Node.js + Express backend]
     F -->|POST /api/scenarios| B
     F -->|POST /api/decision/stream via SSE| B
-    B --> O[Pipeline orchestrator in server.mjs]
-    O --> A[Anthropic Messages API]
-    O --> D[Deterministic scoring functions]
-    A --> O
+    B --> O[Pipeline orchestrator: server/pipeline]
+    O --> P[Provider-neutral AI contract: server/ai]
+    P --> A[OpenAI: gpt-5-mini]
+    O --> D[Deterministic scoring: server/domain]
+    A --> P
+    P --> O
     D --> O
-    O -->|stage updates + final JSON| F
+    O -->|stage updates + final JSON + run metadata + cost estimate| F
 ```
 
-The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Several functions are named “agents,” but orchestration, routing, and control remain in normal application code.
+The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Every LLM call goes through a provider-neutral contract (`server/ai/`) — never a vendor SDK directly from the pipeline — so `runPipeline.js` has no OpenAI-specific code in it, even though there is currently exactly one supported provider. See [`docs/decisions/ADR-0004-single-openai-provider.md`](./docs/decisions/ADR-0004-single-openai-provider.md) for why Groq and Gemini (both real, tested integrations from an earlier phase) were removed rather than kept as dormant alternatives, and [`docs/decisions/ADR-0002-provider-abstraction.md`](./docs/decisions/ADR-0002-provider-abstraction.md) for why the contract itself still exists with a single provider.
 
 ## Current request pipeline
 
-1. **Role analysis — LLM:** derives evaluation criteria, base weights, must-haves, and complexity.
-2. **Scenario analysis — LLM:** adjusts and normalizes weights for the selected business scenario.
-3. **Candidate scoring — LLM:** scores each candidate across seven criteria and returns confidence, evidence, and reasoning.
-4. **Deterministic scoring:** calculates weighted fit, risk dimensions, adaptability, expected outcome, and risk-adjusted scores.
-5. **Confidence and evidence review — deterministic:** flags low confidence and weak evidence. The current code calls this “Bias & Confidence Review,” but it does not yet perform a defensible bias audit.
-6. **Decision explanation — deterministic ranking + LLM explanation:** code selects the ranking key; the LLM generates explanations and summaries.
-7. **Pair simulation — optional LLM + deterministic formula:** estimates pair-level metrics and computes a pair score.
+A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing enabled) uses **at most 4 logical model-backed pipeline stages** — a fixed architectural fact, not the same claim as "at most 4 OpenAI API requests": each logical stage can take more than one real attempt (a schema-validation or truncation retry, or a batch-integrity corrective call), which is why the response separately reports `logicalProviderStageCount` (bounded at 4) and `providerAttemptCount` (the real, aggregated attempt total, which can be higher):
 
-Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
+1. **Combined context analysis — LLM, one logical stage:** derives evaluation criteria, base weights, must-haves, complexity, and the scenario's weight adjustments together. The UI still shows "Role Analysis" and "Scenario Analysis" as separate pipeline stages — one provider call now produces both; a logical pipeline stage does not necessarily equal one network request.
+2. **Batch candidate scoring — LLM, one logical stage:** scores every submitted candidate across seven criteria in a single request, returning confidence, evidence, and reasoning per candidate. Results are mapped back to candidates by a stable ID, never by array position; a duplicate, missing, or unknown result is rejected (with at most one corrective retry, whose real attempt is added to the total, never discarded), never silently defaulted.
+3. **Deterministic scoring:** calculates weighted fit, risk dimensions, adaptability, expected outcome, risk-adjusted scores, and the top-four ranking.
+4. **Confidence and evidence review — deterministic:** flags low confidence and weak evidence. Not a demographic or procedural bias audit.
+5. **Batch pairing analysis — optional LLM, one logical stage:** evaluates every relevant pair among the top four *ranked* candidates in a single request. **A successful pairing result means every expected pair was returned and validated — a subset is never classified as a successful "best pair" analysis.** Any missing, duplicate, or unrequested pair is rejected (with one corrective retry); if the batch is still incomplete afterward, the response honestly reports `{"status":"unavailable","reason":"Complete pair analysis was unavailable.", ...}` — never a fabricated or partial pair.
+6. **Decision explanation — deterministic ranking + LLM explanation:** code selects the ranking key and computes the winner before this call; the LLM only generates explanations and summaries from the already-computed result (optionally referencing the pairing result) and can never change the ranking.
+
+Every LLM-backed stage is schema-validated (Zod) before its output is used. Every response includes `run_metadata`: provider, model, `logicalProviderStageCount`, `providerAttemptCount`, input/cached-input/output/reasoning/total token counts, an estimated cost (or `null` for an unrecognized model — never a guessed number), prompt/schema versions, attempts, and timestamps. Token/cost totals are only ever aggregated from attempts that returned a completed response with usage data — an attempt that fails before returning any response body has no usage to report, so the estimate can honestly under-report true spend in that case; see `server/ai/pricing/openaiPricing.js`. Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
 
 ## Technology baseline
 
@@ -61,27 +64,25 @@ Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture
 | Frontend | React 18, TypeScript, Vite | Single-page interface and results rendering |
 | Styling/UI | Tailwind CSS, selected Radix/shadcn components | Layout and interface primitives |
 | Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
-| AI provider | Anthropic Messages API | Role/scenario interpretation, candidate scoring, explanations, pair estimates |
+| AI provider | OpenAI (`gpt-5-mini`) via a provider-neutral contract, Responses API + Structured Outputs | Role/scenario interpretation, batch candidate scoring, explanations, batch pair estimates |
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
-| Validation | Manual checks and JSON repair | Incomplete; Zod is installed but not used for backend schemas |
+| Validation | Zod schemas for every LLM operation | Every production schema validated locally before deterministic code runs, even though the OpenAI SDK's own Zod helper already validates once |
 | Persistence | None | Runs are not stored |
-| Automated testing | Vitest placeholder only | No meaningful coverage yet |
+| Automated testing | 159 backend + 16 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, and real component rendering |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
 ## Known baseline limitations
 
-The V2 audit has already identified several high-priority issues:
+Fixed in Phase 1 (see [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITATIONS.md) for full before/after detail): pair simulation now selects the top four *ranked* candidates; the hardcoded cross-scenario-consistency value was removed and is now honestly reported as "not measured" rather than replaced with another invented number; the "bias" stage is renamed to "Confidence & Evidence Review"; model output is validated against strict Zod schemas; the frontend backend URL is environment-configurable; the pipeline runs on a single, real-account-verified OpenAI model instead of two providers neither of which could reliably complete a full run on its free tier (see ADR-0004).
 
-- pair simulation currently selects the first four submitted candidates instead of the top four ranked candidates;
-- cross-scenario consistency is hardcoded to `75`;
-- “best” and “worst” adaptability scenarios are not genuinely simulated;
-- the “bias” stage currently checks confidence and evidence length, not demographic or procedural bias;
-- model-generated JSON is not validated against strict schemas;
-- the backend URL and AI model are hardcoded;
-- the main frontend and backend files are oversized and mix responsibilities;
-- there is no authentication, rate limiting, persistence, audit trail, or cost tracking;
-- the mathematical coefficients are prototype heuristics and have not been empirically calibrated.
+Still open:
+
+- "best" and "worst" adaptability scenarios are not genuinely simulated (needs real multi-scenario execution, Phase 3);
+- the main frontend page is still oversized (backend module boundaries were split in Phase 1; frontend split is Phase 2);
+- there is no authentication, rate limiting, persistence, audit trail, or a hard dollar-budget enforcement (only a request-count safety net);
+- the mathematical coefficients are prototype heuristics and have not been empirically calibrated;
+- displayed cost is an estimate for the user's own awareness, not an invoice — OpenAI's own billing dashboard remains the source of truth.
 
 See [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITATIONS.md).
 
@@ -90,7 +91,7 @@ See [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITAT
 ### Prerequisites
 
 - Node.js 18 or newer
-- An Anthropic API key for live AI evaluation
+- An OpenAI API key for live AI evaluation
 
 ### Setup
 
@@ -99,8 +100,11 @@ npm install
 
 cp .env.example .env
 # Add your key to .env:
-# ANTHROPIC_API_KEY=your_key_here
+# OPENAI_API_KEY=your_key_here
+# OPENAI_MODEL=gpt-5-mini
 ```
+
+Prefer `.env.local` over editing `.env` directly for real credentials — it's git-ignored and takes precedence. See [`docs/decisions/ADR-0003-runtime-provider-configuration.md`](./docs/decisions/ADR-0003-runtime-provider-configuration.md).
 
 Run the backend:
 
@@ -135,6 +139,9 @@ Never commit `.env` or API keys.
 - [V2 roadmap](./docs/V2_ROADMAP.md)
 - [Learning checkpoints](./docs/LEARNING_CHECKPOINTS.md)
 - [ADR-0001: main is the V2 line](./docs/decisions/ADR-0001-main-is-v2.md)
+- [ADR-0002: provider abstraction (superseded by ADR-0004)](./docs/decisions/ADR-0002-provider-abstraction.md)
+- [ADR-0003: runtime provider configuration](./docs/decisions/ADR-0003-runtime-provider-configuration.md)
+- [ADR-0004: single OpenAI provider](./docs/decisions/ADR-0004-single-openai-provider.md)
 
 ## Branch model
 

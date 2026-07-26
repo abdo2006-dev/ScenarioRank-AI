@@ -23,12 +23,11 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
-  // Phase 1A backend modules only (server/ai, server/domain). Deliberately
-  // does not cover server.mjs itself or any other legacy backend file —
-  // that broader cleanup is out of scope here (see ADR-0002 / V2_ROADMAP).
+  // Backend modules (Phase 1A + Phase 1B/C/D modularization). server.mjs
+  // is now a thin composition root (Phase 1D), so it's covered here too.
   {
     extends: [js.configs.recommended],
-    files: ["server/ai/**/*.js", "server/domain/**/*.js"],
+    files: ["server/ai/**/*.js", "server/domain/**/*.js", "server/config/**/*.js", "server/pipeline/**/*.js", "server/http/**/*.js", "server.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
