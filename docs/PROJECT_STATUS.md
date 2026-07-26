@@ -83,25 +83,40 @@ cannot change based on explanation wording.
   request and every pipeline stage uses the same provider/model. No code
   path constructs a second provider.
 - A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing
-  enabled) makes **at most 4 OpenAI requests**: one combined role+scenario
-  context-analysis request, one batch request scoring every candidate, one
-  batch request evaluating every relevant top-four pair, and one decision-
-  explanation request — down from the six-to-nine calls the pre-batching
-  architecture made per candidate/pair. `AI_MAX_PROVIDER_REQUESTS_PER_RUN`
-  is a safety net (not a normal-path limiter) against a future bug making
-  more.
+  enabled) uses **at most 4 logical model-backed pipeline stages**: one
+  combined role+scenario context-analysis stage, one batch stage scoring
+  every candidate, one batch stage evaluating every relevant top-four
+  pair, and one decision-explanation stage — down from the six-to-nine
+  real calls the pre-batching architecture made per candidate/pair. This
+  is a fixed count of *logical stages*, not the same claim as "at most 4
+  real OpenAI API requests": a stage's own retry or a batch-integrity
+  corrective call adds real attempts without adding a stage, which is why
+  `run_metadata` separately reports `logicalProviderStageCount` (bounded
+  at 4, `server/pipeline/runPipeline.js`'s fixed `MAX_LOGICAL_PROVIDER_STAGES`
+  constant, not an environment setting) and `providerAttemptCount` (the
+  real, aggregated attempt total, which can exceed 4).
+  `LogicalStageLimitExceededError` is a safety net (not a normal-path
+  limiter) against a future bug entering a 5th logical stage — it never
+  fires from ordinary retries or corrective calls within the existing 4.
 - Every LLM operation is schema-validated (`server/ai/schemas/`) before
   its output reaches deterministic code — the OpenAI adapter validates
   twice (once via the SDK's own `zodTextFormat()` helper, once explicitly)
   and never trusts the provider-side guarantee alone.
 - Batch responses (candidate scoring, pairing) are mapped back to their
   real-world identity (candidate ID, pair identity) by the pipeline, never
-  by array position. Candidate scoring must be complete — a duplicate,
-  missing, or unknown candidate result fails the stage (with one
-  corrective retry) rather than being silently dropped or defaulted.
-  Pairing tolerates a merely-missing pair as a partial success (pairing
-  already has an honest "unavailable" fallback for total failure) but
-  still rejects a duplicate or unrequested pair.
+  by array position. Both candidate scoring and pairing must now be
+  **complete** — a duplicate, missing, or unknown candidate/pair result
+  fails the stage (with one corrective retry, whose real attempt is added
+  to `providerAttemptCount` rather than discarded) rather than being
+  silently dropped, defaulted, or classified as a successful result from a
+  subset. A successful pairing result means every expected top-four pair
+  was returned and validated; if the batch is still incomplete after the
+  corrective retry, the response honestly reports
+  `{"status":"unavailable","reason":"Complete pair analysis was
+  unavailable.","best_pair":null,"top_pairs":[]}` — never a fabricated or
+  partial "best pair." (An earlier round of this project tolerated a
+  merely-missing pair as a partial success; that tolerance was later
+  judged to overstate what was actually evaluated and was removed.)
 - Deterministic scoring lives in
   [`server/domain/scoring.js`](../server/domain/scoring.js). One formula
   changed intentionally (adaptability — see "Decisions already made"
@@ -111,13 +126,17 @@ cannot change based on explanation wording.
   OpenAI adapter, pricing, schemas, prompts), `server/domain` (pure
   formulas), `server/pipeline` (orchestration), `server/http` (Express
   transport). `server.mjs` is a thin composition root.
-- Every completed response includes `run_metadata` with the exact
-  provider request count, input/cached-input/output/reasoning/total token
-  counts, and an estimated cost (`server/ai/pricing/openaiPricing.js`,
-  `null` — never guessed — for any model without recorded pricing). This
-  is a displayed estimate for the user's own budget awareness, not an
-  invoice.
-- 155 backend tests and 16 frontend tests now run (was 0 backend, 1
+- Every completed response includes `run_metadata` with
+  `logicalProviderStageCount`, `providerAttemptCount`,
+  input/cached-input/output/reasoning/total token counts, and an
+  estimated cost (`server/ai/pricing/openaiPricing.js`, `null` — never
+  guessed — for any model without recorded pricing). Token/cost totals
+  are only ever aggregated from attempts that returned a completed
+  response with usage data — an attempt that fails before returning any
+  response body has no usage to report, so the estimate can honestly
+  under-report true spend in that case; this is a displayed estimate for
+  the user's own budget awareness, not an invoice.
+- 159 backend tests and 16 frontend tests now run (was 0 backend, 1
   frontend placeholder before Phase 1A).
 
 Details: [`architecture/CURRENT_ARCHITECTURE.md`](architecture/CURRENT_ARCHITECTURE.md),
@@ -567,6 +586,129 @@ integrity validation both worked exactly as designed on live traffic
 (two stages needed their one allowed retry and recovered cleanly, and
 none of the three earlier providers' era-specific failure modes recurred).
 
+### Phase 1 metadata/pairing-completeness correction round — completed, same PR #2, not yet merged
+
+A further review of the single-OpenAI-provider simplification above found
+two remaining issues: the request-count terminology still conflated a
+fixed architectural count with the real, variable number of OpenAI
+attempts, and the pairing stage's "tolerate a missing pair as partial
+success" design (deliberately built in the round above) overstated what
+was actually evaluated whenever a pairing result was presented as
+successful. Both were corrected on the same branch,
+`v2/phase-1-completion`, updating the same draft PR #2 — **no new branch,
+no merge, and no new real OpenAI smoke test** (this round changes metadata
+aggregation and validation logic, not the OpenAI request format, so the
+previously successful full smoke test above remains sufficient evidence
+that the request shape works):
+
+1. **`run_metadata` now separates logical stages from real provider
+   attempts.** `logicalProviderStageCount` is the fixed, non-configurable
+   architectural count of model-backed pipeline stages a run used (context,
+   batch scoring, batch pairing, decision — at most 4,
+   `server/pipeline/runPipeline.js`'s `MAX_LOGICAL_PROVIDER_STAGES`
+   constant). `providerAttemptCount` is the real, aggregated count of
+   every actual OpenAI attempt across every stage — initial calls,
+   provider-level retries, truncation retries, schema/malformed-response
+   retries, and batch-integrity corrective calls — and can legitimately
+   exceed 4. The previous `AI_MAX_PROVIDER_REQUESTS_PER_RUN` environment
+   setting and `providerRequestCount` field (which conflated these two
+   concepts) are removed entirely.
+   `LogicalStageLimitExceededError` (renamed from
+   `ProviderRequestBudgetExceededError`) is the safety net that fires only
+   if a future bug ever adds a 5th call site — it is backed by a fixed
+   internal constant, not a configurable setting, since the architecture
+   itself defines the stage count, and it never trips from ordinary
+   retries or corrective calls within the existing 4 stages.
+2. **A batch-integrity corrective retry's real attempt and token usage are
+   now aggregated, never discarded.** `callBatchWithIntegrityRetry()`
+   (`server/pipeline/runPipeline.js`) previously returned only the last
+   successful call's metadata when a corrective retry succeeded, silently
+   dropping the first (rejected) call's real attempt/usage from
+   `run_metadata` even though real API spend occurred on it. It now sums
+   `attempts` and token `usage` across every call in its retry loop,
+   including a rejected first attempt whose result was superseded by a
+   later, validated call. This aggregation happens whether the stage
+   ultimately succeeds or fails entirely — a thrown error is annotated
+   with `attemptsConsumed`/`usageConsumed` so callers can still honestly
+   record real spend even when a stage produces no usable result.
+3. **Batch pairing analysis now requires complete coverage of every
+   expected top-four pair.** An earlier round deliberately tolerated a
+   merely-missing pair as a partial pairing success; that tolerance
+   overstated what was actually evaluated and has been removed.
+   `mapPairResultsByIdentity()` now rejects a batch missing any expected
+   pair, exactly like it already rejected a duplicate (including a
+   reversed-order duplicate) or an unrequested pair, with one corrective
+   retry. If the batch is still incomplete afterward, the response
+   honestly reports
+   `{"status":"unavailable","reason":"Complete pair analysis was
+   unavailable.","best_pair":null,"top_pairs":[]}` — the reason text
+   changed from the previous round's "All pair evaluations failed." to
+   reflect that an *incomplete* batch, not only a *totally failed* one,
+   now produces this result. `runBatchPairingAnalysis()` was redesigned to
+   never throw — a total pairing failure is caught internally so the
+   stage's real attempts/usage are still recorded in `run_metadata` even
+   when the pairing result itself ends up unavailable.
+4. **`estimatedCostUsd`'s known limitation is now documented explicitly,**
+   not left implicit: token/cost totals are only ever aggregated from
+   attempts that returned a completed response with usage data. An attempt
+   that fails before returning any response body (an authentication error,
+   a connection failure) has no usage to report and is silently excluded
+   from the token/cost totals, even though it still counts toward
+   `providerAttemptCount`. This means the displayed estimate can honestly
+   under-report true spend when a stage fails hard, as distinct from
+   succeeding-but-discarded (a batch-integrity corrective retry, which
+   does have usage and is included). Documented in the file header of
+   `server/ai/pricing/openaiPricing.js`.
+5. **Stale provider comments corrected.** `server/ai/retry.js`'s file
+   header, which still described a Groq/Gemini-era retry setup, now
+   describes the current reality: OpenAI is the only active provider, the
+   OpenAI SDK's own automatic retries are disabled (`maxRetries: 0`), and
+   this module is the sole retry owner. A repo-wide search confirmed no
+   other active source comment still describes Groq, Gemini, or Phase 1A
+   as if it were current.
+6. **Frontend updated to match.** `RunMetadata`'s `providerRequestCount`
+   field was replaced with `logicalProviderStageCount`/
+   `providerAttemptCount`, and the results footer now reads "N stage(s) ·
+   M OpenAI call(s)" instead of "N request(s)".
+
+**Test totals after this round: 159 backend tests** (was 155 at the end
+of the single-OpenAI-provider simplification round: net +4 from removing
+the now-invalid "tolerates a partial pairing result" tests and adding new
+tests for complete-coverage validation, corrective-retry attempt
+aggregation, and the logical-stage/attempt-count split — see
+`server/pipeline/runPipeline.test.js`, `server/config/env.test.js`,
+`server/http/routes.test.js`) **and 16 frontend tests** (unchanged count;
+`src/pages/Index.test.tsx` assertions updated for the new metadata field
+names and footer text). New/rewritten tests specifically cover: a normal
+run without pairing uses exactly 3 logical stages, a normal run with
+pairing uses exactly 4; a provider retry increases `providerAttemptCount`
+without increasing `logicalProviderStageCount`; a batch-integrity
+corrective call likewise increases `providerAttemptCount` without adding a
+stage; all six pairs returned for four candidates is accepted as complete;
+a batch missing one pair, missing several pairs, containing a reversed
+duplicate, containing an unknown pair, or empty are all rejected; a
+corrective retry that returns the complete set succeeds; a corrective
+retry still incomplete produces the honest unavailable result with the
+exact new reason text; and attempts/usage are still recorded in
+`run_metadata` for a pairing stage that ultimately failed.
+
+**Full verification status for this round** (branch
+`v2/phase-1-completion`, draft PR #2 targeting `main`, not merged):
+
+| Check | Result |
+|---|---|
+| `npm ci` | passes |
+| `npm run lint` | 0 problems |
+| `npm run lint:server` | 0 problems |
+| `npm test` (frontend + backend) | 175 tests passing (16 frontend + 159 backend) |
+| `npm run build` | passes |
+| `node --check server.mjs` | passes |
+| `npm audit` | 9 vulnerabilities (0 critical, 0 low, 3 moderate, 6 high) — unchanged, no new dependencies added |
+| `.env.local` untracked/ignored | confirmed (`.gitignore` matches `.env.*`; only `.env.example` is tracked); contents not inspected beyond confirming ignore/untracked status |
+| Secret scan (tracked files) | no API-key-shaped strings found |
+| Stale Groq/Gemini/Anthropic/Phase-1A comments | none found in active source outside historical ADRs |
+| Real OpenAI smoke test | **not re-run this round, per explicit instruction** — this round changes metadata aggregation and pair-completeness validation, not the OpenAI request format, so the previously successful full smoke test (above) remains the relevant evidence |
+
 ## Current known correctness issues
 
 Fixed in Phase 1C: pairing top-four selection, fabricated
@@ -576,11 +718,17 @@ Phase 1 post-review corrections: the pairing stage's fabricated outer
 fallback, the unsupported best/worst-scenario claims, the
 `bias_confidence_reviews`/`bias_flags` field names, and the "agent"
 terminology throughout the active pipeline. **Fixed in the Phase 1
-single-OpenAI-provider simplification above**: neither Groq nor Gemini
+single-OpenAI-provider simplification**: neither Groq nor Gemini
 could reliably complete a live run on their free tiers (documented as
 open in the previous round) — resolved by removing both and running on
 OpenAI (`gpt-5-mini`) instead, with a real smoke test that reached
-`complete` successfully. Still open:
+`complete` successfully. **Fixed in the Phase 1 metadata/pairing-
+completeness correction round above**: the request-count terminology
+conflated a fixed architectural count with the real, variable OpenAI
+attempt count (resolved by `logicalProviderStageCount`/
+`providerAttemptCount`), and the pairing stage's "tolerate a missing pair
+as partial success" design overstated what was actually evaluated
+(resolved by requiring complete pair coverage). Still open:
 
 1. Candidate scoring depends on very limited evidence (short free-text
    descriptions).
@@ -600,9 +748,10 @@ OpenAI (`gpt-5-mini`) instead, with a real smoke test that reached
 7. Formula coefficients remain unvalidated heuristics (the P0.2 fix
    changed which inputs feed adaptability, not the general validation gap).
 8. Authentication, persistence, real privacy controls, and production
-   deployment are all later-phase work (Phase 5). `AI_MAX_CANDIDATES`/
-   `AI_MAX_PROVIDER_REQUESTS_PER_RUN` are cost/bug safety nets, not a real
-   rate limiter or a per-client quota — a public deployment still needs a
+   deployment are all later-phase work (Phase 5). `AI_MAX_CANDIDATES` and
+   the fixed `MAX_LOGICAL_PROVIDER_STAGES` safety net are cost/bug safety
+   nets, not a real rate limiter or a per-client quota — a public
+   deployment still needs a
    reverse-proxy rate limiter in front of it (`docs/architecture/KNOWN_LIMITATIONS.md` P3.2).
 9. `react-router-dom` is on a version with known moderate-severity CVEs;
    fixing it needs a deliberate major-version migration (see the audit
@@ -675,23 +824,46 @@ Full detail: [`architecture/KNOWN_LIMITATIONS.md`](architecture/KNOWN_LIMITATION
   count.
 - **New in the Phase 1 single-OpenAI-provider simplification:** batch
   responses must be validated by real-world identity (candidate ID, pair
-  identity), never by array position or count alone — and "missing" is
-  not always an error: it's a hard failure for something that must be
-  complete (candidate scoring) and a tolerated partial result for
-  something optional with its own honest-unavailable fallback (pairing).
+  identity), never by array position or count alone. (**Superseded by the
+  metadata/pairing-completeness correction round below**: "missing" was
+  briefly treated as a tolerated partial result for pairing specifically;
+  that tolerance overstated what was actually evaluated and was removed —
+  both candidate scoring and pairing now require complete coverage.)
 - **New in the Phase 1 single-OpenAI-provider simplification:** an
   estimated cost must come from actual token usage against a table of
   models this codebase has actually verified pricing for, and must return
   `null` — never an extrapolated guess — for anything outside that table.
+- **New in the Phase 1 metadata/pairing-completeness correction round:** a
+  fixed architectural count (how many logical model-backed stages a
+  pipeline design uses) and a real, variable operational count (how many
+  actual provider attempts occurred, including retries) are different
+  concepts and must be reported as two separate fields, never conflated
+  into one — the fixed count belongs in code as a constant, not as an
+  environment setting, since there is nothing for an operator to
+  meaningfully configure about an architectural fact.
+- **New in the Phase 1 metadata/pairing-completeness correction round:** a
+  successful result for a "must cover N things" batch operation (candidate
+  scoring, pairing) means all N were validated — there is no such thing as
+  a partial success for this kind of operation; presenting a subset as
+  successful would overstate what was actually checked, even if the
+  subset itself is individually accurate.
+- **New in the Phase 1 metadata/pairing-completeness correction round:**
+  real API spend (attempts and token usage) must be recorded in
+  `run_metadata` even when the stage that spent it ultimately fails or is
+  discarded (a rejected first attempt before a corrective retry succeeds,
+  or a pairing stage that ends up totally unavailable) — honest cost
+  accounting does not get to skip the calls whose results weren't used.
 
 ## Next planned milestone
 
 **Immediate next step: get explicit approval on the corrected draft PR
-#2.** Phase 1 (including both post-review rounds — the correctness/naming
-corrections and the single-OpenAI-provider simplification) is complete
-and awaiting the owner's explicit review and merge approval — the owner
-has stated not to merge until they explicitly approve. No further Phase 1
-work is planned unless another review round requests changes.
+#2.** Phase 1 (including all three post-review rounds — the
+correctness/naming corrections, the single-OpenAI-provider
+simplification, and the metadata/pairing-completeness correction round)
+is complete and awaiting the owner's explicit review and merge approval —
+the owner has stated not to merge until they explicitly approve. No
+further Phase 1 work is planned unless another review round requests
+changes.
 
 **After PR #2 is merged: Phase 2 — architecture and maintainability. Not
 started.**
@@ -746,6 +918,13 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
   request-count reduction — again completed **on the same branch,
   updating the same draft PR #2**, per explicit instruction not to create
   another branch and not to merge.
+- A further review then requested the metadata/pairing-completeness
+  correction round documented above (logical-stage vs. real-attempt
+  accounting, complete pair coverage, stale comment cleanup) — again
+  completed **on the same branch, updating the same draft PR #2**, per
+  explicit instruction not to create another branch, not to merge, and not
+  to re-run the real OpenAI smoke test since this round's changes don't
+  affect the request format.
 - **PR #2 is still a draft, still not merged, awaiting explicit owner
   approval of this simplified, corrected version before merge.**
 - Temporary branches are merged and deleted; they are not permanent
@@ -774,11 +953,23 @@ Concepts the owner should understand now that Phase 1 is complete:
   computing a "better" replacement number.
 - Why Groq and Gemini were removed rather than kept as unused
   alternatives, and what real test result drove that decision.
-- Why a missing candidate in a batch scoring response is a hard failure,
-  while a missing pair in a batch pairing response is a tolerated partial
-  result.
+- Why a missing candidate in a batch scoring response and a missing pair
+  in a batch pairing response are both a hard failure — and why an
+  earlier round of this project briefly treated a missing pair as a
+  tolerated partial result before that was judged to overstate what was
+  actually evaluated.
 - Why `estimatedCostUsd` is `null` for an unrecognized model instead of an
   extrapolated guess.
+- Why `logicalProviderStageCount` (a fixed architectural constant) and
+  `providerAttemptCount` (a real, variable operational count) are
+  reported as two separate `run_metadata` fields instead of one, and a
+  concrete scenario where they'd differ.
+- Why a batch-integrity corrective retry's real attempt and token usage
+  must still be added to `run_metadata` even though its result was
+  superseded by a later call.
+- Why `estimatedCostUsd` can honestly under-report true spend when an
+  attempt fails before returning any response body, and why that's a
+  documented SDK limitation rather than an implementation gap.
 
 Full detail: [`LEARNING_CHECKPOINTS.md`](LEARNING_CHECKPOINTS.md).
 

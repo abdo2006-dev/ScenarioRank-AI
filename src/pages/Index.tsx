@@ -38,7 +38,13 @@ type PairingResult = { status: "ok"; best_pair: PairResult; top_pairs: PairResul
 // Cost/usage fields are always present but may be 0 or null (e.g.
 // estimatedCostUsd is null for an unrecognized model — never a guessed
 // number, see server/ai/pricing/openaiPricing.js).
-interface RunMetadata { provider: string; model: string; providerRequestCount: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningTokens: number; totalTokens: number; estimatedCostUsd: number | null; promptVersions: Record<string, string>; schemaVersions: Record<string, string>; attempts: Record<string, number>; startedAt: string; completedAt: string; }
+// logicalProviderStageCount: number of logical model-backed pipeline
+// stages used this run (a fixed architectural fact, normally 3 or 4).
+// providerAttemptCount: the real, aggregated number of OpenAI attempts
+// actually made, including retries and batch-integrity corrective calls —
+// this can exceed logicalProviderStageCount and is the more honest number
+// for "how many times did this run actually call OpenAI."
+interface RunMetadata { provider: string; model: string; logicalProviderStageCount: number; providerAttemptCount: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningTokens: number; totalTokens: number; estimatedCostUsd: number | null; promptVersions: Record<string, string>; schemaVersions: Record<string, string>; attempts: Record<string, number>; startedAt: string; completedAt: string; }
 interface PipelineResponse { pipeline_steps: PipelineStage[]; role_analysis: { title: string; key_requirements: string[]; complexity: string; }; scenario_analysis: { scenario: string; key_pressures: string[]; weight_rationale: string; }; candidate_evaluations: CandidateEvaluation[]; confidence_evidence_reviews: ConfidenceEvidenceReview[]; decision_result: DecisionResult; pairing_result?: PairingResult; trade_offs: TradeOffCard[]; adaptability_profiles: AdaptabilityProfile[]; pipeline_stage_outputs: PipelineStageOutput[]; executive_summary: { recommendation: string; reason: string; trade_off: string; opportunity_cost: string; adaptability: string; alternative: string; }; run_metadata?: RunMetadata; }
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -1098,7 +1104,8 @@ export function Results({ response }: { response: PipelineResponse }) {
         <div className="text-center text-[11px] text-white/25 pt-2 space-y-1">
           <div>
             Evaluated with {response.run_metadata.provider} ({response.run_metadata.model}) ·{" "}
-            {response.run_metadata.providerRequestCount} request{response.run_metadata.providerRequestCount === 1 ? "" : "s"} ·{" "}
+            {response.run_metadata.logicalProviderStageCount} stage{response.run_metadata.logicalProviderStageCount === 1 ? "" : "s"} ·{" "}
+            {response.run_metadata.providerAttemptCount} OpenAI call{response.run_metadata.providerAttemptCount === 1 ? "" : "s"} ·{" "}
             {response.run_metadata.totalTokens.toLocaleString()} tokens
           </div>
           <div>
@@ -1175,10 +1182,11 @@ export default function Index() {
     setIsGeneratingScenarios(true);
     setError(null);
     try {
-      // FIX #1: Was 25000ms — the server's own Claude timeout for this call is 20000ms.
-      // With only 5s of headroom, network latency and server overhead routinely pushed
-      // us past the deadline, so the frontend aborted before the server's fallback JSON
-      // even arrived. Raised to 35000ms to give a reliable 15s buffer.
+      // FIX #1: Was 25000ms — the server's own request timeout for this call is 20000ms
+      // (SCENARIO_GENERATION_TIMEOUT_MS, server/pipeline/scenarioGeneration.js). With only
+      // 5s of headroom, network latency and server overhead routinely pushed us past the
+      // deadline, so the frontend aborted before the server's fallback JSON even arrived.
+      // Raised to 35000ms to give a reliable 15s buffer.
       const res = await fetchWithTimeout(`${BACKEND_URL}/api/scenarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

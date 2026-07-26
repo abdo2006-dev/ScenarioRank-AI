@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createApp } from "./app.js";
 import { createFakePipelineProvider, defaultHandlers, defaultInput } from "../pipeline/testSupport/fakePipelineProvider.js";
 
-const DEFAULT_TEST_DEPS = { maxCandidates: 5, maxProviderRequestsPerRun: 4 };
+const DEFAULT_TEST_DEPS = { maxCandidates: 5 };
 
 /** Starts the real Express app on an ephemeral port; no new test dependency. */
 function startServer(deps) {
@@ -153,7 +153,8 @@ describe("POST /api/decision (non-streaming)", () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.decision_result.recommended_candidate_id).toBeTruthy();
-    expect(body.run_metadata.providerRequestCount).toBeGreaterThan(0);
+    expect(body.run_metadata.logicalProviderStageCount).toBeGreaterThan(0);
+    expect(body.run_metadata.providerAttemptCount).toBeGreaterThan(0);
   });
 
   it("returns 400 when the submitted candidate count exceeds AI_MAX_CANDIDATES", async () => {

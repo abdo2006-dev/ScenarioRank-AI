@@ -16,15 +16,17 @@ const PIPELINE_TIMEOUT_MS = 150_000; // 2.5 minutes
 
 /**
  * @param {import("express").Express} app
- * @param {{ provider: import("../ai/types.js").AIProvider | null, aiEnabled: boolean, maxCandidates: number, maxProviderRequestsPerRun: number }} deps
+ * @param {{ provider: import("../ai/types.js").AIProvider | null, aiEnabled: boolean, maxCandidates: number }} deps
  *   `provider` is resolved exactly once at process startup (see
  *   server.mjs) and reused for every request — this is what guarantees
  *   every run uses the same provider/model, since there is only ever one
  *   instance in the process for the app's whole lifetime. `maxCandidates`
- *   and `maxProviderRequestsPerRun` are likewise resolved once at startup
- *   (server/config/env.js) — routes never read process.env directly.
+ *   is likewise resolved once at startup (server/config/env.js) — routes
+ *   never read process.env directly. The pipeline's fixed maximum of 4
+ *   logical model-backed stages is an architectural constant, not a
+ *   configurable dependency (server/pipeline/runPipeline.js).
  */
-export function registerRoutes(app, { provider, aiEnabled, maxCandidates, maxProviderRequestsPerRun }) {
+export function registerRoutes(app, { provider, aiEnabled, maxCandidates }) {
   app.get("/health", (_req, res) => {
     res.json({
       status: "ok",
@@ -59,7 +61,7 @@ export function registerRoutes(app, { provider, aiEnabled, maxCandidates, maxPro
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error(`Pipeline timed out after ${PIPELINE_TIMEOUT_MS / 1000}s. Try fewer candidates or a shorter description.`)), PIPELINE_TIMEOUT_MS)
       );
-      const result = await Promise.race([runPipeline(provider, provider.model, input, undefined, { maxCandidates, maxProviderRequestsPerRun }), timeoutPromise]);
+      const result = await Promise.race([runPipeline(provider, provider.model, input, undefined, { maxCandidates }), timeoutPromise]);
       res.json(result);
     } catch (err) {
       console.error("Pipeline error:", err.message);
@@ -110,7 +112,7 @@ export function registerRoutes(app, { provider, aiEnabled, maxCandidates, maxPro
         setTimeout(() => reject(new Error(`Pipeline timed out after ${PIPELINE_TIMEOUT_MS / 1000}s. Try fewer candidates or a shorter description.`)), PIPELINE_TIMEOUT_MS)
       );
       const result = await Promise.race([
-        runPipeline(provider, provider.model, input, (stages) => send("stage_update", stages), { maxCandidates, maxProviderRequestsPerRun }),
+        runPipeline(provider, provider.model, input, (stages) => send("stage_update", stages), { maxCandidates }),
         timeoutPromise,
       ]);
       send("complete", result);

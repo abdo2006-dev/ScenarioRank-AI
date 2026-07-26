@@ -7,9 +7,11 @@
   no value (see "Decision: no runtime provider selection" below, replacing
   the old provider-selection text). `GROQ_*`/`GEMINI_*` variables are gone,
   replaced by `OPENAI_API_KEY`/`OPENAI_MODEL` (and the new
-  `OPENAI_REASONING_EFFORT`, `AI_MAX_CANDIDATES`,
-  `AI_MAX_PROVIDER_REQUESTS_PER_RUN` — see ADR-0004 and
-  `docs/PROJECT_STATUS.md`). **What did not change:** every decision
+  `OPENAI_REASONING_EFFORT`, `AI_MAX_CANDIDATES` — see ADR-0004 and
+  `docs/PROJECT_STATUS.md`; there is no environment setting for the
+  pipeline's logical-stage count, since it is a fixed internal constant,
+  `MAX_LOGICAL_PROVIDER_STAGES`, in `server/pipeline/runPipeline.js`, not
+  a runtime configuration value). **What did not change:** every decision
   below about `.env`/`.env.local` precedence, resolving exactly one
   provider instance for the process's entire lifetime, environment-
   dependent startup strictness, and never silently falling back between

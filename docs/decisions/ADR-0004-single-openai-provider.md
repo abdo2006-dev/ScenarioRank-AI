@@ -187,6 +187,79 @@ every claim below was checked directly, not assumed:
    enforced by the API itself, and an unsupported combination surfaces as
    a clear `400` configuration-shaped error, not a silent downgrade.
 
+### Cost and usage visibility
+
+`response.usage` (input/cached-input/output/reasoning tokens) is reported
+on every *completed* OpenAI response, and `run_metadata.estimatedCostUsd`
+(`server/ai/pricing/openaiPricing.js`) is computed from those aggregated
+counts against a small versioned per-model pricing table, `null` rather
+than a guessed number for any model the table does not explicitly
+recognize. **Known limitation, stated plainly rather than glossed over:**
+usage is only ever available from an attempt that actually returned a
+response body. An attempt that fails before that point — an
+authentication error, a connection failure, an exhausted-retry error with
+no body — has no usage to report and is silently excluded from the
+token/cost totals, even though it still counts as a real attempt in
+`run_metadata.providerAttemptCount` (see the next section for that
+distinction). This means the displayed estimate can honestly under-report
+true spend when a stage fails hard, as opposed to succeeding-but-discarded
+(e.g. a batch-integrity corrective retry, which does have usage and is
+included). `estimatedCostUsd` is a displayed estimate for the user's own
+awareness, never an invoice — OpenAI's own billing dashboard remains the
+source of truth.
+
+### Logical stages vs. real provider attempts
+
+The batched architecture below reduces a full evaluation from the
+six-to-nine per-call, per-candidate, per-pair requests the pre-batching
+design made, to a fixed maximum of **4 logical model-backed pipeline
+stages**: combined context analysis, batch candidate scoring, batch
+pairing analysis (optional), and decision explanation
+(`server/pipeline/runPipeline.js`'s `MAX_LOGICAL_PROVIDER_STAGES`, a fixed
+internal constant, not an environment setting — the architecture itself
+defines the stage count, so there is nothing for an operator to configure
+here). This logical-stage count is a fixed architectural fact, but it is
+**not** the same claim as "at most 4 real OpenAI API requests" — a single
+logical stage can still take more than one real attempt (a schema-
+validation retry, a truncation retry, a transient-error retry, or a
+batch-integrity corrective call when a batch response has a duplicate,
+missing, or unknown identity). `run_metadata` therefore reports two
+distinct counts: `logicalProviderStageCount` (bounded at 4) and
+`providerAttemptCount` (the real, aggregated total of every OpenAI attempt
+across every stage, which can legitimately exceed 4). A batch-integrity
+corrective retry's real attempt is added to `providerAttemptCount` — it is
+never discarded just because its result was superseded by a later,
+validated call. The earlier `AI_MAX_PROVIDER_REQUESTS_PER_RUN` environment
+setting and `providerRequestCount` field (present in an earlier round of
+this simplification) conflated these two concepts and have been removed;
+`LogicalStageLimitExceededError` (`server/ai/errors.js`) is the safety net
+that replaces it, firing only if a future bug adds a 5th call site this
+architecture was never designed to need — not a normal-path limiter, and
+never tripped by ordinary retries or corrective calls within the existing
+4 stages.
+
+### Pairing requires complete coverage, never a partial "best pair"
+
+Batch pairing analysis (logical stage 3 of 4) evaluates every relevant
+pair among the top-four *ranked* candidates in a single request. A
+successful pairing result means **every** expected pair was returned and
+validated exactly once — a subset is never classified as a successful
+"best pair" analysis. `mapPairResultsByIdentity()`
+(`server/pipeline/runPipeline.js`) rejects a batch that is missing any
+expected pair, contains a duplicate (including a reversed-order
+duplicate), or contains an unrequested pair, with one corrective retry;
+if the batch is still incomplete afterward, the response honestly reports
+`{"status":"unavailable","reason":"Complete pair analysis was
+unavailable.","best_pair":null,"top_pairs":[]}` rather than fabricating or
+partially reporting a "best" pair. This is a deliberate tightening from an
+earlier round's design, which tolerated a merely-missing pair as a
+partial success — that tolerance is no longer considered acceptable,
+because presenting a subset of evaluated pairs as if it were a complete
+comparison overstates what was actually checked. The stage's real
+attempts and token usage are still recorded in `run_metadata` even when
+pairing ends up unavailable, since real API spend occurred regardless of
+whether the result was usable.
+
 ### Why the provider-neutral contract is still worth keeping with one provider
 
 YAGNI cuts against *unused* abstraction, not against *all* abstraction.
@@ -246,10 +319,11 @@ addition here.
   `openai/helpers/zod`, so the standalone conversion module this project
   wrote for Groq/Gemini compatibility, `server/ai/schemaConversion.js`, is
   also removed as dead weight, not kept "in case it's useful").
-- Removing per-call-per-candidate-per-pair provider requests (see the
-  request-count reduction below) directly protects the owner's small real
-  API budget — the previous six-to-nine-call architecture was not
-  something a single provider swap would have fixed on its own.
+- Removing per-call-per-candidate-per-pair provider requests (see
+  "Logical stages vs. real provider attempts" above) directly protects the
+  owner's small real API budget — the previous six-to-nine-call
+  architecture was not something a single provider swap would have fixed
+  on its own.
 - Fewer adapter tests to maintain, fewer environment variables to
   validate, fewer places for "which provider is this describing" to go
   stale in documentation.

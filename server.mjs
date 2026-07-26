@@ -22,7 +22,6 @@ import {
   loadEnv,
   resolveStartupAiStatus,
   resolveMaxCandidates,
-  resolveMaxProviderRequestsPerRun,
 } from "./server/config/env.js";
 import { createProvider } from "./server/ai/providerFactory.js";
 import { createApp } from "./server/http/app.js";
@@ -40,22 +39,16 @@ const PORT = process.env.PORT || 3001;
 const aiStatus = resolveStartupAiStatus({ nodeEnv: NODE_ENV });
 
 // Resolved once, here, and passed down explicitly — server/pipeline and
-// server/http never read process.env themselves. Both are safety nets,
-// not normal-path limiters: AI_MAX_CANDIDATES protects API budget by
-// rejecting oversized requests before they reach the model;
-// AI_MAX_PROVIDER_REQUESTS_PER_RUN protects against a future bug that
-// would make more than the 4 provider requests this architecture ever
-// legitimately needs (docs/PROJECT_STATUS.md).
+// server/http never read process.env themselves. A safety net, not a
+// normal-path limiter: AI_MAX_CANDIDATES protects API budget by rejecting
+// oversized requests before they reach the model. The pipeline's fixed
+// maximum of 4 logical model-backed stages is an architectural fact, not
+// a configurable setting — see server/pipeline/runPipeline.js and
+// docs/decisions/ADR-0004-single-openai-provider.md.
 const maxCandidates = resolveMaxCandidates();
 if (maxCandidates.invalidInput !== undefined) {
   console.warn(
     `⚠️  AI_MAX_CANDIDATES="${maxCandidates.invalidInput}" is invalid (must be an integer 2-10) — using the default of ${maxCandidates.value}.`
-  );
-}
-const maxProviderRequestsPerRun = resolveMaxProviderRequestsPerRun();
-if (maxProviderRequestsPerRun.invalidInput !== undefined) {
-  console.warn(
-    `⚠️  AI_MAX_PROVIDER_REQUESTS_PER_RUN="${maxProviderRequestsPerRun.invalidInput}" is invalid (must be an integer 1-4) — using the default of ${maxProviderRequestsPerRun.value}.`
   );
 }
 
@@ -68,7 +61,6 @@ const app = createApp({
   provider,
   aiEnabled: aiStatus.aiEnabled,
   maxCandidates: maxCandidates.value,
-  maxProviderRequestsPerRun: maxProviderRequestsPerRun.value,
 });
 
 app.listen(PORT, () => {
@@ -80,7 +72,6 @@ app.listen(PORT, () => {
   if (aiStatus.aiEnabled) {
     console.log(`   AI provider: ${provider.name} (${provider.model})`);
     console.log(`   Max candidates per run: ${maxCandidates.value}${maxCandidates.usedDefault ? " (default)" : " (configured)"}`);
-    console.log(`   Max provider requests per run: ${maxProviderRequestsPerRun.value}${maxProviderRequestsPerRun.usedDefault ? " (default)" : " (configured)"}`);
   } else {
     console.warn(`⚠️  AI provider unavailable: ${aiStatus.reason}`);
   }

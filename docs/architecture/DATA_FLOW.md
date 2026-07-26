@@ -42,11 +42,11 @@ sequenceDiagram
     end
 ```
 
-This endpoint is a separate request path and does not count toward the decision pipeline's 4-request budget below.
+This endpoint is a separate request path and does not count toward the decision pipeline's logical-stage count below.
 
 ## 3. Decision pipeline
 
-A normal run makes **at most 4 OpenAI requests** (docs/decisions/ADR-0004-single-openai-provider.md) — down from the six-to-nine calls the pre-batching architecture made per candidate/pair.
+A normal run uses **at most 4 logical model-backed pipeline stages** (docs/decisions/ADR-0004-single-openai-provider.md) — down from the six-to-nine real calls the pre-batching architecture made per candidate/pair. This is a fixed count of *logical stages*, not a claim about the real OpenAI attempt count: a stage's own retry or a batch-integrity corrective call adds real attempts without adding a stage — see "Run metadata" in `docs/architecture/CURRENT_ARCHITECTURE.md` for `logicalProviderStageCount` vs. `providerAttemptCount`.
 
 ```mermaid
 sequenceDiagram
@@ -63,7 +63,7 @@ sequenceDiagram
     B->>P: Validated request + the one resolved provider
     P-->>F: stage_update: input
 
-    Note over P,A: Request 1 of 4
+    Note over P,A: Logical stage 1 of 4 (may take more than one real attempt)
     P->>AI: generateStructured(contextAnalysisSchema)
     AI->>A: Structured-output request (role_analysis + scenario_analysis together)
     A-->>AI: Response (validated locally against the schema, twice — see ADR-0004)
@@ -71,12 +71,12 @@ sequenceDiagram
     P->>M: Apply deltas and normalize weights
     P-->>F: stage_update: context complete
 
-    Note over P,A: Request 2 of 4
+    Note over P,A: Logical stage 2 of 4 (may take more than one real attempt)
     P->>AI: generateStructured(buildBatchCandidateScoringSchema(maxCandidates))
     AI->>A: Structured-output request — every candidate, one call
     A-->>AI: Response (validated)
     AI-->>P: Scores, confidence, evidence, reasoning per candidate_id
-    P->>P: mapBatchResultsById — reject duplicate/missing/unknown IDs (one corrective retry, then fail honestly)
+    P->>P: mapBatchResultsById — reject duplicate/missing/unknown IDs (one corrective retry, whose real attempt is added to the total, then fail honestly)
     P-->>F: stage_update: scoring complete
 
     P->>M: Weighted fit and confidence
@@ -86,24 +86,24 @@ sequenceDiagram
     P-->>F: stage_update: deterministic stages complete
 
     opt Pair simulation enabled
-        Note over P,A: Request 3 of 4 (only if enabled)
+        Note over P,A: Logical stage 3 of 4 (only if enabled; may take more than one real attempt)
         P->>AI: generateStructured(batchPairingAnalysisSchema)
         AI->>A: Structured-output request — every relevant top-four pair, one call
         A-->>AI: Response (validated)
         AI-->>P: Pair metric estimates per pair
-        P->>P: mapPairResultsByIdentity — reject duplicate/unknown pairs; tolerate a missing pair as partial success
+        P->>P: mapPairResultsByIdentity — require every expected pair, exactly once, no unknown pairs (one corrective retry, whose real attempt is added to the total; otherwise honestly unavailable, never a partial "best pair")
         P->>M: Pair score formula
         P-->>F: stage_update: pairing complete
     end
 
-    Note over P,A: Request 4 of 4 (3 of 3 if pairing disabled)
+    Note over P,A: Logical stage 4 of 4 (3 of 3 if pairing disabled; may take more than one real attempt)
     P->>AI: generateStructured(decisionExplanationSchema) using sorted metrics (+ pairing summary if available)
     AI->>A: Structured-output request
     A-->>AI: Response (validated)
     AI-->>P: Explanations, trade-offs, executive summary
     P-->>F: stage_update: decision complete
 
-    P-->>B: Final response object + run_metadata (provider request count, token usage, estimated cost)
+    P-->>B: Final response object + run_metadata (logicalProviderStageCount, providerAttemptCount, token usage, estimated cost)
     B-->>F: complete event
     F-->>F: Render results
 ```
@@ -133,11 +133,11 @@ The explanation prompt includes computed metrics. The LLM should explain them wi
 - a refusal (the model declines to answer): mapped distinctly, never retried blindly;
 - a truncated/incomplete response: retried at most once, with a justified larger output-token budget, never the same insufficient one twice;
 - schema-invalid or malformed model output: one controlled retry with a sanitized validation summary (never raw output), then the stage fails;
-- a batch response with a duplicate, missing, or unknown candidate/pair identity: one controlled corrective retry (a plain-language note of exactly what was wrong), then the stage fails honestly — candidate scoring never silently drops or defaults a candidate; a merely-missing pair (not a duplicate/unknown one) is tolerated as a partial pairing result;
+- a batch response with a duplicate, missing, or unknown candidate/pair identity: one controlled corrective retry (a plain-language note of exactly what was wrong, whose real attempt is added to `providerAttemptCount` even though its result is discarded), then the stage fails honestly — candidate scoring never silently drops or defaults a candidate; pairing requires complete coverage of every expected pair, so a merely-missing pair is rejected the same as a duplicate or unknown one, never tolerated as a partial "best pair" result;
 - provider timeout, rate limit (a safe, capped Retry-After delay is honored when reported), or transient server error: one controlled retry, then the stage fails;
-- a bug or future code change that would make more than `AI_MAX_PROVIDER_REQUESTS_PER_RUN` provider requests in one run: fails safely instead of spending API credit unexpectedly (`server/pipeline/runPipeline.js`'s request budget);
+- a bug or future code change that would enter more than the fixed `MAX_LOGICAL_PROVIDER_STAGES` (4) logical stages in one run: fails safely with a non-retryable `LogicalStageLimitExceededError` instead of spending API credit unexpectedly (`server/pipeline/runPipeline.js`) — this is a safety net against a future bug adding a 5th call site, not a normal-path limit, and it is deliberately about logical stages, not raw attempt count: retries and corrective calls within the existing 4 stages never trip it;
 - total pipeline timeout: the route emits an error after 150 seconds;
-- all pairing evaluations failing or returning nothing usable: `pairing_result` is honestly `{"status":"unavailable", ...}` — never a fabricated pair;
+- pairing incomplete after the corrective retry (missing, duplicate, or unknown pairs) or the pairing call failing entirely: `pairing_result` is honestly `{"status":"unavailable","reason":"Complete pair analysis was unavailable.","best_pair":null,"top_pairs":[]}` — never a fabricated or partial-coverage pair, and the stage's real attempts/usage are still recorded in `run_metadata`;
 - frontend timeout: the request is aborted after three minutes;
 - page refresh: all current input and result state is lost;
 - no silent provider fallback: there is exactly one provider (OpenAI); nothing in this codebase catches a failure and silently retries against a different provider or model.

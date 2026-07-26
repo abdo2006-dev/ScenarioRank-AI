@@ -66,7 +66,7 @@ describe("Results — cross-scenario consistency is shown as not measured", () =
 describe("Results — provider/model/cost run metadata", () => {
   function runMetadataFixture(overrides: Record<string, unknown> = {}) {
     return {
-      provider: "openai", model: "gpt-5-mini", providerRequestCount: 4,
+      provider: "openai", model: "gpt-5-mini", logicalProviderStageCount: 4, providerAttemptCount: 5,
       inputTokens: 1000, cachedInputTokens: 0, outputTokens: 500, reasoningTokens: 0, totalTokens: 1500,
       estimatedCostUsd: 0.00125,
       promptVersions: {}, schemaVersions: {}, attempts: {}, startedAt: "", completedAt: "",
@@ -74,12 +74,13 @@ describe("Results — provider/model/cost run metadata", () => {
     };
   }
 
-  it("shows the provider, model, request count, token usage, and estimated cost footer when run_metadata is present", () => {
+  it("shows the provider, model, stage/attempt counts, token usage, and estimated cost footer when run_metadata is present", () => {
     const response = buildResponse({ run_metadata: runMetadataFixture() });
     render(<Results response={response as never} />);
     expect(screen.getByText(/openai/)).toBeInTheDocument();
     expect(screen.getByText(/gpt-5-mini/)).toBeInTheDocument();
-    expect(screen.getByText(/4 requests/)).toBeInTheDocument();
+    expect(screen.getByText(/4 stages/)).toBeInTheDocument();
+    expect(screen.getByText(/5 OpenAI calls/)).toBeInTheDocument();
     expect(screen.getByText(/1,500 tokens/)).toBeInTheDocument();
     expect(screen.getByText(/approximate, not an invoice/i)).toBeInTheDocument();
   });

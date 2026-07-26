@@ -7,9 +7,7 @@ import {
   checkProviderConfig,
   resolveStartupAiStatus,
   resolveMaxCandidates,
-  resolveMaxProviderRequestsPerRun,
   DEFAULT_AI_MAX_CANDIDATES,
-  DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN,
 } from "./env.js";
 
 function withTempDir(files, run) {
@@ -156,22 +154,8 @@ describe("resolveMaxCandidates", () => {
   });
 });
 
-describe("resolveMaxProviderRequestsPerRun", () => {
-  it("defaults to 4 when AI_MAX_PROVIDER_REQUESTS_PER_RUN is unset", () => {
-    expect(resolveMaxProviderRequestsPerRun({ env: {} })).toEqual({ value: 4, usedDefault: true });
-    expect(DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN).toBe(4);
-  });
-
-  it("accepts a valid override within range", () => {
-    expect(resolveMaxProviderRequestsPerRun({ env: { AI_MAX_PROVIDER_REQUESTS_PER_RUN: "3" } })).toEqual({ value: 3, usedDefault: false });
-  });
-
-  it("falls back to the default when out of the 1-4 range", () => {
-    expect(resolveMaxProviderRequestsPerRun({ env: { AI_MAX_PROVIDER_REQUESTS_PER_RUN: "0" } })).toEqual({ value: 4, usedDefault: true, invalidInput: "0" });
-    expect(resolveMaxProviderRequestsPerRun({ env: { AI_MAX_PROVIDER_REQUESTS_PER_RUN: "5" } })).toEqual({ value: 4, usedDefault: true, invalidInput: "5" });
-  });
-
-  it("falls back to the default for a non-numeric value", () => {
-    expect(resolveMaxProviderRequestsPerRun({ env: { AI_MAX_PROVIDER_REQUESTS_PER_RUN: "many" } })).toEqual({ value: 4, usedDefault: true, invalidInput: "many" });
-  });
-});
+// There is deliberately no resolveMaxProviderRequestsPerRun / env-tunable
+// request cap — server/pipeline/runPipeline.js enforces a fixed internal
+// maximum of 4 logical model-backed stages
+// (MAX_LOGICAL_PROVIDER_STAGES), not a configurable environment setting.
+// See docs/decisions/ADR-0004-single-openai-provider.md.

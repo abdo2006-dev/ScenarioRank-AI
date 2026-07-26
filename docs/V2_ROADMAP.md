@@ -114,7 +114,52 @@ provider-architecture reasoning.
   counts) added via a small versioned pricing table. See
   `docs/decisions/ADR-0004-single-openai-provider.md` for the full
   reasoning and `docs/PROJECT_STATUS.md` for the real OpenAI smoke test
-  result (reached `complete` successfully, ~1 cent).
+  result (reached `complete` successfully, ~1 cent). **Superseded in part
+  by the metadata/pairing-completeness correction round below** —
+  `AI_MAX_PROVIDER_REQUESTS_PER_RUN` and `providerRequestCount` were later
+  renamed/removed in favor of `logicalProviderStageCount`/
+  `providerAttemptCount`, and pairing's "partial success" tolerance was
+  later removed in favor of requiring complete pair coverage.
+- **Phase 1 metadata/pairing-completeness correction round — Done, on the
+  same PR #2 (not yet merged; not a new phase number).** A further review
+  found the request-count terminology from the round above still
+  conflated a fixed architectural count with the real, variable number of
+  OpenAI attempts, and found the pairing stage's "tolerate a missing pair
+  as partial success" design (deliberately built in the round above)
+  overstated what was actually evaluated. Corrected on the same branch,
+  `v2/phase-1-completion`, still awaiting explicit approval to merge:
+  1. `run_metadata` now reports `logicalProviderStageCount` (the fixed,
+     non-configurable architectural count of model-backed stages, at most
+     4) separately from `providerAttemptCount` (the real, aggregated count
+     of OpenAI attempts across every stage, including retries and
+     batch-integrity corrective calls, which can exceed 4).
+     `AI_MAX_PROVIDER_REQUESTS_PER_RUN`/`providerRequestCount` are removed
+     entirely; `LogicalStageLimitExceededError` (renamed from
+     `ProviderRequestBudgetExceededError`) is the safety net, backed by a
+     fixed internal constant rather than an environment setting;
+  2. `callBatchWithIntegrityRetry` (`server/pipeline/runPipeline.js`) now
+     aggregates attempts and token usage across every call in its retry
+     loop, including a rejected first attempt whose result was later
+     superseded — real API spend is never silently discarded from
+     `run_metadata` just because the call's output wasn't used;
+  3. `mapPairResultsByIdentity()` now requires complete coverage of every
+     expected top-four pair — a missing pair is rejected exactly like a
+     duplicate or unknown one, with one corrective retry, then an honest
+     `{"status":"unavailable","reason":"Complete pair analysis was
+     unavailable.","best_pair":null,"top_pairs":[]}` result. A successful
+     pairing result now always means every expected pair was evaluated,
+     never a subset;
+  4. `estimatedCostUsd`'s known limitation — that usage is only available
+     from attempts with a completed response, so a hard-failed attempt's
+     real spend is excluded from the displayed total even though it still
+     counts toward `providerAttemptCount` — is now documented explicitly
+     in `server/ai/pricing/openaiPricing.js` rather than left implicit;
+  5. stale comments in `server/ai/retry.js` describing the old
+     Groq/Gemini-era retry setup were corrected to describe the current
+     single-retry-owner reality.
+
+  See `docs/PROJECT_STATUS.md` for the exact test counts and verification
+  results for this round.
 
 Deferred out of Phase 1 entirely, unchanged (see `docs/architecture/KNOWN_LIMITATIONS.md`):
 replacing misleading opportunity-cost terminology with a real comparative

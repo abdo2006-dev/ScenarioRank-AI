@@ -46,16 +46,16 @@ The current implementation is a sequential **LLM-assisted pipeline**, not a coll
 
 ## Current request pipeline
 
-A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing enabled) makes **at most 4 OpenAI requests**:
+A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing enabled) uses **at most 4 logical model-backed pipeline stages** — a fixed architectural fact, not the same claim as "at most 4 OpenAI API requests": each logical stage can take more than one real attempt (a schema-validation or truncation retry, or a batch-integrity corrective call), which is why the response separately reports `logicalProviderStageCount` (bounded at 4) and `providerAttemptCount` (the real, aggregated attempt total, which can be higher):
 
-1. **Combined context analysis — LLM, one request:** derives evaluation criteria, base weights, must-haves, complexity, and the scenario's weight adjustments together. The UI still shows "Role Analysis" and "Scenario Analysis" as separate pipeline stages — one provider request now produces both; a logical pipeline stage does not necessarily equal one network request.
-2. **Batch candidate scoring — LLM, one request:** scores every submitted candidate across seven criteria in a single request, returning confidence, evidence, and reasoning per candidate. Results are mapped back to candidates by a stable ID, never by array position; a duplicate, missing, or unknown result is rejected (with at most one corrective retry), never silently defaulted.
+1. **Combined context analysis — LLM, one logical stage:** derives evaluation criteria, base weights, must-haves, complexity, and the scenario's weight adjustments together. The UI still shows "Role Analysis" and "Scenario Analysis" as separate pipeline stages — one provider call now produces both; a logical pipeline stage does not necessarily equal one network request.
+2. **Batch candidate scoring — LLM, one logical stage:** scores every submitted candidate across seven criteria in a single request, returning confidence, evidence, and reasoning per candidate. Results are mapped back to candidates by a stable ID, never by array position; a duplicate, missing, or unknown result is rejected (with at most one corrective retry, whose real attempt is added to the total, never discarded), never silently defaulted.
 3. **Deterministic scoring:** calculates weighted fit, risk dimensions, adaptability, expected outcome, risk-adjusted scores, and the top-four ranking.
 4. **Confidence and evidence review — deterministic:** flags low confidence and weak evidence. Not a demographic or procedural bias audit.
-5. **Batch pairing analysis — optional LLM, one request:** evaluates every relevant pair among the top four *ranked* candidates in a single request. A pair the model omits is tolerated as a partial result; a duplicate or unrequested pair is rejected. If nothing usable comes back, the response honestly reports `{"status":"unavailable", ...}` — never a fabricated pair.
+5. **Batch pairing analysis — optional LLM, one logical stage:** evaluates every relevant pair among the top four *ranked* candidates in a single request. **A successful pairing result means every expected pair was returned and validated — a subset is never classified as a successful "best pair" analysis.** Any missing, duplicate, or unrequested pair is rejected (with one corrective retry); if the batch is still incomplete afterward, the response honestly reports `{"status":"unavailable","reason":"Complete pair analysis was unavailable.", ...}` — never a fabricated or partial pair.
 6. **Decision explanation — deterministic ranking + LLM explanation:** code selects the ranking key and computes the winner before this call; the LLM only generates explanations and summaries from the already-computed result (optionally referencing the pairing result) and can never change the ranking.
 
-Every LLM-backed stage is schema-validated (Zod) before its output is used. Every response includes `run_metadata`: provider, model, exact provider request count, input/cached-input/output/reasoning/total token counts, an estimated cost (or `null` for an unrecognized model — never a guessed number), prompt/schema versions, attempts, and timestamps. Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
+Every LLM-backed stage is schema-validated (Zod) before its output is used. Every response includes `run_metadata`: provider, model, `logicalProviderStageCount`, `providerAttemptCount`, input/cached-input/output/reasoning/total token counts, an estimated cost (or `null` for an unrecognized model — never a guessed number), prompt/schema versions, attempts, and timestamps. Token/cost totals are only ever aggregated from attempts that returned a completed response with usage data — an attempt that fails before returning any response body has no usage to report, so the estimate can honestly under-report true spend in that case; see `server/ai/pricing/openaiPricing.js`. Detailed flow: [`docs/architecture/CURRENT_ARCHITECTURE.md`](./docs/architecture/CURRENT_ARCHITECTURE.md)
 
 ## Technology baseline
 
@@ -68,7 +68,7 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
 | Validation | Zod schemas for every LLM operation | Every production schema validated locally before deterministic code runs, even though the OpenAI SDK's own Zod helper already validates once |
 | Persistence | None | Runs are not stored |
-| Automated testing | 155 backend + 16 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (including batching/request-budget behavior), SSE routes, and real component rendering |
+| Automated testing | 159 backend + 16 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, and real component rendering |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 

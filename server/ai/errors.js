@@ -28,7 +28,7 @@ export class AIProviderError extends Error {
   }
 }
 
-/** AI_PROVIDER is unset/unsupported, or a selected provider is missing required config. */
+/** OPENAI_API_KEY or another required provider config value is missing or invalid. */
 export class ConfigurationError extends AIProviderError {
   constructor(message, opts = {}) {
     super(message, { code: "configuration", retryable: false, ...opts });
@@ -151,14 +151,19 @@ export class BatchIntegrityError extends AIProviderError {
 
 /**
  * A safety net, not a normal-path limiter: the pipeline tracks how many
- * provider requests a single run has made and refuses to make another
- * once the configured cap (AI_MAX_PROVIDER_REQUESTS_PER_RUN) would be
- * exceeded. Firing this means a bug or a future code change made more
- * provider requests than this architecture is designed to need — fail
- * safely rather than spend API credit unexpectedly. Never retryable.
+ * *logical* model-backed stages a single run has entered (context, batch
+ * scoring, batch pairing, decision — a fixed architectural maximum of 4,
+ * see server/pipeline/runPipeline.js's `MAX_LOGICAL_PROVIDER_STAGES`) and
+ * refuses to enter another once that fixed cap would be exceeded. This is
+ * deliberately about *logical stages*, not raw OpenAI API attempts —
+ * retries, truncation retries, and batch-integrity corrective calls all
+ * happen within a single logical stage and never trip this. Firing this
+ * means a bug or a future code change added a 5th call site this
+ * architecture was never designed to need — fail safely rather than
+ * spend API credit unexpectedly. Never retryable.
  */
-export class ProviderRequestBudgetExceededError extends AIProviderError {
+export class LogicalStageLimitExceededError extends AIProviderError {
   constructor(message, opts = {}) {
-    super(message, { code: "request_budget_exceeded", retryable: false, ...opts });
+    super(message, { code: "logical_stage_limit_exceeded", retryable: false, ...opts });
   }
 }

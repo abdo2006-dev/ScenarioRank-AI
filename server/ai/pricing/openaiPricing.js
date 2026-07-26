@@ -27,6 +27,22 @@
  * the source of truth. Update PRICING_RETRIEVED_ON and the table below
  * together whenever pricing is re-verified; never silently assume a price
  * is still correct.
+ *
+ * KNOWN LIMITATION — usage is only available from completed responses.
+ * `estimateCostUsd()` is computed from `run_metadata`'s aggregated token
+ * counts, which are themselves only ever incremented from an OpenAI
+ * attempt that actually returned a response body with usage data
+ * (`server/pipeline/runPipeline.js`'s `addUsage()`). An attempt that fails
+ * before returning any response — an authentication error, a connection
+ * failure, or an exhausted-retry error with no body — has no usage to
+ * report and is silently excluded from the token/cost totals, even though
+ * `run_metadata.providerAttemptCount` still counts it. This means the
+ * displayed estimate can honestly under-report true spend when a stage
+ * fails hard (as opposed to succeeding-but-discarded, e.g. a
+ * batch-integrity corrective retry, which *does* have usage and *is*
+ * included). This is a documented limitation of what the OpenAI SDK
+ * exposes, not an implementation gap to silently paper over — do not
+ * present `estimatedCostUsd` as complete, invoice-level accounting.
  */
 
 export const PRICING_RETRIEVED_ON = "2026-07-26";

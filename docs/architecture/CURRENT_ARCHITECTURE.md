@@ -106,7 +106,7 @@ No state is persisted across page refreshes.
 | Directory | Responsibility |
 |---|---|
 | `server.mjs` | Composition root only: load env, resolve the OpenAI provider for the process's lifetime, build the app, listen |
-| `server/config/` | `.env`/`.env.local` loading and provider-config validation, `AI_MAX_CANDIDATES`/`AI_MAX_PROVIDER_REQUESTS_PER_RUN` resolution |
+| `server/config/` | `.env`/`.env.local` loading, provider-config validation, `AI_MAX_CANDIDATES` resolution (the fixed 4-logical-stage maximum is an internal `runPipeline.js` constant, not an environment setting resolved here) |
 | `server/http/` | Express transport — CORS, JSON body parsing, the 4 routes, candidate-count rejection before the model is called. No orchestration or AI logic |
 | `server/pipeline/` | `runPipeline()` orchestration, batch-identity validation (`mapBatchResultsById`/`mapPairResultsByIdentity`), the deterministic `confidenceEvidenceReview`/`outcomeModeling` stages, run-metadata assembly (including token usage and estimated cost) |
 | `server/ai/` | `AIProvider` contract (`types.js`), error taxonomy (`errors.js`), the single retry owner (`retry.js`), `providerFactory.js`, `providers/openaiProvider.js` (the only adapter), `pricing/openaiPricing.js`, `schemas/`, `prompts/` |
@@ -134,11 +134,16 @@ Zod schema from `server/ai/schemas/` and a prompt from
 `server/ai/prompts/`. The response is parsed, retried at most once on
 failure, and locally validated against that schema before any deterministic
 code sees it (`server/ai/providers/openaiProvider.js`). No stage constructs
-or selects a provider itself. A normal run makes **at most 4 provider
-requests** (docs/decisions/ADR-0004-single-openai-provider.md); a request
-budget (`server/pipeline/runPipeline.js`'s `createRequestBudget`,
-configured via `AI_MAX_PROVIDER_REQUESTS_PER_RUN`) is a safety net against
-a future bug making more.
+or selects a provider itself. A normal run uses **at most 4 logical
+model-backed stages** (docs/decisions/ADR-0004-single-openai-provider.md)
+— a fixed architectural fact, enforced internally by
+`server/pipeline/runPipeline.js`'s `createStageBudget()` /
+`MAX_LOGICAL_PROVIDER_STAGES` as a safety net against a future bug adding
+a 5th call site. This is **not** the same claim as "at most 4 OpenAI API
+requests": a logical stage's *real* attempt count (the adapter's own
+retries, plus a batch-integrity corrective call for the two batch stages)
+is tracked and reported separately as `run_metadata.providerAttemptCount`,
+distinct from `run_metadata.logicalProviderStageCount`.
 
 ### 1. Input validation
 
@@ -149,13 +154,13 @@ Validation is otherwise manual and incomplete; nested fields, string
 lengths, allowed decision modes, duplicate IDs are not strictly enforced
 at this layer — but the LLM *outputs* now are, via the production schemas.
 
-### 2. Context analysis (1 provider request)
+### 2. Context analysis (1 logical stage)
 
 Calls the provider with `contextAnalysisSchema` (`server/ai/schemas/contextAnalysis.schema.js`), which combines what used to be two separate requests — role analysis and scenario analysis — into one. The response has two clearly separated nested objects, `role_analysis` and `scenario_analysis`; the pipeline still records them as distinct `pipeline_stage_outputs` entries ("Role Analysis Stage", "Scenario Analysis Stage") and the frontend still displays them separately. A logical pipeline stage does not necessarily equal one network request. Application code applies weight deltas and normalizes the final weights to 100 (`server/domain/scoring.js`).
 
-### 3. Batch candidate scoring (1 provider request)
+### 3. Batch candidate scoring (1 logical stage)
 
-Calls the provider once with `buildBatchCandidateScoringSchema(maxCandidates)`, scoring every submitted candidate in a single request (previously one request per candidate, with concurrency limited to two). Each result carries the candidate's stable ID; `mapBatchResultsById()` (`server/pipeline/runPipeline.js`) maps results back to candidates by that ID — never by array position — and rejects the whole batch (with at most one corrective retry, appending a plain-language note of exactly what was wrong) if any ID is duplicated, missing, or unrecognized. Candidate scoring must be complete: unlike pairing (below), a missing result is never silently dropped or defaulted.
+Calls the provider once with `buildBatchCandidateScoringSchema(maxCandidates)`, scoring every submitted candidate in a single request (previously one request per candidate, with concurrency limited to two). Each result carries the candidate's stable ID; `mapBatchResultsById()` (`server/pipeline/runPipeline.js`) maps results back to candidates by that ID — never by array position — and rejects the whole batch (with at most one corrective retry) if any ID is duplicated, missing, or unrecognized. Candidate scoring must be complete: unlike pairing (below), a missing result is never silently dropped or defaulted. Both the discarded first attempt and the corrective retry's real attempt/usage are aggregated into `run_metadata`, never discarded (`callBatchWithIntegrityRetry`).
 
 ### 4. Metric calculation
 
@@ -187,11 +192,11 @@ It does not test protected characteristics, proxy variables, disparate treatment
 
 `outcomeModeling()` is a deterministic pipeline stage, not an LLM call. It derives risk and outcome labels. **Phase 1C fix:** `cross_scenario_consistency` is no longer a fabricated `75` — it is honestly returned as the literal string `"not_measured"`, and the adaptability-score formula no longer uses that input at all (see `docs/architecture/SCORING_AND_ASSUMPTIONS.md`).
 
-### 7. Batch pairing analysis (1 provider request, optional)
+### 7. Batch pairing analysis (1 logical stage, optional)
 
-When pairing is enabled, the pipeline derives the top four candidates from this run's actual deterministic ranking (sorted by whichever `decision_mode` was selected — Phase 1C fix, P0.1), builds every relevant pair (up to C(4,2) = 6), and evaluates them all in a single request via `batchPairingAnalysisSchema` (previously one request per pair). `mapPairResultsByIdentity()` validates the returned pairs by `candidate_id_a`/`candidate_id_b`: a duplicate or a pair that was never requested is rejected outright, but a pair the model simply omitted is tolerated as a legitimate partial result — pairing is optional and a real partial result is more useful than none. If nothing usable comes back at all, `pairing_result` is honestly `{"status":"unavailable", "reason": "...", "best_pair": null, "top_pairs": []}` — never a fabricated pair (docs/architecture/KNOWN_LIMITATIONS.md P0.5). Valid pairs are converted into a deterministic pair score (`server/domain/scoring.js`'s `computePairScore`).
+When pairing is enabled, the pipeline derives the top four candidates from this run's actual deterministic ranking (sorted by whichever `decision_mode` was selected — Phase 1C fix, P0.1), builds every relevant pair (up to C(4,2) = 6), and evaluates them all in a single request via `batchPairingAnalysisSchema` (previously one request per pair). **A successful pairing result means every expected pair was returned and validated — `mapPairResultsByIdentity()` rejects a missing, duplicate, or unrequested pair alike; a subset is never classified as a successful "best pair" analysis.** A batch missing coverage gets one corrective retry; if the batch is still incomplete afterward, `pairing_result` is honestly `{"status":"unavailable", "reason": "Complete pair analysis was unavailable.", "best_pair": null, "top_pairs": []}` — never a fabricated or partial pair (docs/architecture/KNOWN_LIMITATIONS.md P0.5). The attempts and any usage genuinely consumed while trying — even when the stage ultimately fails — are still recorded in `run_metadata`, never silently dropped. Valid pairs are converted into a deterministic pair score (`server/domain/scoring.js`'s `computePairScore`).
 
-### 8. Decision generation (1 provider request)
+### 8. Decision generation (1 logical stage)
 
 Application code first sorts candidates deterministically:
 
@@ -220,7 +225,8 @@ Every completed pipeline response includes:
 {
   "provider": "openai",
   "model": "gpt-5-mini",
-  "providerRequestCount": 4,
+  "logicalProviderStageCount": 4,
+  "providerAttemptCount": 5,
   "inputTokens": 3200,
   "cachedInputTokens": 0,
   "outputTokens": 1800,
@@ -229,13 +235,13 @@ Every completed pipeline response includes:
   "estimatedCostUsd": 0.0044,
   "promptVersions": { "context": "v1", "scoring": "v1", "...": "..." },
   "schemaVersions": { "context": "v1", "scoring": "v1", "...": "..." },
-  "attempts": { "context": 1, "scoring": 1, "...": 1 },
+  "attempts": { "context": 1, "scoring": 2, "...": 1 },
   "startedAt": "2026-...",
   "completedAt": "2026-..."
 }
 ```
 
-`estimatedCostUsd` is computed from actual token usage against a small versioned pricing table (`server/ai/pricing/openaiPricing.js`) and is `null`, never a guessed number, for any model that table doesn't explicitly recognize. It is a displayed estimate for the user's own budget awareness, not an invoice — OpenAI's own billing dashboard remains the source of truth. No secrets. Supports later debugging and reproducibility without adding a database.
+`logicalProviderStageCount` is the number of logical model-backed pipeline stages used (a fixed architectural fact, bounded at 4 — see "Pipeline stages" above); `providerAttemptCount` is the real, aggregated number of OpenAI attempts actually made, including every retry and batch-integrity corrective call, whether or not that call's result was ultimately used — the two numbers can differ (in the example above, the scoring stage needed one corrective retry, so `providerAttemptCount` is 5 even though there are only 4 logical stages). `estimatedCostUsd` is computed from actual token usage against a small versioned pricing table (`server/ai/pricing/openaiPricing.js`) and is `null`, never a guessed number, for any model that table doesn't explicitly recognize. Token/cost totals are only aggregated from attempts that returned a completed response with usage data — an attempt that fails before returning any response body (e.g. an auth or connection error) has no usage to report, so the estimate can honestly under-report true spend in that case; it is a displayed estimate for the user's own budget awareness, not an invoice — OpenAI's own billing dashboard remains the source of truth. No secrets. Supports later debugging and reproducibility without adding a database.
 
 ## Data and persistence
 

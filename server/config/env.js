@@ -132,31 +132,12 @@ export function resolveMaxCandidates({ env = process.env } = {}) {
   return { value: parsed, usedDefault: false };
 }
 
-// ===== PROVIDER-REQUEST-BUDGET SAFEGUARD =====
-
-export const DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN = 4;
-export const MIN_AI_MAX_PROVIDER_REQUESTS_PER_RUN = 1;
-export const MAX_AI_MAX_PROVIDER_REQUESTS_PER_RUN = 4; // this architecture never legitimately needs more than 4 — see server/pipeline/runPipeline.js
-
-/**
- * Resolves AI_MAX_PROVIDER_REQUESTS_PER_RUN — a safety net, not a normal-
- * path limiter. The pipeline's own architecture never needs more than 4
- * provider requests for a normal run (combined context analysis, batch
- * scoring, batch pairing, decision explanation); this cap exists so a bug
- * or future code change that accidentally made more requests fails safely
- * instead of silently spending API credit. An invalid value falls back to
- * the safe default with a clear reason.
- * @param {{env?: Record<string,string|undefined>}} [options]
- * @returns {{ value: number, usedDefault: boolean, invalidInput?: string }}
- */
-export function resolveMaxProviderRequestsPerRun({ env = process.env } = {}) {
-  const raw = env.AI_MAX_PROVIDER_REQUESTS_PER_RUN;
-  if (raw === undefined || raw.trim() === "") {
-    return { value: DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN, usedDefault: true };
-  }
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed < MIN_AI_MAX_PROVIDER_REQUESTS_PER_RUN || parsed > MAX_AI_MAX_PROVIDER_REQUESTS_PER_RUN) {
-    return { value: DEFAULT_AI_MAX_PROVIDER_REQUESTS_PER_RUN, usedDefault: true, invalidInput: raw };
-  }
-  return { value: parsed, usedDefault: false };
-}
+// Note: there is no configurable "max provider requests per run" setting.
+// This architecture has a fixed maximum of 4 *logical* model-backed
+// pipeline stages (context, batch scoring, batch pairing, decision) —
+// an architectural fact, not an environment-tunable knob — enforced
+// internally by server/pipeline/runPipeline.js's `MAX_LOGICAL_PROVIDER_STAGES`.
+// A logical stage's *real* OpenAI attempt count (retries, truncation
+// retries, batch-integrity corrective calls) is a separate, unbounded-by-
+// design concept reported as `run_metadata.providerAttemptCount` — see
+// docs/decisions/ADR-0004-single-openai-provider.md.
