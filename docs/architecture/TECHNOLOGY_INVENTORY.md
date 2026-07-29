@@ -61,3 +61,6 @@ For recruiter-facing documentation, describe technologies according to their act
 4. **Persistence** — start with SQLite when run history, auditability, or evaluation datasets become requirements.
 5. **Streaming** — retain SSE unless two-way realtime interaction becomes necessary.
 6. **Testing** — unit-test deterministic formulas first, then route integration tests, then end-to-end flows with model calls mocked.
+
+Phase 2A adds frontend API-client, SSE-parser, and workflow-hook tests. No
+browser E2E or real-provider test was added.

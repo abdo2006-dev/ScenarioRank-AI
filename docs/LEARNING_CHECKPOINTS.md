@@ -70,3 +70,7 @@ The maintainer should be able to explain the current system in approximately two
 2. How do `z.infer` types in `src/features/decision/contracts.ts` prevent the browser's static types drifting from runtime validation?
 3. How does `SseParser` handle chunk boundaries and why are unknown events ignored?
 4. Why is a Node-to-Python rewrite not justified today (ADR-0006)?
+5. Which public values are constrained to 0–1, 0–10, 0–100, or 0–4, and why
+   must those transport invariants differ from provider prompt-output schemas?
+6. What safe text does the UI show for malformed SSE JSON, and why must native
+   JSON parser details never become user-facing errors?

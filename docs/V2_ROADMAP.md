@@ -252,3 +252,7 @@ contract choice and ADR-0006 retains Node/Express.
 Application-level input validation, a frontend accessibility review, and
 remaining maintainability cleanup. This is not Phase 3 reliability or model
 evaluation work.
+
+The Phase 2A correction round completed component boundaries, API-client and
+workflow-hook tests, safe SSE/scenario transport errors, and public numeric
+contract bounds. Phase 2B and Phase 3 remain future work.

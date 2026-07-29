@@ -265,3 +265,7 @@ validates health, SSE events, and successful final responses. The browser API
 client validates health, scenario generation, progress, error, and complete
 events before feature state consumes them. These contracts are deliberately
 separate from the LLM provider schemas in `server/ai/schemas/`.
+
+Malformed SSE JSON becomes a fixed safe transport error in the browser.
+Scenario-generation provider failures still return valid local fallback
+scenarios, but provider and SDK error text never cross the HTTP boundary.

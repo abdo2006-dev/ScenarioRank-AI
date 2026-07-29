@@ -142,6 +142,11 @@ The explanation prompt includes computed metrics. The LLM should explain them wi
 - page refresh: all current input and result state is lost;
 - no silent provider fallback: there is exactly one provider (OpenAI); nothing in this codebase catches a failure and silently retries against a different provider or model.
 
+Public transport validation also constrains final numeric output: confidence,
+risk, and normalized pair metrics are 0–1; criterion and pair scores are 1–10
+and 0–10 respectively; aggregate scores are 0–100; logical provider stages are
+0–4; tokens and estimated cost cannot be negative.
+
 Phase 2A adds a transport-validation checkpoint on both sides of this flow:
 malformed browser input stops at Express with a safe 400/error event; malformed
 server data stops before the UI renders it with a safe frontend error.

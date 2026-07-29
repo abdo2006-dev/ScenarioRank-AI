@@ -133,3 +133,6 @@ The oversized page, duplicate stale frontend contracts, and unreachable legacy
 component/data/backup trees were removed or split in Phase 2A. Remaining Phase
 2 work is application input-validation UX, accessibility review, and focused
 maintainability cleanup; Phase 3 evaluation/reliability work has not begun.
+
+This cleanup does not add persistence, rate limiting, calibration, evaluation
+datasets, or production-readiness guarantees.

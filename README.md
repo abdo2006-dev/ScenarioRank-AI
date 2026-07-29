@@ -44,6 +44,13 @@ flowchart LR
 
 The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Every LLM call goes through a provider-neutral contract (`server/ai/`) — never a vendor SDK directly from the pipeline — so `runPipeline.js` has no OpenAI-specific code in it, even though there is currently exactly one supported provider. See [`docs/decisions/ADR-0004-single-openai-provider.md`](./docs/decisions/ADR-0004-single-openai-provider.md) for why Groq and Gemini (both real, tested integrations from an earlier phase) were removed rather than kept as dormant alternatives, and [`docs/decisions/ADR-0002-provider-abstraction.md`](./docs/decisions/ADR-0002-provider-abstraction.md) for why the contract itself still exists with a single provider.
 
+Phase 2A keeps the user flow but gives the browser a feature boundary:
+`src/features/decision/api` owns validated HTTP/SSE transport,
+`hooks/useDecisionEvaluation.ts` owns workflow state, and `components/`
+separates the screen, landing, evaluation, progress, results, and display
+primitives. Public payloads are Zod schemas in `shared/contracts/`; provider
+schemas remain internal to `server/ai/schemas/`.
+
 ## Current request pipeline
 
 A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing enabled) uses **at most 4 logical model-backed pipeline stages** — a fixed architectural fact, not the same claim as "at most 4 OpenAI API requests": each logical stage can take more than one real attempt (a schema-validation or truncation retry, or a batch-integrity corrective call), which is why the response separately reports `logicalProviderStageCount` (bounded at 4) and `providerAttemptCount` (the real, aggregated attempt total, which can be higher):
