@@ -75,7 +75,7 @@ HTTP/SSE data. The browser imports those schemas and derives types with
 
 ### P2.1 No meaningful unit tests — RESOLVED (Phase 1A/1D)
 
-~~The existing Vitest test asserts that `true` is `true`.~~ 159 backend tests now cover deterministic formulas (with characterization tests pinning exact behavior before/after the P0.2 fix), normalization, all 6 production schemas' conversion and adapter round-trips, provider-contract behavior for both adapters, and full mocked pipeline execution including the P0.1/P0.2 regressions. The frontend placeholder test is supplemented (not fully replaced) by 10 tests covering real rendering behavior (`src/pages/Index.test.tsx`).
+~~The existing Vitest test asserts that `true` is `true`.~~ The current suite has 191 backend and 91 frontend tests, covering deterministic formulas (with characterization tests pinning exact behavior before/after the P0.2 fix), normalization, public/provider contracts, mocked pipeline execution, routes, and focused rendered frontend behavior.
 
 ### P2.2 No route or stream integration tests — RESOLVED (Phase 1D)
 

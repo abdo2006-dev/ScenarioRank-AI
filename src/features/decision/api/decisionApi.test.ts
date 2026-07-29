@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EvaluationRequest } from "../contracts";
+import { DECISION_INPUT_LIMITS } from "../contracts";
 import { pipelineResponseFixture } from "../test/fixtures";
 import {
   generateScenarios,
@@ -187,7 +188,7 @@ describe("generateScenarios", () => {
   it("rejects an invalid scenario response contract", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
-        scenarios: [],
+        scenarios: ["s".repeat(DECISION_INPUT_LIMITS.scenario.max + 1)],
         source: "ai",
       }),
     );

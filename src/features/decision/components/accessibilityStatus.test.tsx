@@ -11,13 +11,38 @@ describe("decision status accessibility", () => {
     expect(alert).toHaveTextContent("Pipeline failed. Please try again.");
   });
 
-  it("exposes named polite progress while hiding decorative icons", () => {
+  it("keeps the visible stage list out of the live region", () => {
     const { container } = render(<PipelineProgress stages={[{
       id: "input", label: "Input Received", status: "running", duration_ms: 0,
     }]} />);
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    const status = screen.getByRole("status");
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveTextContent("Input Received: running");
+    expect(container.querySelector(".space-y-2")).not.toHaveAttribute("role");
+    expect(container.querySelector(".space-y-2")).not.toHaveAttribute("aria-live");
     expect(screen.getByText("Input Received")).toBeInTheDocument();
     expect(screen.getByText("0.0s")).toBeInTheDocument();
     expect(container.querySelector("[aria-hidden='true']")?.className).toContain("motion-reduce:animate-none");
+  });
+
+  it("announces completed pipelines concisely", () => {
+    render(<PipelineProgress stages={[{
+      id: "input", label: "Input Received", status: "completed", duration_ms: 0,
+    }, {
+      id: "decision", label: "Decision Engine", status: "completed", duration_ms: 0,
+    }]} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Decision Pipeline completed");
+  });
+
+  it("announces a failed stage in preference to other stage changes", () => {
+    render(<PipelineProgress stages={[{
+      id: "input", label: "Input Received", status: "completed",
+    }, {
+      id: "scoring", label: "Candidate Scoring", status: "running",
+    }, {
+      id: "decision", label: "Decision Engine", status: "failed",
+    }]} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Decision Engine: failed");
   });
 });

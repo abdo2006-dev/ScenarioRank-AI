@@ -94,7 +94,7 @@ export const scenarioGenerationRequestSchema = z.object({
 }).strict();
 
 export const scenarioGenerationResponseSchema = z.object({
-  scenarios: z.array(nonEmptyString)
+  scenarios: z.array(scenarioInputSchema)
     .min(DECISION_INPUT_LIMITS.scenarios.min)
     .max(DECISION_INPUT_LIMITS.scenarios.max),
   source: z.enum(["ai", "fallback"]),

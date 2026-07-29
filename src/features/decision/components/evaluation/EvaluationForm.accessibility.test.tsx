@@ -5,12 +5,19 @@ import { DEFAULT_CANDIDATES, DEFAULT_ROLE, DEFAULT_SCENARIOS } from "../../const
 import { DECISION_INPUT_LIMITS } from "../../contracts";
 import { EvaluationForm } from "./EvaluationForm";
 
-type DraftProps = { onRun?: () => void; empty?: boolean; incompleteCandidate?: boolean };
+type DraftProps = {
+  onRun?: () => void;
+  empty?: boolean;
+  incompleteCandidate?: boolean;
+  invalidActiveScenario?: boolean;
+};
 
-function FormHarness({ onRun = vi.fn(), empty = false, incompleteCandidate = false }: DraftProps) {
+function FormHarness({ onRun = vi.fn(), empty = false, incompleteCandidate = false, invalidActiveScenario = false }: DraftProps) {
   const [role, setRole] = useState(empty ? { title: "", description: "" } : { ...DEFAULT_ROLE });
   const [scenarios, setScenarios] = useState(empty ? [] : [...DEFAULT_SCENARIOS]);
-  const [scenario, setScenario] = useState(empty ? "" : DEFAULT_SCENARIOS[0]);
+  const [scenario, setScenario] = useState(
+    empty ? "" : invalidActiveScenario ? "   " : DEFAULT_SCENARIOS[0],
+  );
   const [candidates, setCandidates] = useState(() => (empty ? [] : DEFAULT_CANDIDATES.slice(0, 2).map((candidate, index) => ({
     ...candidate, description: incompleteCandidate && index === 0 ? "" : candidate.description,
   }))));
@@ -81,6 +88,14 @@ describe("EvaluationForm accessibility", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: "Candidate description is required." })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("link", { name: "Candidate description is required." }));
     expect(screen.getAllByLabelText("Candidate description")[0]).toHaveFocus();
+  });
+
+  it("focuses the active scenario select from its validation-summary link", async () => {
+    render(<FormHarness invalidActiveScenario />);
+    submit();
+    await waitFor(() => expect(screen.getByRole("link", { name: "Enter a scenario." })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("link", { name: "Enter a scenario." }));
+    expect(screen.getByLabelText("Active scenario")).toHaveFocus();
   });
 
   it("uses shared counters and explains reached add limits", () => {

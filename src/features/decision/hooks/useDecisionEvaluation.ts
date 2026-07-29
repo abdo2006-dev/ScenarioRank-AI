@@ -19,9 +19,22 @@ import type {
   PipelineResponse,
   PipelineStage,
 } from "../contracts";
-import { DEFAULT_RUNTIME_MAX_CANDIDATES } from "../../../../shared/contracts/decisionInputLimits.js";
+import {
+  DECISION_INPUT_LIMITS,
+} from "../../../../shared/contracts/decisionInputLimits.js";
 
 export type DecisionPhase = "landing" | "eval" | "running" | "results";
+
+function defaultCandidatesForLimit(maxCandidates: number) {
+  const resolvedLimit = Math.min(
+    DECISION_INPUT_LIMITS.candidates.max,
+    Math.max(DECISION_INPUT_LIMITS.candidates.min, maxCandidates),
+  );
+
+  return DEFAULT_CANDIDATES.slice(0, resolvedLimit).map((candidate) => ({
+    ...candidate,
+  }));
+}
 
 export function useDecisionEvaluation() {
   const [phase, setPhase] = useState<DecisionPhase>("landing");
@@ -31,7 +44,7 @@ export function useDecisionEvaluation() {
   const [decisionMode, setDecisionMode] =
     useState<EvaluationRequest["decision_mode"]>("best_fit");
   const [candidates, setCandidates] = useState<CandidateInput[]>(
-    DEFAULT_CANDIDATES.map((candidate) => ({ ...candidate })),
+    () => defaultCandidatesForLimit(DECISION_INPUT_LIMITS.candidates.min),
   );
   const [enablePairing, setEnablePairing] = useState(false);
   const [stages, setStages] = useState<PipelineStage[]>([]);
@@ -39,7 +52,7 @@ export function useDecisionEvaluation() {
   const [error, setError] = useState<string | null>(null);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [maxCandidates, setMaxCandidates] = useState(
-    DEFAULT_RUNTIME_MAX_CANDIDATES,
+    DECISION_INPUT_LIMITS.candidates.min,
   );
   const [isGeneratingScenarios, setIsGeneratingScenarios] = useState(false);
   const [scenarioGenerationStatus, setScenarioGenerationStatus] = useState("");
@@ -77,9 +90,7 @@ export function useDecisionEvaluation() {
     setRole({ ...DEFAULT_ROLE });
     setScenarios([...DEFAULT_SCENARIOS]);
     setScenario(DEFAULT_SCENARIOS[0]);
-    setCandidates(
-      DEFAULT_CANDIDATES.map((candidate) => ({ ...candidate })),
-    );
+    setCandidates(defaultCandidatesForLimit(maxCandidates));
     setEnablePairing(false);
     setResponse(null);
     setStages([]);
@@ -87,7 +98,7 @@ export function useDecisionEvaluation() {
     setScenarioGenerationStatus("");
     setValidationResetKey((key) => key + 1);
     setPhase("eval");
-  }, []);
+  }, [maxCandidates]);
 
   const handleGenerateScenarios = useCallback(async () => {
     if (!role.title.trim() || !role.description.trim()) {

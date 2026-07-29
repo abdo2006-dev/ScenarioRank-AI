@@ -78,7 +78,7 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
 | Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
-| Automated testing | 159 backend + 16 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, and real component rendering |
+| Automated testing | 191 backend + 91 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, and focused accessible component rendering |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
@@ -89,7 +89,7 @@ Fixed in Phase 1 (see [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architec
 Still open:
 
 - "best" and "worst" adaptability scenarios are not genuinely simulated (needs real multi-scenario execution, Phase 3);
-- no application-level accessibility review or input-validation UX has been completed yet (Phase 2B);
+- Phase 2B-1 includes validation and an accessibility-oriented prototype review; it is not a WCAG certification and still needs the documented manual checks;
 - there is no authentication, rate limiting, persistence, audit trail, or a hard dollar-budget enforcement (only a request-count safety net);
 - the mathematical coefficients are prototype heuristics and have not been empirically calibrated;
 - displayed cost is an estimate for the user's own awareness, not an invoice — OpenAI's own billing dashboard remains the source of truth.

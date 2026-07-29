@@ -109,19 +109,34 @@ describe("public decision API contracts", () => {
     ).toBe(false);
   });
 
-  it("validates scenario request and response boundaries", () => {
+  it("validates scenario-generation requests", () => {
     expect(
       scenarioGenerationRequestSchema.safeParse({
         title: "VP",
         description: "Leads strategy.",
       }).success,
     ).toBe(true);
-    expect(
-      scenarioGenerationResponseSchema.safeParse({
-        scenarios: [],
-        source: "ai",
-      }).success,
-    ).toBe(false);
+  });
+
+  it("accepts a generated scenario at the shared maximum", () => {
+    expect(scenarioGenerationResponseSchema.safeParse({
+      scenarios: ["s".repeat(DECISION_INPUT_LIMITS.scenario.max)],
+      source: "ai",
+    }).success).toBe(true);
+  });
+
+  it("rejects a generated scenario above the shared maximum", () => {
+    expect(scenarioGenerationResponseSchema.safeParse({
+      scenarios: ["s".repeat(DECISION_INPUT_LIMITS.scenario.max + 1)],
+      source: "ai",
+    }).success).toBe(false);
+  });
+
+  it("rejects whitespace-only generated scenarios", () => {
+    expect(scenarioGenerationResponseSchema.safeParse({
+      scenarios: ["   "],
+      source: "ai",
+    }).success).toBe(false);
   });
 
   it("enforces shared trimmed text and technical candidate limits", () => {

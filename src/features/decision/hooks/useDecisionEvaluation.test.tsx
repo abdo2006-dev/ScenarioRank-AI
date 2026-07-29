@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PipelineResponse, PipelineStage } from "../contracts";
+import { DECISION_INPUT_LIMITS } from "../contracts";
+import { DEFAULT_CANDIDATES } from "../constants";
 import { pipelineResponseFixture } from "../test/fixtures";
 import * as api from "../api/decisionApi";
 import { SafeDecisionClientError } from "../api/decisionApi";
@@ -10,24 +12,9 @@ vi.mock("../api/decisionApi", async (importOriginal) => {
   const actual = await importOriginal<
     typeof import("../api/decisionApi")
   >();
-  const getAiEnabled = vi.fn();
   return {
     ...actual,
-    getAiEnabled,
-    getHealth: vi.fn(async () => {
-      const aiEnabled = await getAiEnabled();
-      return {
-        status: "ok" as const,
-        ai_enabled: aiEnabled,
-        ai_provider: aiEnabled ? "openai" : null,
-        ai_model: aiEnabled ? "gpt-5-mini" : null,
-        limits: {
-          max_candidates: 5, max_scenarios: 5, role_title_max_chars: 120,
-          role_description_max_chars: 4000, scenario_max_chars: 2000,
-          candidate_name_max_chars: 120, candidate_description_max_chars: 4000,
-        },
-      };
-    }),
+    getHealth: vi.fn(),
     generateScenarios: vi.fn(),
     runEvaluation: vi.fn(),
   };
@@ -50,6 +37,24 @@ function deferred<T>() {
   };
 }
 
+function health(maxCandidates = 5, aiEnabled = true) {
+  return {
+    status: "ok" as const,
+    ai_enabled: aiEnabled,
+    ai_provider: aiEnabled ? "openai" : null,
+    ai_model: aiEnabled ? "gpt-5-mini" : null,
+    limits: {
+      max_candidates: maxCandidates,
+      max_scenarios: 5,
+      role_title_max_chars: 120,
+      role_description_max_chars: 4000,
+      scenario_max_chars: 2000,
+      candidate_name_max_chars: 120,
+      candidate_description_max_chars: 4000,
+    },
+  };
+}
+
 afterEach(() => {
   vi.resetAllMocks();
   vi.useRealTimers();
@@ -57,43 +62,106 @@ afterEach(() => {
 
 describe("useDecisionEvaluation health", () => {
   it("sets AI enabled from the initial health request", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     const { result } = renderHook(() => useDecisionEvaluation());
 
     await waitFor(() => expect(result.current.aiEnabled).toBe(true));
-    expect(mockedApi.getAiEnabled).toHaveBeenCalledTimes(1);
+    expect(mockedApi.getHealth).toHaveBeenCalledTimes(1);
   });
 
   it("sets AI disabled from a separate initial mount", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(false);
+    mockedApi.getHealth.mockResolvedValue(health(5, false));
     const { result } = renderHook(() => useDecisionEvaluation());
 
     await waitFor(() => expect(result.current.aiEnabled).toBe(false));
-    expect(mockedApi.getAiEnabled).toHaveBeenCalledTimes(1);
+    expect(mockedApi.getHealth).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("useDecisionEvaluation inputs", () => {
-  it("loads the documented defaults", async () => {
-    mockedApi.getAiEnabled.mockReturnValue(
-      new Promise<boolean>(() => undefined),
+  it("starts with the shared technical minimum of valid default candidates", () => {
+    mockedApi.getHealth.mockReturnValue(new Promise(() => undefined));
+    const { result } = renderHook(() => useDecisionEvaluation());
+
+    expect(result.current.maxCandidates).toBe(
+      DECISION_INPUT_LIMITS.candidates.min,
+    );
+    expect(result.current.candidates).toEqual(DEFAULT_CANDIDATES.slice(
+      0,
+      DECISION_INPUT_LIMITS.candidates.min,
+    ));
+    act(() => result.current.loadDefaults());
+    expect(result.current.candidates).toHaveLength(
+      DECISION_INPUT_LIMITS.candidates.min,
+    );
+  });
+
+  it("does not leave a five-candidate default after health resolves to two", async () => {
+    const pendingHealth = deferred<ReturnType<typeof health>>();
+    mockedApi.getHealth.mockReturnValue(pendingHealth.promise);
+    const { result } = renderHook(() => useDecisionEvaluation());
+
+    expect(result.current.candidates).toHaveLength(
+      DECISION_INPUT_LIMITS.candidates.min,
+    );
+    await act(async () => {
+      pendingHealth.resolve(health(DECISION_INPUT_LIMITS.candidates.min));
+      await pendingHealth.promise;
+    });
+
+    expect(result.current.maxCandidates).toBe(
+      DECISION_INPUT_LIMITS.candidates.min,
+    );
+    expect(result.current.candidates).toHaveLength(
+      DECISION_INPUT_LIMITS.candidates.min,
+    );
+  });
+
+  it("loads exactly the runtime maximum when that maximum is two", async () => {
+    mockedApi.getHealth.mockResolvedValue(
+      health(DECISION_INPUT_LIMITS.candidates.min),
     );
     const { result } = renderHook(() => useDecisionEvaluation());
 
-    act(() => result.current.resetInputs());
+    await waitFor(() => expect(result.current.maxCandidates).toBe(
+      DECISION_INPUT_LIMITS.candidates.min,
+    ));
     act(() => result.current.loadDefaults());
 
-    expect(result.current.phase).toBe("eval");
-    expect(result.current.role.title).not.toBe("");
-    expect(result.current.scenario).not.toBe("");
-    expect(result.current.candidates.length).toBeGreaterThanOrEqual(2);
-    expect(result.current.enablePairing).toBe(false);
+    expect(result.current.candidates).toEqual(DEFAULT_CANDIDATES.slice(
+      0,
+      DECISION_INPUT_LIMITS.candidates.min,
+    ));
+  });
+
+  it("loads no more than a resolved runtime maximum of five", async () => {
+    mockedApi.getHealth.mockResolvedValue(health(5));
+    const { result } = renderHook(() => useDecisionEvaluation());
+
+    await waitFor(() => expect(result.current.maxCandidates).toBe(5));
+    act(() => result.current.loadDefaults());
+
+    expect(result.current.candidates.length).toBeLessThanOrEqual(5);
+    expect(result.current.candidates).toEqual(DEFAULT_CANDIDATES.slice(0, 5));
+  });
+
+  it("does not silently remove manually entered candidates when health resolves", async () => {
+    const pendingHealth = deferred<ReturnType<typeof health>>();
+    mockedApi.getHealth.mockReturnValue(pendingHealth.promise);
+    const { result } = renderHook(() => useDecisionEvaluation());
+    const manuallyEnteredCandidates = DEFAULT_CANDIDATES.slice(0, 3);
+
+    act(() => result.current.setCandidates(manuallyEnteredCandidates));
+    await act(async () => {
+      pendingHealth.resolve(health(DECISION_INPUT_LIMITS.candidates.min));
+      await pendingHealth.promise;
+    });
+
+    expect(result.current.candidates).toEqual(manuallyEnteredCandidates);
   });
 
   it("resets every editable input", () => {
-    mockedApi.getAiEnabled.mockReturnValue(
-      new Promise<boolean>(() => undefined),
-    );
+    mockedApi.getHealth.mockReturnValue(new Promise(() => undefined));
     const { result } = renderHook(() => useDecisionEvaluation());
 
     act(() => result.current.resetInputs());
@@ -112,7 +180,7 @@ describe("useDecisionEvaluation inputs", () => {
 
 describe("useDecisionEvaluation scenario generation", () => {
   it("stores generated scenarios and selects the first", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     mockedApi.generateScenarios.mockResolvedValue({
       scenarios: ["New market", "Turnaround"],
       source: "ai",
@@ -133,7 +201,7 @@ describe("useDecisionEvaluation scenario generation", () => {
   });
 
   it("stores a safe scenario-generation failure", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     mockedApi.generateScenarios.mockRejectedValue(
       new SafeDecisionClientError(
         "Scenario generation failed. Please try again.",
@@ -154,7 +222,7 @@ describe("useDecisionEvaluation scenario generation", () => {
 
 describe("useDecisionEvaluation evaluation workflow", () => {
   it("accepts stage updates and transitions from running to results", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     const pending = deferred<PipelineResponse>();
     const updatedStages: PipelineStage[] = [
       {
@@ -192,7 +260,7 @@ describe("useDecisionEvaluation evaluation workflow", () => {
   });
 
   it("returns to evaluation and stores a safe evaluation failure", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     mockedApi.runEvaluation.mockRejectedValue(
       new SafeDecisionClientError(
         "The evaluation connection failed. Please try again.",
@@ -212,7 +280,7 @@ describe("useDecisionEvaluation evaluation workflow", () => {
   });
 
   it("includes the pairing stage when pairing is enabled", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     const pending = deferred<PipelineResponse>();
     mockedApi.runEvaluation.mockReturnValue(pending.promise);
     const { result } = renderHook(() => useDecisionEvaluation());
@@ -232,7 +300,7 @@ describe("useDecisionEvaluation evaluation workflow", () => {
   });
 
   it("excludes the pairing stage when pairing is disabled", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     const pending = deferred<PipelineResponse>();
     mockedApi.runEvaluation.mockReturnValue(pending.promise);
     const { result } = renderHook(() => useDecisionEvaluation());
@@ -251,7 +319,7 @@ describe("useDecisionEvaluation evaluation workflow", () => {
   });
 
   it("clears old response, error, and stage updates on a new run", async () => {
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     mockedApi.runEvaluation.mockImplementationOnce(
       async (_request, onStage) => {
         onStage([
@@ -297,7 +365,7 @@ describe("useDecisionEvaluation evaluation workflow", () => {
 
   it("schedules a smooth scroll after successful evaluation", async () => {
     vi.useFakeTimers();
-    mockedApi.getAiEnabled.mockResolvedValue(true);
+    mockedApi.getHealth.mockResolvedValue(health());
     mockedApi.runEvaluation.mockResolvedValue(
       pipelineResponseFixture(),
     );

@@ -21,6 +21,25 @@ function labelColor(status: PipelineStage["status"]) {
   return "text-white/25";
 }
 
+function currentAnnouncement(stages: PipelineStage[]) {
+  const failedStage = stages.find((stage) => stage.status === "failed");
+  if (failedStage) return `${failedStage.label}: failed`;
+
+  const runningStage = stages.find((stage) => stage.status === "running");
+  if (runningStage) return `${runningStage.label}: running`;
+
+  if (stages.every((stage) => stage.status === "completed")) {
+    return "Decision Pipeline completed";
+  }
+
+  const completedStage = [...stages]
+    .reverse()
+    .find((stage) => stage.status === "completed");
+  if (completedStage) return `${completedStage.label}: completed`;
+
+  return "Decision Pipeline pending";
+}
+
 export function PipelineProgress({ stages }: { stages: PipelineStage[] }) {
   if (!stages.length) return null;
 
@@ -31,7 +50,10 @@ export function PipelineProgress({ stages }: { stages: PipelineStage[] }) {
           Decision Pipeline
         </h3>
 
-        <div className="space-y-2" role="status" aria-live="polite" aria-atomic="false">
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {currentAnnouncement(stages)}
+        </p>
+        <div className="space-y-2">
           {stages.map((stage) => (
             <div key={stage.id} className="flex items-center gap-3">
               <span

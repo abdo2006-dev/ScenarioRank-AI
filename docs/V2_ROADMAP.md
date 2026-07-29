@@ -255,12 +255,13 @@ with a dedicated API/SSE client and workflow hook. Dead frontend generations,
 the stale types, dataset, and backup files were removed. ADR-0005 records the
 contract choice and ADR-0006 retains Node/Express.
 
-### Phase 2B — next
+### Phase 2B — 2B-1 done; 2B-2 next
 
-Application-level input validation, a frontend accessibility review, and
-remaining maintainability cleanup. This is not Phase 3 reliability or model
-evaluation work.
+Phase 2B-1 added application-level input validation and an
+accessibility-oriented prototype review. Phase 2B-2 is reserved for unused
+template/dependency cleanup and planned audit work. This is not Phase 3
+reliability or model-evaluation work.
 
 The Phase 2A correction round completed component boundaries, API-client and
 workflow-hook tests, safe SSE/scenario transport errors, and public numeric
-contract bounds. Phase 2B and Phase 3 remain future work.
+contract bounds. Phase 2B-2 and Phase 3 remain future work.
