@@ -2,7 +2,7 @@
 
 **Scenario-aware decision support for comparing leadership candidates under different business conditions.**
 
-> **Project status:** V2 engineering refinement in progress. The `main` branch is the public source of truth and is intentionally being upgraded from the BMW hackathon implementation into a better-tested, better-documented, and more defensible system.
+> **Project status:** Phase 2A establishes shared public contracts and a feature-oriented frontend while preserving Phase 1 behavior. The `main` branch is the public source of truth.
 
 ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 
@@ -44,6 +44,13 @@ flowchart LR
 
 The current implementation is a sequential **LLM-assisted pipeline**, not a collection of fully autonomous agents. Every LLM call goes through a provider-neutral contract (`server/ai/`) — never a vendor SDK directly from the pipeline — so `runPipeline.js` has no OpenAI-specific code in it, even though there is currently exactly one supported provider. See [`docs/decisions/ADR-0004-single-openai-provider.md`](./docs/decisions/ADR-0004-single-openai-provider.md) for why Groq and Gemini (both real, tested integrations from an earlier phase) were removed rather than kept as dormant alternatives, and [`docs/decisions/ADR-0002-provider-abstraction.md`](./docs/decisions/ADR-0002-provider-abstraction.md) for why the contract itself still exists with a single provider.
 
+Phase 2A keeps the user flow but gives the browser a feature boundary:
+`src/features/decision/api` owns validated HTTP/SSE transport,
+`hooks/useDecisionEvaluation.ts` owns workflow state, and `components/`
+separates the screen, landing, evaluation, progress, results, and display
+primitives. Public payloads are Zod schemas in `shared/contracts/`; provider
+schemas remain internal to `server/ai/schemas/`.
+
 ## Current request pipeline
 
 A normal evaluation (up to `AI_MAX_CANDIDATES` candidates, pairing enabled) uses **at most 4 logical model-backed pipeline stages** — a fixed architectural fact, not the same claim as "at most 4 OpenAI API requests": each logical stage can take more than one real attempt (a schema-validation or truncation retry, or a batch-integrity corrective call), which is why the response separately reports `logicalProviderStageCount` (bounded at 4) and `providerAttemptCount` (the real, aggregated attempt total, which can be higher):
@@ -66,7 +73,7 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 | Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
 | AI provider | OpenAI (`gpt-5-mini`) via a provider-neutral contract, Responses API + Structured Outputs | Role/scenario interpretation, batch candidate scoring, explanations, batch pair estimates |
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
-| Validation | Zod schemas for every LLM operation | Every production schema validated locally before deterministic code runs, even though the OpenAI SDK's own Zod helper already validates once |
+| Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
 | Automated testing | 159 backend + 16 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, and real component rendering |
 
@@ -79,7 +86,7 @@ Fixed in Phase 1 (see [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architec
 Still open:
 
 - "best" and "worst" adaptability scenarios are not genuinely simulated (needs real multi-scenario execution, Phase 3);
-- the main frontend page is still oversized (backend module boundaries were split in Phase 1; frontend split is Phase 2);
+- no application-level accessibility review or input-validation UX has been completed yet (Phase 2B);
 - there is no authentication, rate limiting, persistence, audit trail, or a hard dollar-budget enforcement (only a request-count safety net);
 - the mathematical coefficients are prototype heuristics and have not been empirically calibrated;
 - displayed cost is an estimate for the user's own awareness, not an invoice — OpenAI's own billing dashboard remains the source of truth.

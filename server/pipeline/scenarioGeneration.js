@@ -60,8 +60,8 @@ export async function generateScenarios(provider, title, description) {
       return { scenarios: fallback, source: "fallback", note: "AI returned no scenarios; using local fallback scenarios." };
     }
     return { scenarios: data.scenarios, source: "ai" };
-  } catch (error) {
-    return { scenarios: fallback, source: "fallback", note: error?.message || "AI scenario generation failed; using local fallback scenarios." };
+  } catch {
+    return { scenarios: fallback, source: "fallback", note: "AI scenario generation failed; local fallback scenarios were used." };
   }
 }
 

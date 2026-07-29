@@ -29,15 +29,16 @@ result requires complete coverage of every expected top-four pair — a
 subset is never reported as successful. A real, synthetic, end-to-end
 OpenAI smoke test completed successfully (reached `complete`, 6,438
 total tokens, ~$0.01 estimated cost) — see "Real OpenAI smoke test"
-below. Current status: 175 tests passing (159 backend + 16 frontend), 0
-lint problems, clean build, 9 known `npm audit` findings (all requiring a
-deliberate major-version bump, none force-applied).
+below. Phase 2A is implemented on
+`v2/phase-2a-contracts-frontend` in draft PR #3 and remains unmerged.
+The current branch verification covers 245 tests (176 backend + 69
+frontend), zero lint problems, a clean typecheck/readability/build pass,
+and no dependency changes.
 
-**Phase 2 has not started — no Phase 2 code exists.** The exact next
-milestone is Phase 2 planning and understanding (architecture and
-maintainability: frontend feature-folder split, one contract source of
-truth, dead-code removal, a Node-vs-Python ADR) before any
-implementation begins. See "Next planned milestone" below.
+**Phase 2A is the only Phase 2 work started.** It establishes the shared
+transport contracts, a real frontend feature boundary, readable component
+decomposition, and verified dead-code removal. Phase 2B and Phase 3 have not
+started. PR #3 must remain draft and unmerged until owner review.
 
 ## Project objective
 
@@ -970,8 +971,9 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
   deleted.
 - Temporary branches are merged and deleted; they are not permanent
   project branches.
-- New implementation branches should only be created when work begins —
-  no Phase 2 branch exists yet, since Phase 2 has not started.
+- New implementation branches should only be created when work begins.
+  Phase 2A follows that rule on `v2/phase-2a-contracts-frontend`; it remains
+  isolated in draft PR #3 pending owner review.
 - Prefer one active implementation branch at a time.
 
 ## Learning checkpoints
@@ -1033,3 +1035,58 @@ This is what lets a future ChatGPT, Claude, Codex, DeepSeek, Qwen, or human
 contributor reconstruct the project's intended scope and current state
 directly from the repository, without depending on chat history from a
 prior session.
+
+## Phase 2A — completed on its feature branch (2026-07-29)
+
+Phase 2A added `shared/contracts/decisionApi.js` as the runtime Zod source of
+truth for public HTTP/SSE payloads, while retaining provider-only schemas in
+`server/ai/schemas/`. The frontend is now `src/features/decision/`: a small
+page composition, API/SSE client, workflow hook, contracts derived with
+`z.infer`, constants, and presentation views. Verified legacy presentation
+trees, the static dataset, stale duplicate types, and backup files were
+removed. `npm run typecheck` is available. Node/Express is retained by
+ADR-0006; Phase 3 reliability/evaluation work has not started. The next
+milestone is **Phase 2B: application-level input validation, frontend
+accessibility review, and remaining maintainability cleanup**.
+
+Phase 2A correction round: the former `DecisionViews.tsx` monolith was split
+into `DecisionScreen`, `Landing`, `EvaluationForm`, `PipelineProgress`,
+`DecisionResults`, and shared display primitives. The feature now has focused
+API and hook tests; malformed SSE JSON and scenario-provider errors become
+safe public messages. Public response schemas enforce documented score,
+confidence, metadata, and cost ranges. Phase 2B and Phase 3 remain unstarted.
+
+The final correction replaces compressed JSX with ordinary multiline source.
+`DecisionResults` now composes focused overview, candidates, analysis, pairing,
+pipeline, criterion-detail, and metadata modules. `EvaluationForm` composes
+role, scenario, candidate, and decision-option editors. `DecisionScreen` only
+coordinates the workflow hook, global shell, phases, safe error banner, and
+results ref. A 180-character line limit is enforced by ESLint and
+`npm run check:decision-readability`.
+
+The public contract now makes health readiness a semantic union, constrains
+decision confidence to 0–1, requires nonnegative integer stage durations, and
+requires successful pairing results to contain distinct, unique pairs with the
+complete best-pair value present in non-empty `top_pairs`. The incremental SSE
+parser coalesces CRLF even when `\r` and `\n` arrive in separate chunks.
+Application-authored transport errors and validated SSE error messages are the
+only details preserved; raw fetch, reader, decoder, and browser errors become
+stable generic messages.
+
+Pair transport identity is now canonicalized by sorted `candidate_id_a` /
+`candidate_id_b`, never by display name. A successful public pair includes both
+IDs and ordered display labels. Duplicate candidate names are valid when IDs
+differ; completed-response validation checks that every pair ID exists in
+`candidate_evaluations` and that each displayed name matches that ID. The
+pairing-enabled fake pipeline and both decision routes now parse completed
+responses through the shared public contract.
+
+Latest correction verification: 70 frontend tests and 185 backend tests pass
+(255 total), with lint, server lint, typecheck, readability, build, and syntax
+checks. No real OpenAI call was made. The correction did not change dependency
+versions or `package-lock.json`.
+
+`npm ci` succeeded and its install-time audit reported 9 known findings
+(3 moderate, 6 high). A separate `npm audit` request was denied by the
+execution privacy policy because it would disclose this private repository's
+dependency metadata to npm's advisory service; no workaround was attempted.

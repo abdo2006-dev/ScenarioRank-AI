@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "lint:server": "eslint server/ai server/domain server/config server/pipeline server/http server.mjs",
+    "check:decision-readability": "node scripts/check-decision-source-readability.mjs",
     "preview": "vite preview",
     "test": "npm run test:frontend && npm run test:server",
     "test:frontend": "vitest run --config vitest.config.ts",

@@ -8,7 +8,14 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 |---|---|---|
 | `src/main.tsx` | Active | Mounts the React application |
 | `src/App.tsx` | Active | Providers and routing |
-| `src/pages/Index.tsx` | Active, oversized | Main UI, state, API client, SSE parser, types, and visual sections |
+| `src/pages/Index.tsx` | Active, thin | Renders the decision feature screen |
+| `src/features/decision/api/` | Active | Validated HTTP/SSE client, stateful stream parser, focused tests |
+| `src/features/decision/hooks/` | Active | Workflow state and phase transitions |
+| `src/features/decision/components/evaluation/` | Active | Composed form plus role, scenario, candidate, and option editors |
+| `src/features/decision/components/results/` | Active | Results tab composition and one module per result responsibility |
+| `src/features/decision/components/DecisionScreen.tsx` | Active | Page shell, phase composition, error banner, result ref |
+| `src/features/decision/contracts.ts` | Active | Re-exports shared schemas and derives browser types with `z.infer` |
+| `shared/contracts/decisionApi.js` | Active | Canonical public HTTP and SSE runtime contracts |
 | `src/pages/NotFound.tsx` | Active | Catch-all route |
 | `src/index.css` | Active | Global styling and Tailwind layers |
 | `src/components/ui/sonner.tsx` | Active through `App.tsx` | Toast renderer |
@@ -43,27 +50,14 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 
 The repository currently contains lockfiles for both npm and Bun. V2 should choose one primary package manager and document it.
 
-## Likely legacy or unreachable from the active entrypoint
+## Resolved legacy and contract duplication
 
-The following files are not imported by the current active route based on static import review:
-
-- `server.mjs.bak`;
-- `src/pages/Index.tsx.bak`;
-- `src/data/dataset.ts`;
-- the older top-level presentation components under `src/components/` such as `LandingSection.tsx`, `ResultsSection.tsx`, and `ScoreBreakdown.tsx`;
-- the component family under `src/components/v3/`;
-- most generated files under `src/components/ui/`.
-
-These files should not be deleted in Phase 0. Phase 1 should confirm reachability, move any useful pieces, and remove dead code in a focused cleanup commit with a successful build and UI smoke test.
-
-## Contract duplication
-
-Pipeline types are defined in at least two places:
-
-- inside `src/pages/Index.tsx`;
-- `src/types/pipeline.ts`.
-
-The active page does not import the shared type file. V2 should establish one contract source and pair it with runtime validation.
+Phase 2A confirmed and removed the backup files, old dataset, unreachable
+presentation families, `src/components/v3/`, and stale
+`src/types/pipeline.ts`. `DecisionViews.tsx` was also retired after its
+responsibilities were decomposed. Public browser/server types now come only
+from `shared/contracts/decisionApi.js`; the frontend derives its static types
+from those runtime schemas.
 
 ## Recommended future ownership boundaries
 
@@ -87,4 +81,8 @@ backend/ (achieved in Phase 1D as server/, close to this shape)
 └── (tests are colocated *.test.js files, not a separate directory)
 ```
 
-The backend boundary above is now close to reality (`server/{http,pipeline,domain,ai,config}`, Phase 1D) — this map's original recommendation and the actual structure converged. The `src/` (frontend) target boundary is still aspirational; that split remains Phase 2.
+The backend boundary above is now concrete
+(`server/{http,pipeline,domain,ai,config}`, Phase 1D). Phase 2A made the
+frontend boundary equally explicit. Evaluation and results are directories of
+cohesive components rather than alternate monoliths, and all active decision
+source is guarded against lines longer than 180 characters.

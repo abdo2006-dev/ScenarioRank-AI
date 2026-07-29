@@ -1,0 +1,177 @@
+import { Card } from "./ui";
+
+const decisionModes = [
+  {
+    title: "Best Fit",
+    detail: "Selects the profile best matched to scenario-weighted criteria.",
+  },
+  {
+    title: "Risk-Adjusted Choice",
+    detail: "Penalizes execution, culture, timing, and confidence risk.",
+  },
+  {
+    title: "Best Outcome",
+    detail: "Combines fit, adaptability, and projected execution success.",
+  },
+  {
+    title: "Leadership Pairing",
+    detail: "Tests complementarity, cohesion, and conflict risk.",
+  },
+];
+
+const previewSteps = [
+  "Weighted Fit Score",
+  "Risk-Adjusted Score",
+  "Expected Outcome",
+  "Pair Simulation",
+];
+
+export function Landing({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="min-h-screen bg-[#0A0A0B] text-white">
+      <div className="mx-auto max-w-7xl px-6 py-10 md:px-10 lg:px-12">
+        <div
+          className={
+            "mb-10 flex flex-col gap-4 sm:flex-row " +
+            "sm:items-center sm:justify-between"
+          }
+        >
+          <div>
+            <div
+              className={
+                "text-[11px] font-semibold uppercase tracking-[0.22em] " +
+                "text-amber-400"
+              }
+            >
+              Executive Decision Intelligence
+            </div>
+            <div className="mt-1 text-sm text-white/45">
+              ScenarioRank AI · Leadership evaluation under changing business
+              conditions
+            </div>
+          </div>
+
+          <button
+            onClick={onStart}
+            className={
+              "rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-bold " +
+              "text-black transition hover:bg-amber-300"
+            }
+          >
+            Start Evaluation
+          </button>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div className="space-y-6">
+            <div
+              className={
+                "inline-flex rounded-full border border-amber-400/20 " +
+                "bg-amber-400/10 px-3 py-1 text-[11px] font-semibold " +
+                "uppercase tracking-[0.2em] text-amber-300"
+              }
+            >
+              Hiring is not a resume problem. It is a decision problem.
+            </div>
+
+            <div className="space-y-4">
+              <h1 className="max-w-4xl text-4xl font-bold leading-tight md:text-6xl">
+                Make leadership decisions people can{" "}
+                <span className="text-amber-400">trust</span>.
+              </h1>
+              <p className="max-w-2xl text-base leading-relaxed text-white/60 md:text-lg">
+                ScenarioRank AI helps executives evaluate candidates using
+                scenario simulation, weighted criteria, risk-adjusted scoring,
+                projected outcomes, and leadership-pair analysis — so the final
+                recommendation is explainable.
+              </p>
+            </div>
+
+            <button
+              onClick={onStart}
+              className={
+                "rounded-xl bg-amber-400 px-6 py-3 text-sm font-bold " +
+                "text-black transition hover:bg-amber-300"
+              }
+            >
+              Evaluate Candidates Now
+            </button>
+          </div>
+
+          <Card className="border-amber-400/20">
+            <div className="text-xs uppercase tracking-[0.18em] text-white/40">
+              Recommendation Preview
+            </div>
+            <div className="mt-3 space-y-4">
+              {previewSteps.map((step) => (
+                <div
+                  key={step}
+                  className={
+                    "rounded-xl border border-white/10 bg-black/20 " +
+                    "p-4 text-sm font-medium"
+                  }
+                >
+                  {step}
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        <div className="mt-20 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          <Card className="border-amber-400/20 bg-amber-400/5">
+            <div
+              className={
+                "text-[11px] font-semibold uppercase tracking-[0.22em] " +
+                "text-amber-400"
+              }
+            >
+              Trust through structure
+            </div>
+            <h2 className="mt-3 text-2xl font-bold">
+              We make judgment visible.
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-white/65">
+              Trust comes from showing how the recommendation was constructed:
+              what mattered most, how risks were penalized, what outcome was
+              projected, and where trade-offs remain.
+            </p>
+          </Card>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {decisionModes.map(({ title, detail }) => (
+              <Card key={title}>
+                <div className="text-lg font-semibold">{title}</div>
+                <p className="mt-2 text-sm text-white/55">{detail}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className={
+            "mt-20 rounded-3xl border border-white/10 " +
+            "bg-gradient-to-r from-amber-400/10 via-white/5 to-white/5 p-8"
+          }
+        >
+          <h2 className="text-3xl font-bold">
+            When the cost of a wrong hire is high, intuition is not enough.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/60">
+            Use structured evaluation, scenario-aware ranking, and explainable
+            trade-offs to make leadership decisions with more confidence.
+          </p>
+          <button
+            onClick={onStart}
+            className={
+              "mt-6 rounded-2xl bg-amber-400 px-7 py-4 " +
+              "text-sm font-bold text-black"
+            }
+          >
+            Start Evaluation
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

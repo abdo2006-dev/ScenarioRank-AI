@@ -16,9 +16,9 @@ It is best described as an **LLM-assisted sequential decision pipeline with dete
 ```mermaid
 flowchart TB
     subgraph Browser
-        UI[React UI\nsrc/pages/Index.tsx]
-        STATE[Local React state]
-        SSE[SSE parser]
+        UI[Decision feature components]
+        STATE[useDecisionEvaluation]
+        SSE[Validated API client\nstateful SSE parser]
     end
 
     subgraph Backend[Node.js process]
@@ -57,23 +57,25 @@ index.html
   -> src/pages/Index.tsx
 ```
 
-### Responsibilities currently held by `src/pages/Index.tsx`
+### Phase 2A feature boundary
 
-- domain and API response types;
-- default role, scenarios, candidates, and decision modes;
-- health checking;
-- scenario generation requests;
-- SSE stream parsing;
-- request timeout behavior;
-- all major page sections and visual components;
-- form state and phase transitions;
-- result rendering.
+`src/pages/Index.tsx` only renders `DecisionScreen`. The active feature lives
+under `src/features/decision/`:
 
-This concentration still makes the page the single largest file in the
-project. Phase 1D exported its two largest sub-components (`Results`,
-`EvalForm`) and moved the backend-URL constant into `src/lib/backendUrl.ts`
-so both are independently testable — a small step, not the deeper
-feature-folder split that remains Phase 2 (`docs/V2_ROADMAP.md`).
+- `api/` validates HTTP data, incrementally parses SSE, owns timeouts, and
+  converts unsafe runtime failures into stable client errors;
+- `hooks/useDecisionEvaluation.ts` owns editable workflow state and phase
+  transitions;
+- `components/DecisionScreen.tsx` composes the shell, phases, error banner, and
+  result ref;
+- `components/evaluation/` separates role, scenario, candidate, and decision
+  option editing behind a small `EvaluationForm`;
+- `components/results/` separates every result tab, criterion detail, and
+  run-metadata footer behind a small `DecisionResults`;
+- `contracts.ts` derives browser types from the shared runtime schemas.
+
+ESLint and `scripts/check-decision-source-readability.mjs` enforce a
+180-character maximum line length for active decision TypeScript/TSX.
 
 ### State model
 
@@ -114,8 +116,7 @@ No state is persisted across page refreshes.
 
 This is a "reasonable boundary" split (explicit instruction in Phase 1D),
 not a full rewrite: `server/pipeline/runPipeline.js` is still one file
-covering every pipeline stage, and the giant frontend page is untouched
-beyond the two extractions from Phase 1D.
+covering every pipeline stage. The frontend monolith was resolved in Phase 2A.
 
 ### Public endpoints
 
@@ -256,3 +257,31 @@ The repository does not define a production deployment topology. It assumes:
 - frontend code calling a configurable backend URL (`VITE_BACKEND_URL`, default `http://localhost:3001`).
 
 V2 has replaced the hardcoded-URL assumption with environment-specific configuration (Phase 1C/1D); a documented production deployment model remains later-phase work (`docs/V2_ROADMAP.md`).
+
+## Phase 2A transport boundary
+
+Public browser/server data is validated by shared ESM Zod contracts in
+`shared/contracts/decisionApi.js`. `server/http/routes.js` parses requests and
+validates health, SSE events, and successful final responses. The browser API
+client validates health, scenario generation, progress, error, and complete
+events before feature state consumes them. These contracts are deliberately
+separate from the LLM provider schemas in `server/ai/schemas/`.
+
+Malformed SSE JSON becomes a fixed safe transport error in the browser.
+Scenario-generation provider failures still return valid local fallback
+scenarios, but provider and SDK error text never cross the HTTP boundary.
+The parser retains a trailing carriage return between network chunks, so a
+split CRLF is consumed as one newline and cannot create an accidental blank
+line or premature event dispatch. It dispatches only on a complete blank-line
+terminator and discards an unterminated event at end of stream.
+
+The health response is a discriminated union: enabled responses require
+non-empty provider/model strings, while disabled responses require both values
+to be `null`. Decision confidence is 0–1, stage durations are nonnegative
+integers, and successful public pairing results require distinct candidate IDs,
+non-empty unique `top_pairs`, and the complete `best_pair` entry in that list.
+Candidate IDs are the canonical pair identity; names are display labels, so two
+different candidates may share a name. Each completed pair reference is checked
+against `candidate_evaluations` for both ID existence and ordered name/ID
+agreement. Pairing-enabled SSE and JSON route integrations exercise this final
+transport check.

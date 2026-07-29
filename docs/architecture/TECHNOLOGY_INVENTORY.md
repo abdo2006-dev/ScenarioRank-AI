@@ -55,9 +55,12 @@ For recruiter-facing documentation, describe technologies according to their act
 
 ## Technology choices that should be revisited in Phase 1 or 2
 
-1. **Backend language and framework** — keep Node/Express for incremental refactoring or migrate later to Python/FastAPI for stronger AI ecosystem exposure and Pydantic schemas.
-2. **Runtime validation** — use Zod in Node or Pydantic in Python for API and model-output contracts.
+1. **Backend language and framework** — retain Node/Express (ADR-0006); revisit Python only for a concrete Python-native workload or independently justified service boundary.
+2. **Runtime validation** — Zod now validates both public HTTP/SSE transport (`shared/contracts/`) and internal provider output (`server/ai/schemas/`).
 3. **Model integration** — a provider interface was introduced in Phase 1A (`server/ai/`) and the live pipeline was wired onto it in Phase 1B; the Anthropic-specific integration it replaced has been fully removed. The interface briefly supported two real providers (Groq, Gemini) before simplifying to one (OpenAI) after neither reliably completed a live end-to-end run on its free tier — see `docs/decisions/ADR-0004-single-openai-provider.md`.
 4. **Persistence** — start with SQLite when run history, auditability, or evaluation datasets become requirements.
 5. **Streaming** — retain SSE unless two-way realtime interaction becomes necessary.
 6. **Testing** — unit-test deterministic formulas first, then route integration tests, then end-to-end flows with model calls mocked.
+
+Phase 2A adds frontend API-client, SSE-parser, and workflow-hook tests. No
+browser E2E or real-provider test was added.

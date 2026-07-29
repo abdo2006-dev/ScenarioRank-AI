@@ -236,3 +236,23 @@ V2 is successful when the maintainer can:
 - describe failure, security, privacy, cost, and scale limitations;
 - run and interpret the test suite;
 - defend the project honestly in a technical interview.
+
+## Phase 2 — maintainability and application boundaries
+
+### Phase 2A — contracts and frontend structure (done)
+
+Shared Zod public HTTP/SSE contracts now live in `shared/contracts/`; provider
+schemas remain internal. The active frontend uses a decision feature folder
+with a dedicated API/SSE client and workflow hook. Dead frontend generations,
+the stale types, dataset, and backup files were removed. ADR-0005 records the
+contract choice and ADR-0006 retains Node/Express.
+
+### Phase 2B — next
+
+Application-level input validation, a frontend accessibility review, and
+remaining maintainability cleanup. This is not Phase 3 reliability or model
+evaluation work.
+
+The Phase 2A correction round completed component boundaries, API-client and
+workflow-hook tests, safe SSE/scenario transport errors, and public numeric
+contract bounds. Phase 2B and Phase 3 remain future work.
