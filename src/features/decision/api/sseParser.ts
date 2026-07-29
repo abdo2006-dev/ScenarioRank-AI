@@ -1,5 +1,13 @@
 export type SseEvent = { event: string; data: unknown };
 
+/** A transport failure; its public message never exposes parser internals. */
+export class InvalidSsePayloadError extends Error {
+  constructor() {
+    super("The server returned a malformed evaluation stream.");
+    this.name = "InvalidSsePayloadError";
+  }
+}
+
 /** Incremental SSE parser for the small POST response stream used by ScenarioRank. */
 export class SseParser {
   private buffer = "";
@@ -31,7 +39,10 @@ export class SseParser {
       this.event = "message";
       return undefined;
     }
-    const event = { event: this.event, data: JSON.parse(this.dataLines.join("\n")) };
+    let data: unknown;
+    try { data = JSON.parse(this.dataLines.join("\n")); }
+    catch { throw new InvalidSsePayloadError(); }
+    const event = { event: this.event, data };
     this.event = "message";
     this.dataLines = [];
     return event;

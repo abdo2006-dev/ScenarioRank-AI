@@ -20,7 +20,7 @@ import {
 // FIX (kept from the pre-migration implementation): both /api/decision and
 // /api/decision/stream race the pipeline against this timeout so a stalled
 // call never holds the connection open indefinitely. The frontend's own
-// request timeout is longer (see src/pages/Index.tsx), so the backend
+// request timeout is longer (see src/features/decision/api/decisionApi.ts), so the backend
 // always has a chance to respond with a clean error first.
 const PIPELINE_TIMEOUT_MS = 150_000; // 2.5 minutes
 

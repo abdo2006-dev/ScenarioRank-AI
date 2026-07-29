@@ -20,6 +20,16 @@ describe("public decision API contracts", () => {
     expect(evaluationRequestSchema.safeParse({ ...input, candidates: [{ ...input.candidates[0] }, { ...input.candidates[0] }] }).success).toBe(false);
   });
 
+  it("enforces public numerical invariants", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    const result = await runPipeline(provider, provider.model, defaultInput(), undefined, { maxCandidates: 5 });
+    expect(completedPipelineResponseSchema.safeParse(result).success).toBe(true);
+    expect(completedPipelineResponseSchema.safeParse({ ...result, candidate_evaluations: [{ ...result.candidate_evaluations[0], overall_confidence: -0.1 }] }).success).toBe(false);
+    expect(completedPipelineResponseSchema.safeParse({ ...result, candidate_evaluations: [{ ...result.candidate_evaluations[0], weighted_fit_score: 101 }] }).success).toBe(false);
+    expect(runMetadataSchema.safeParse({ ...result.run_metadata, estimatedCostUsd: -1 }).success).toBe(false);
+    expect(runMetadataSchema.safeParse({ ...result.run_metadata, logicalProviderStageCount: 5 }).success).toBe(false);
+  });
+
   it("requires honest pairing discriminants", () => {
     const pair = { pair: ["Alice", "Bob"], pair_score: 8, explanation: "Evidence." };
     expect(pairingResultSchema.safeParse({ status: "ok", best_pair: pair, top_pairs: [pair] }).success).toBe(true);

@@ -9,6 +9,9 @@ import { z } from "zod";
 
 const nonEmptyString = z.string().trim().min(1);
 const finiteNumber = z.number().finite();
+const unitInterval = finiteNumber.min(0).max(1);
+const percentage = finiteNumber.min(0).max(100);
+const criterionScore = finiteNumber.min(1).max(10);
 
 export const safeErrorSchema = z.object({ error: nonEmptyString, message: nonEmptyString.optional() }).strict();
 export const sseErrorEventSchema = z.object({ message: nonEmptyString }).strict();
@@ -61,26 +64,26 @@ export const pipelineStageSchema = z.object({
 }).strict();
 export const pipelineStageProgressEventSchema = z.array(pipelineStageSchema);
 
-const criterionScoreSchema = z.object({ score: finiteNumber, confidence: finiteNumber, evidence: z.string(), reasoning: z.string() }).strict();
+const criterionScoreSchema = z.object({ score: criterionScore, confidence: unitInterval, evidence: z.string(), reasoning: z.string() }).strict();
 const riskProfileSchema = z.object({
-  execution_risk: finiteNumber, culture_risk: finiteNumber, time_risk: finiteNumber,
-  adaptability_risk: finiteNumber, confidence_risk: finiteNumber, opportunity_cost_risk: finiteNumber,
+  execution_risk: unitInterval, culture_risk: unitInterval, time_risk: unitInterval,
+  adaptability_risk: unitInterval, confidence_risk: unitInterval, opportunity_cost_risk: unitInterval,
 }).strict();
 const outcomeModelSchema = z.object({
-  expected_execution_success: finiteNumber, scenario_fit: finiteNumber, adaptability_score: finiteNumber,
+  expected_execution_success: unitInterval, scenario_fit: unitInterval, adaptability_score: unitInterval,
   likely_outcome: z.string(), strategic_label: z.string(),
   cross_scenario_consistency: z.union([z.literal("not_measured"), z.null()]).optional(),
 }).strict();
 export const candidateEvaluationSchema = z.object({
   candidate_id: nonEmptyString, candidate_name: nonEmptyString, rank: z.number().int().positive(),
-  weighted_fit_score: finiteNumber, risk_adjusted_score: finiteNumber, expected_outcome_score: finiteNumber,
-  overall_confidence: finiteNumber, strategic_labels: z.array(z.string()), winner_reason: z.string().optional(),
+  weighted_fit_score: percentage, risk_adjusted_score: percentage, expected_outcome_score: percentage,
+  overall_confidence: unitInterval, strategic_labels: z.array(z.string()), winner_reason: z.string().optional(),
   trade_off_note: z.string().optional(), criteria_scores: z.record(criterionScoreSchema),
   strengths: z.array(z.string()), weaknesses: z.array(z.string()), risk_profile: riskProfileSchema,
   outcome_model: outcomeModelSchema,
 }).strict();
 export const confidenceEvidenceReviewSchema = z.object({
-  candidate_id: nonEmptyString, candidate_name: nonEmptyString, overall_confidence: finiteNumber,
+  candidate_id: nonEmptyString, candidate_name: nonEmptyString, overall_confidence: unitInterval,
   low_confidence_criteria: z.array(z.string()),
   confidence_evidence_flags: z.array(z.object({ type: nonEmptyString, severity: z.string(), description: z.string(), candidate_id: nonEmptyString }).strict()),
   weak_evidence_flags: z.array(z.string()), recommend_human_review: z.boolean(), recommend_rescore: z.boolean(), review_summary: z.string(),
@@ -92,7 +95,7 @@ const decisionResultSchema = z.object({
 }).strict();
 const tradeOffSchema = z.object({ title: z.string(), description: z.string(), type: z.string(), severity: z.string().optional() }).strict();
 const adaptabilityProfileSchema = z.object({
-  candidate_name: nonEmptyString, adaptability_score: finiteNumber, best_scenario: z.literal("not_measured"),
+  candidate_name: nonEmptyString, adaptability_score: unitInterval, best_scenario: z.literal("not_measured"),
   worst_scenario: z.literal("not_measured"), resilience_note: z.string(),
   cross_scenario_consistency: z.union([z.literal("not_measured"), z.null()]).optional(),
 }).strict();
@@ -100,20 +103,20 @@ const pipelineStageOutputSchema = z.object({
   stage_name: nonEmptyString, stage_role: nonEmptyString, inputs: z.array(z.string()), outputs: z.array(z.string()), summary: z.string(),
 }).strict();
 const pairResultSchema = z.object({
-  pair: z.tuple([nonEmptyString, nonEmptyString]), pair_score: finiteNumber, explanation: z.string(),
-  scenario_coverage: finiteNumber.optional(), complementarity: finiteNumber.optional(), overlap_risk: finiteNumber.optional(),
-  conflict_risk: finiteNumber.optional(), execution_cohesion: finiteNumber.optional(), pair_adaptability: finiteNumber.optional(),
+  pair: z.tuple([nonEmptyString, nonEmptyString]), pair_score: finiteNumber.min(0).max(10), explanation: z.string(),
+  scenario_coverage: unitInterval.optional(), complementarity: unitInterval.optional(), overlap_risk: unitInterval.optional(),
+  conflict_risk: unitInterval.optional(), execution_cohesion: unitInterval.optional(), pair_adaptability: unitInterval.optional(),
 }).strict();
 export const pairingResultSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("ok"), best_pair: pairResultSchema, top_pairs: z.array(pairResultSchema) }).strict(),
   z.object({ status: z.literal("unavailable"), reason: nonEmptyString, best_pair: z.null(), top_pairs: z.tuple([]) }).strict(),
 ]);
 export const runMetadataSchema = z.object({
-  provider: nonEmptyString, model: nonEmptyString, logicalProviderStageCount: z.number().int().nonnegative(),
+  provider: nonEmptyString, model: nonEmptyString, logicalProviderStageCount: z.number().int().min(0).max(4),
   providerAttemptCount: z.number().int().nonnegative(), inputTokens: z.number().int().nonnegative(),
   cachedInputTokens: z.number().int().nonnegative(), outputTokens: z.number().int().nonnegative(),
   reasoningTokens: z.number().int().nonnegative(), totalTokens: z.number().int().nonnegative(),
-  estimatedCostUsd: finiteNumber.nullable(), promptVersions: z.record(z.string()), schemaVersions: z.record(z.string()),
+  estimatedCostUsd: finiteNumber.nonnegative().nullable(), promptVersions: z.record(z.string()), schemaVersions: z.record(z.string()),
   attempts: z.record(z.number().int().nonnegative()), startedAt: z.string(), completedAt: z.string(),
 }).strict();
 const executiveSummarySchema = z.object({

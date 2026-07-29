@@ -5,7 +5,7 @@ import {
   scenarioGenerationResponseSchema, sseErrorEventSchema,
 } from "../contracts";
 import type { EvaluationRequest, PipelineResponse, PipelineStage, ScenarioGenerationRequest, ScenarioGenerationResponse } from "../contracts";
-import { SseParser } from "./sseParser";
+import { InvalidSsePayloadError, SseParser } from "./sseParser";
 
 function safeMessage(value: unknown, fallback: string) {
   return value instanceof Error && value.message ? value.message : fallback;
@@ -40,8 +40,9 @@ export async function generateScenarios(request: ScenarioGenerationRequest, time
   try {
     response = await requestWithTimeout(`${BACKEND_URL}/api/scenarios`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }, timeoutMs);
   } catch (error) {
+    if (error instanceof InvalidSsePayloadError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") throw new Error("Scenario generation timed out after 35 seconds. The server may be under load — please try again.");
-    throw new Error(safeMessage(error, "Scenario generation failed."));
+    throw new Error("Scenario generation failed. Please try again.");
   }
   const data = await readJson(response);
   if (!response.ok) throw new Error("Scenario generation failed. Please try again.");

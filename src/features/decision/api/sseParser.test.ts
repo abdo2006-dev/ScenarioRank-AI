@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SseParser } from "./sseParser";
+import { InvalidSsePayloadError, SseParser } from "./sseParser";
 
 describe("SseParser", () => {
   it("handles complete, split, multi-event, and CRLF chunks", () => {
@@ -14,6 +14,6 @@ describe("SseParser", () => {
   it("throws for malformed JSON and ignores comments", () => {
     const parser = new SseParser();
     expect(parser.push(": keepalive\n\n")).toEqual([]);
-    expect(() => parser.push("event: complete\ndata: nope\n\n")).toThrow(SyntaxError);
+    expect(() => parser.push("event: complete\ndata: nope\n\n")).toThrow(InvalidSsePayloadError);
   });
 });
