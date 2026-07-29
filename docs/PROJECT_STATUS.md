@@ -39,14 +39,15 @@ below. **Phase 2A is complete and merged.** Draft PR #3 was squash-merged at
 Phase 2A establishes shared transport contracts, a real frontend feature
 boundary, readable component decomposition, and verified dead-code removal.
 Successful pairing payloads use canonical candidate-ID pairs, so duplicate
-candidate display names remain unambiguous. Final verification passed 255
-tests (70 frontend + 185 backend), lint, server lint, typecheck, readability,
-build, and Node syntax checks. `npm ci` and a separate `npm audit` both
-succeeded; the audit reports 9 known findings (3 moderate, 6 high), with no
-dependency changes. Phase 2B-1 now adds shared input limits, runtime candidate
-limits in health, and frontend validation/accessibility semantics without
-changing scoring, prompts, or provider behavior. Phase 2B-2 and Phase 3 remain
-unstarted.
+candidate display names remain unambiguous. **Phase 2B-1 is implemented on
+`v2/phase-2b-validation-accessibility` at PR #4 (draft, open, unmerged)** and
+adds shared input limits, health runtime limits, validation, focus management,
+live regions, and keyboard tabs without changing scoring, prompts, or provider
+behavior. Final verification passed 272 tests (84 frontend + 188 backend),
+lint, server lint, typecheck, readability, build, Node syntax, and `npm ci`.
+`npm audit` reports the same 9 known findings (3 moderate, 6 high), with no
+dependency changes. The exact next action is owner review and merge of PR #4;
+Phase 2B-2 and Phase 3 remain unstarted.
 
 ## Project objective
 
@@ -780,8 +781,6 @@ as partial success" design overstated what was actually evaluated
 3. Phase 3 is still required for multi-scenario evaluation evidence and model
    evaluation datasets. Security, privacy, rate limiting, persistence, and
    deployment hardening remain later milestones.
-4. Backup files, an older dataset, and unused component families are
-   still present (Phase 2 cleanup).
 5. No model evaluation dataset, golden examples, or prompt-regression
    checks yet (Phase 3).
 6. Opportunity-cost risk is still misnamed (averages risks rather than
@@ -904,9 +903,10 @@ completeness correction round) was approved by the owner and squash-
 merged into `main` as commit `8f19bb7`. No further Phase 1 work is
 planned.
 
-**The exact next milestone is Phase 2 planning and understanding, before
-any implementation** — architecture and maintainability work. **Phase 2
-has not started; no Phase 2 code has been written.**
+**The exact next action is owner review and merge of draft PR #4.** Phase 2A
+is merged; Phase 2B-1 is implemented on
+`v2/phase-2b-validation-accessibility` at `3c688f5c9b2d9d68c5a8d16f4bd06f4313f5fbd8`.
+Phase 2B-2 and Phase 3 have not started.
 
 Per `docs/V2_ROADMAP.md`, Phase 2 is planned to:
 
@@ -980,8 +980,9 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
 - Temporary branches are merged and deleted; they are not permanent
   project branches.
 - New implementation branches should only be created when work begins.
-  Phase 2A follows that rule on `v2/phase-2a-contracts-frontend`; it remains
-  isolated in draft PR #3 pending owner review.
+  PR #3 was merged and its branch deleted. The sole active implementation
+  branch is PR #4's `v2/phase-2b-validation-accessibility`, which remains
+  draft and unmerged pending owner review.
 - Prefer one active implementation branch at a time.
 
 ## Learning checkpoints
@@ -1098,6 +1099,24 @@ versions or `package-lock.json`.
 the execution privacy policy because it would disclose private dependency
 metadata to npm's advisory service; no workaround was attempted. The final
 approved `npm audit` ran successfully and confirmed the same 9 findings.
+
+### Phase 2B-1 — validation and accessibility (draft PR #4)
+
+- Shared technical text/count limits now define the public input envelope;
+  `AI_MAX_CANDIDATES` remains the resolved runtime cap returned safely by
+  health.
+- The controlled browser form validates through the shared Zod request schema,
+  maps field errors by candidate ID, and blocks invalid runs before `running`.
+- Labels, direct fieldset legends, counters, error-summary links, focusable
+  count sections, live regions, safe async error focus, and WAI-ARIA keyboard
+  tabs are covered by focused accessibility-oriented prototype validation.
+- HTTP route tests use an ephemeral `127.0.0.1` listener that waits for
+  `listening`, rejects errors, and closes cleanly.
+- Current verification: 84 frontend + 188 backend = 272 tests; `npm ci`, lint,
+  typecheck, readability, build, and syntax checks pass. `npm audit` remains
+  9 findings (3 moderate, 6 high), with no dependency changes and no real
+  OpenAI calls. Manual limits remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`;
+  this is not WCAG certification.
 
 ### Merge record
 
