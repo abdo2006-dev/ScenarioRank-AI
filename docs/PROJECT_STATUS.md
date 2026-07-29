@@ -29,16 +29,22 @@ result requires complete coverage of every expected top-four pair — a
 subset is never reported as successful. A real, synthetic, end-to-end
 OpenAI smoke test completed successfully (reached `complete`, 6,438
 total tokens, ~$0.01 estimated cost) — see "Real OpenAI smoke test"
-below. Phase 2A is implemented on
-`v2/phase-2a-contracts-frontend` in draft PR #3 and remains unmerged.
-The current branch verification covers 245 tests (176 backend + 69
-frontend), zero lint problems, a clean typecheck/readability/build pass,
-and no dependency changes.
+below. **Phase 2A is complete and merged.** Draft PR #3 was squash-merged at
+`2026-07-29T19:52:38Z` as
+`71a8416dfeed57c8635735a41fde1dbce31f7fef`
+(`refactor: complete ScenarioRank V2 Phase 2A`); its temporary
+`v2/phase-2a-contracts-frontend` branch was deleted locally and remotely.
+`main` is the sole active branch.
 
-**Phase 2A is the only Phase 2 work started.** It establishes the shared
-transport contracts, a real frontend feature boundary, readable component
-decomposition, and verified dead-code removal. Phase 2B and Phase 3 have not
-started. PR #3 must remain draft and unmerged until owner review.
+Phase 2A establishes shared transport contracts, a real frontend feature
+boundary, readable component decomposition, and verified dead-code removal.
+Successful pairing payloads use canonical candidate-ID pairs, so duplicate
+candidate display names remain unambiguous. Final verification passed 255
+tests (70 frontend + 185 backend), lint, server lint, typecheck, readability,
+build, and Node syntax checks. `npm ci` and a separate `npm audit` both
+succeeded; the audit reports 9 known findings (3 moderate, 6 high), with no
+dependency changes. Phase 2B and Phase 3 have not started. The exact next step
+is understanding and reviewing Phase 2A before planning Phase 2B.
 
 ## Project objective
 
@@ -1036,7 +1042,7 @@ contributor reconstruct the project's intended scope and current state
 directly from the repository, without depending on chat history from a
 prior session.
 
-## Phase 2A — completed on its feature branch (2026-07-29)
+## Phase 2A — completed and merged (2026-07-29)
 
 Phase 2A added `shared/contracts/decisionApi.js` as the runtime Zod source of
 truth for public HTTP/SSE payloads, while retaining provider-only schemas in
@@ -1045,9 +1051,8 @@ page composition, API/SSE client, workflow hook, contracts derived with
 `z.infer`, constants, and presentation views. Verified legacy presentation
 trees, the static dataset, stale duplicate types, and backup files were
 removed. `npm run typecheck` is available. Node/Express is retained by
-ADR-0006; Phase 3 reliability/evaluation work has not started. The next
-milestone is **Phase 2B: application-level input validation, frontend
-accessibility review, and remaining maintainability cleanup**.
+ADR-0006; Phase 2B and Phase 3 have not started. The exact next step is
+understanding and reviewing Phase 2A before planning Phase 2B.
 
 Phase 2A correction round: the former `DecisionViews.tsx` monolith was split
 into `DecisionScreen`, `Landing`, `EvaluationForm`, `PipelineProgress`,
@@ -1087,6 +1092,16 @@ checks. No real OpenAI call was made. The correction did not change dependency
 versions or `package-lock.json`.
 
 `npm ci` succeeded and its install-time audit reported 9 known findings
-(3 moderate, 6 high). A separate `npm audit` request was denied by the
-execution privacy policy because it would disclose this private repository's
-dependency metadata to npm's advisory service; no workaround was attempted.
+(3 moderate, 6 high). An earlier separate `npm audit` request was denied by
+the execution privacy policy because it would disclose private dependency
+metadata to npm's advisory service; no workaround was attempted. The final
+approved `npm audit` ran successfully and confirmed the same 9 findings.
+
+### Merge record
+
+PR #3 was squash-merged into `main` at `2026-07-29T19:52:38Z` as commit
+`71a8416dfeed57c8635735a41fde1dbce31f7fef`
+(`refactor: complete ScenarioRank V2 Phase 2A`). The temporary
+`v2/phase-2a-contracts-frontend` branch was deleted locally and on the remote.
+The preserved `archive/bmw-award-original` branch and `bmw-award-original` tag
+remain intact.
