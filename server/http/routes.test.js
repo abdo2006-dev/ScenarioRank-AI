@@ -124,7 +124,7 @@ describe("POST /api/decision/stream", () => {
     const events = parseSseEvents(await res.text());
 
     expect(Date.now() - start).toBeLessThan(5000);
-    expect(events.some((e) => e.event === "error" && /simulated provider failure/.test(e.data.message))).toBe(true);
+    expect(events.some((e) => e.event === "error" && /Pipeline failed/.test(e.data.message))).toBe(true);
   });
 
   it("reports AI unavailable via an error event rather than attempting a null provider call", async () => {
