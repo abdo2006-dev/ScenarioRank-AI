@@ -256,3 +256,12 @@ The repository does not define a production deployment topology. It assumes:
 - frontend code calling a configurable backend URL (`VITE_BACKEND_URL`, default `http://localhost:3001`).
 
 V2 has replaced the hardcoded-URL assumption with environment-specific configuration (Phase 1C/1D); a documented production deployment model remains later-phase work (`docs/V2_ROADMAP.md`).
+
+## Phase 2A transport boundary
+
+Public browser/server data is validated by shared ESM Zod contracts in
+`shared/contracts/decisionApi.js`. `server/http/routes.js` parses requests and
+validates health, SSE events, and successful final responses. The browser API
+client validates health, scenario generation, progress, error, and complete
+events before feature state consumes them. These contracts are deliberately
+separate from the LLM provider schemas in `server/ai/schemas/`.

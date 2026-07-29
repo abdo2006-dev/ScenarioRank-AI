@@ -2,7 +2,7 @@
 
 **Scenario-aware decision support for comparing leadership candidates under different business conditions.**
 
-> **Project status:** V2 engineering refinement in progress. The `main` branch is the public source of truth and is intentionally being upgraded from the BMW hackathon implementation into a better-tested, better-documented, and more defensible system.
+> **Project status:** Phase 2A establishes shared public contracts and a feature-oriented frontend while preserving Phase 1 behavior. The `main` branch is the public source of truth.
 
 ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 
@@ -66,7 +66,7 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 | Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
 | AI provider | OpenAI (`gpt-5-mini`) via a provider-neutral contract, Responses API + Structured Outputs | Role/scenario interpretation, batch candidate scoring, explanations, batch pair estimates |
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
-| Validation | Zod schemas for every LLM operation | Every production schema validated locally before deterministic code runs, even though the OpenAI SDK's own Zod helper already validates once |
+| Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
 | Automated testing | 159 backend + 16 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, and real component rendering |
 
@@ -79,7 +79,7 @@ Fixed in Phase 1 (see [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architec
 Still open:
 
 - "best" and "worst" adaptability scenarios are not genuinely simulated (needs real multi-scenario execution, Phase 3);
-- the main frontend page is still oversized (backend module boundaries were split in Phase 1; frontend split is Phase 2);
+- no application-level accessibility review or input-validation UX has been completed yet (Phase 2B);
 - there is no authentication, rate limiting, persistence, audit trail, or a hard dollar-budget enforcement (only a request-count safety net);
 - the mathematical coefficients are prototype heuristics and have not been empirically calibrated;
 - displayed cost is an estimate for the user's own awareness, not an invoice — OpenAI's own billing dashboard remains the source of truth.

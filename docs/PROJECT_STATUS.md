@@ -1033,3 +1033,16 @@ This is what lets a future ChatGPT, Claude, Codex, DeepSeek, Qwen, or human
 contributor reconstruct the project's intended scope and current state
 directly from the repository, without depending on chat history from a
 prior session.
+
+## Phase 2A — completed on its feature branch (2026-07-29)
+
+Phase 2A added `shared/contracts/decisionApi.js` as the runtime Zod source of
+truth for public HTTP/SSE payloads, while retaining provider-only schemas in
+`server/ai/schemas/`. The frontend is now `src/features/decision/`: a small
+page composition, API/SSE client, workflow hook, contracts derived with
+`z.infer`, constants, and presentation views. Verified legacy presentation
+trees, the static dataset, stale duplicate types, and backup files were
+removed. `npm run typecheck` is available. Node/Express is retained by
+ADR-0006; Phase 3 reliability/evaluation work has not started. The next
+milestone is **Phase 2B: application-level input validation, frontend
+accessibility review, and remaining maintainability cleanup**.

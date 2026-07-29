@@ -63,3 +63,10 @@ The maintainer should be able to explain the current system in approximately two
 - Explain what would break if the model returned a string instead of a number for a criterion score — which layer catches it now, and what happens next.
 - Explain how a malicious public client could create API cost without rate limiting, and what `AI_MAX_CANDIDATES` and the fixed `MAX_LOGICAL_PROVIDER_STAGES` safety net do and do not protect against.
 - Show the exact code where a batch pairing response missing one expected pair is rejected, and the exact reason string a caller sees if it's still incomplete after the corrective retry.
+
+## Phase 2A understanding
+
+1. Why are provider output schemas in `server/ai/schemas/` distinct from public transport schemas in `shared/contracts/`?
+2. How do `z.infer` types in `src/features/decision/contracts.ts` prevent the browser's static types drifting from runtime validation?
+3. How does `SseParser` handle chunk boundaries and why are unknown events ignored?
+4. Why is a Node-to-Python rewrite not justified today (ADR-0006)?

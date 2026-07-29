@@ -141,3 +141,7 @@ The explanation prompt includes computed metrics. The LLM should explain them wi
 - frontend timeout: the request is aborted after three minutes;
 - page refresh: all current input and result state is lost;
 - no silent provider fallback: there is exactly one provider (OpenAI); nothing in this codebase catches a failure and silently retries against a different provider or model.
+
+Phase 2A adds a transport-validation checkpoint on both sides of this flow:
+malformed browser input stops at Express with a safe 400/error event; malformed
+server data stops before the UI renders it with a safe frontend error.

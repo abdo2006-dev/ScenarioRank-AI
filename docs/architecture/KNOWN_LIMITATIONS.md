@@ -126,3 +126,10 @@ Still open — unchanged.
 ### P4.5 Opportunity cost is currently misnamed
 
 Still open — unchanged. Deliberately deferred (see `docs/V2_ROADMAP.md`, Phase 1 constraints): replacing the terminology or implementing a real comparative metric needs design work beyond a Phase 1 correctness fix.
+
+## Phase 2A resolved maintenance debt
+
+The oversized page, duplicate stale frontend contracts, and unreachable legacy
+component/data/backup trees were removed or split in Phase 2A. Remaining Phase
+2 work is application input-validation UX, accessibility review, and focused
+maintainability cleanup; Phase 3 evaluation/reliability work has not begun.
