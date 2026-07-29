@@ -1053,3 +1053,8 @@ into `DecisionScreen`, `Landing`, `EvaluationForm`, `PipelineProgress`,
 API and hook tests; malformed SSE JSON and scenario-provider errors become
 safe public messages. Public response schemas enforce documented score,
 confidence, metadata, and cost ranges. Phase 2B and Phase 3 remain unstarted.
+
+Latest correction verification: 26 frontend tests and 165 backend tests pass
+(191 total), with lint, server lint, typecheck, build, and syntax checks. A
+fresh `npm ci` and `npm audit` could not be re-run because registry egress was
+denied; the correction round did not change dependencies or the lockfile.
