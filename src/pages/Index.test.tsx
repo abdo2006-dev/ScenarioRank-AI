@@ -1,15 +1,19 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { Results, EvalForm } from "@/features/decision/components/DecisionViews";
+import { DecisionResults as Results } from "@/features/decision/components/DecisionResults";
+import { EvaluationForm as EvalForm } from "@/features/decision/components/EvaluationForm";
 import { BACKEND_URL } from "@/lib/backendUrl";
+import { completedPipelineResponseSchema } from "@/features/decision/contracts";
+import type { PipelineResponse } from "@/features/decision/contracts";
 
 /** Adaptability profiles and confidence/evidence flags render under the "analysis" tab, not the default "overview" tab. */
 function openAnalysisTab() {
   fireEvent.click(screen.getByRole("button", { name: "analysis" }));
 }
 
-function buildResponse(overrides: Record<string, unknown> = {}) {
-  return {
+function buildResponse(overrides: Record<string, unknown> = {}): PipelineResponse {
+  return completedPipelineResponseSchema.parse({
+    request_id: "test-request",
     pipeline_steps: [],
     role_analysis: { title: "VP", key_requirements: ["domain_expertise"], complexity: "high" },
     scenario_analysis: { scenario: "Post-merger integration", key_pressures: ["Speed"], weight_rationale: "Rationale text." },
@@ -22,7 +26,7 @@ function buildResponse(overrides: Record<string, unknown> = {}) {
         outcome_model: { expected_execution_success: 0.8, scenario_fit: 0.82, adaptability_score: 0.7, likely_outcome: "Solid results.", strategic_label: "Balanced Performer", cross_scenario_consistency: "not_measured" },
       },
     ],
-    confidence_evidence_reviews: [],
+    confidence_evidence_reviews: [], outcome_models: [],
     decision_result: {
       recommended_candidate_id: "a", recommended_candidate_name: "Alice", decision_mode: "best_fit",
       scenario: "Post-merger integration", final_label: "Best Fit", key_reason: "Highest weighted fit score.",
@@ -30,17 +34,18 @@ function buildResponse(overrides: Record<string, unknown> = {}) {
     },
     trade_offs: [],
     adaptability_profiles: [
-      { candidate_name: "Alice", adaptability_score: 70, best_scenario: "not_measured", worst_scenario: "not_measured", resilience_note: "Shows strong adaptability.", cross_scenario_consistency: "not_measured" },
+      { candidate_name: "Alice", adaptability_score: 0.7, best_scenario: "not_measured", worst_scenario: "not_measured", resilience_note: "Shows strong adaptability.", cross_scenario_consistency: "not_measured" },
     ],
     pipeline_stage_outputs: [],
     executive_summary: { recommendation: "Alice recommended.", reason: "Highest score.", trade_off: "", opportunity_cost: "", adaptability: "", alternative: "" },
+    run_metadata: { provider: "openai", model: "gpt-5-mini", logicalProviderStageCount: 3, providerAttemptCount: 3, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0, estimatedCostUsd: null, promptVersions: {}, schemaVersions: {}, attempts: {}, startedAt: "", completedAt: "" },
     ...overrides,
-  };
+  });
 }
 
 describe("Results — rendering a completed decision result", () => {
   it("shows the recommended candidate and key reason", () => {
-    render(<Results response={buildResponse() as never} />);
+    render(<Results response={buildResponse()} />);
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("Highest weighted fit score.")).toBeInTheDocument();
   });
@@ -48,16 +53,16 @@ describe("Results — rendering a completed decision result", () => {
 
 describe("Results — cross-scenario consistency is shown as not measured", () => {
   it("displays 'not measured' rather than a fabricated adaptability number", () => {
-    render(<Results response={buildResponse() as never} />);
+    render(<Results response={buildResponse()} />);
     openAnalysisTab();
     expect(screen.getByText(/not measured/i)).toBeInTheDocument();
   });
 
   it("does not show the not-measured line when the field is absent (older/partial data)", () => {
     const response = buildResponse({
-      adaptability_profiles: [{ candidate_name: "Alice", adaptability_score: 70, best_scenario: "not_measured", worst_scenario: "not_measured", resilience_note: "note" }],
+      adaptability_profiles: [{ candidate_name: "Alice", adaptability_score: 0.7, best_scenario: "not_measured", worst_scenario: "not_measured", resilience_note: "note" }],
     });
-    render(<Results response={response as never} />);
+    render(<Results response={response} />);
     openAnalysisTab();
     expect(screen.queryByText(/not measured/i)).not.toBeInTheDocument();
   });
@@ -76,7 +81,7 @@ describe("Results — provider/model/cost run metadata", () => {
 
   it("shows the provider, model, stage/attempt counts, token usage, and estimated cost footer when run_metadata is present", () => {
     const response = buildResponse({ run_metadata: runMetadataFixture() });
-    render(<Results response={response as never} />);
+    render(<Results response={response} />);
     expect(screen.getByText(/openai/)).toBeInTheDocument();
     expect(screen.getByText(/gpt-5-mini/)).toBeInTheDocument();
     expect(screen.getByText(/4 stages/)).toBeInTheDocument();
@@ -87,24 +92,20 @@ describe("Results — provider/model/cost run metadata", () => {
 
   it("shows the cost as unavailable, never a guessed number, when the model has no recorded pricing", () => {
     const response = buildResponse({ run_metadata: runMetadataFixture({ estimatedCostUsd: null }) });
-    render(<Results response={response as never} />);
+    render(<Results response={response} />);
     expect(screen.getByText(/Estimated cost: unavailable/i)).toBeInTheDocument();
   });
 
-  it("shows no metadata footer when run_metadata is absent", () => {
-    render(<Results response={buildResponse() as never} />);
-    expect(screen.queryByText(/Evaluated with/)).not.toBeInTheDocument();
-  });
 });
 
 describe("Results — confidence/evidence wording, not bias-detection wording", () => {
   it("labels the flags card 'Confidence & Evidence Flags', not 'Bias Flags'", () => {
     const response = buildResponse({
       confidence_evidence_reviews: [
-        { candidate_id: "a", candidate_name: "Alice", overall_confidence: 0.5, recommend_human_review: true, confidence_evidence_flags: [{ type: "low_overall_confidence", severity: "high", description: "Overall model-reported confidence is low." }] },
+        { candidate_id: "a", candidate_name: "Alice", overall_confidence: 0.5, low_confidence_criteria: [], weak_evidence_flags: [], recommend_human_review: true, recommend_rescore: false, review_summary: "Review", confidence_evidence_flags: [{ type: "low_overall_confidence", severity: "high", description: "Overall model-reported confidence is low.", candidate_id: "a" }] },
       ],
     });
-    render(<Results response={response as never} />);
+    render(<Results response={response} />);
     openAnalysisTab();
     expect(screen.getByText("Confidence & Evidence Flags")).toBeInTheDocument();
     expect(screen.queryByText("Bias Flags")).not.toBeInTheDocument();
@@ -120,7 +121,7 @@ describe("Results — no unsupported cross-scenario claims (docs/architecture/KN
         top_pairs: [],
       },
     });
-    render(<Results response={response as never} />);
+    render(<Results response={response} />);
     openAnalysisTab();
     fireEvent.click(screen.getByRole("button", { name: "pairing" }));
     fireEvent.click(screen.getByRole("button", { name: "pipeline" }));
@@ -146,7 +147,7 @@ describe("Results — pairing tab reflects honest pairing state, never a fabrica
         top_pairs: [],
       },
     });
-    render(<Results response={response as never} />);
+    render(<Results response={response} />);
     fireEvent.click(screen.getByRole("button", { name: "pairing" }));
     expect(screen.getByText("Best Leadership Pair")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
@@ -157,7 +158,7 @@ describe("Results — pairing tab reflects honest pairing state, never a fabrica
     const response = buildResponse({
       pairing_result: { status: "unavailable", reason: "All pair evaluations failed.", best_pair: null, top_pairs: [] },
     });
-    render(<Results response={response as never} />);
+    render(<Results response={response} />);
     fireEvent.click(screen.getByRole("button", { name: "pairing" }));
 
     expect(screen.getByText("Pairing Unavailable")).toBeInTheDocument();
@@ -166,7 +167,7 @@ describe("Results — pairing tab reflects honest pairing state, never a fabrica
   });
 
   it("does not show a pairing tab at all when pairing_result is absent", () => {
-    render(<Results response={buildResponse() as never} />);
+    render(<Results response={buildResponse()} />);
     expect(screen.queryByRole("button", { name: "pairing" })).not.toBeInTheDocument();
   });
 });
