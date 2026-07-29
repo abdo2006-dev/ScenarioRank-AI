@@ -5,6 +5,14 @@ how each was resolved once it is. Numbering is stable across phases so
 history and cross-references stay valid — a resolved item is marked
 resolved in place, not deleted or renumbered.
 
+## Phase 2B-1 validation and accessibility
+
+Shared schema limits, safe direct-API validation errors, semantic form labels,
+error-summary focus, live status, visible focus rings, and keyboard tabs are
+implemented. This is an accessibility-oriented prototype review, not a WCAG
+certification; manual checks remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`.
+Phase 2B-2 and Phase 3 remain unstarted.
+
 ## Priority 0 — correctness and integrity
 
 ### P0.1 Pair simulation uses submission order — RESOLVED (Phase 1C)

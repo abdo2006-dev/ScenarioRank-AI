@@ -16,6 +16,8 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 | `src/features/decision/components/DecisionScreen.tsx` | Active | Page shell, phase composition, error banner, result ref |
 | `src/features/decision/contracts.ts` | Active | Re-exports shared schemas and derives browser types with `z.infer` |
 | `shared/contracts/decisionApi.js` | Active | Canonical public HTTP and SSE runtime contracts |
+| `shared/contracts/decisionInputLimits.js` | Active | Shared technical text/count ceilings; runtime candidate cap remains server-resolved |
+| `src/features/decision/validation/` | Active | Zod-issue-to-field-error mapping for controlled evaluation drafts |
 | `src/pages/NotFound.tsx` | Active | Catch-all route |
 | `src/index.css` | Active | Global styling and Tailwind layers |
 | `src/components/ui/sonner.tsx` | Active through `App.tsx` | Toast renderer |

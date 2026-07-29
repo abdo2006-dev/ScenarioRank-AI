@@ -26,6 +26,14 @@ generation and a separate package add maintenance cost before there is a public
 API; manual duplication was the problem being solved. A package or generated
 OpenAPI document remains possible if external consumers arrive.
 
+Phase 2B-1 extends this boundary with `decisionInputLimits.js`: technical text
+and count limits are shared by schemas and UI counters. `AI_MAX_CANDIDATES` is
+deliberately not a shared constant; it is resolved by `server/config/env.js`
+per process and returned as the safe `health.limits.max_candidates` value so a
+browser can disable additions without becoming authoritative. The controlled
+React form uses the request schema rather than duplicating its rules, mapping
+issues to stable accessible field errors.
+
 ## Consequences
 
 Invalid responses become safe errors rather than partially-rendered data.

@@ -5,12 +5,40 @@ import { completedPipelineResponseSchema } from "../../shared/contracts/decision
 
 const DEFAULT_TEST_DEPS = { maxCandidates: 5 };
 
-/** Starts the real Express app on an ephemeral port; no new test dependency. */
-function startServer(deps) {
-  const app = createApp({ ...DEFAULT_TEST_DEPS, ...deps });
-  return new Promise((resolve) => {
-    const server = app.listen(0, () => resolve(server));
+async function closeServer(server) {
+  await new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
   });
+}
+
+/** Starts the real Express app on an ephemeral loopback port. */
+async function startServer(deps) {
+  const app = createApp({ ...DEFAULT_TEST_DEPS, ...deps });
+  const server = app.listen(0, "127.0.0.1");
+
+  await new Promise((resolve, reject) => {
+    const cleanUp = () => {
+      server.off("listening", onListening);
+      server.off("error", onError);
+    };
+    const onListening = () => {
+      cleanUp();
+      resolve();
+    };
+    const onError = (error) => {
+      cleanUp();
+      reject(error);
+    };
+    server.once("listening", onListening);
+    server.once("error", onError);
+  });
+
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    await closeServer(server);
+    throw new Error("Test server did not expose an ephemeral TCP port.");
+  }
+  return server;
 }
 
 function parseSseEvents(rawText) {
@@ -27,7 +55,7 @@ function parseSseEvents(rawText) {
 let activeServer;
 afterEach(async () => {
   if (activeServer) {
-    await new Promise((resolve) => activeServer.close(resolve));
+    await closeServer(activeServer);
     activeServer = undefined;
   }
 });
@@ -41,7 +69,8 @@ describe("/health", () => {
     const res = await fetch(`http://localhost:${port}/health`);
     const body = await res.json();
 
-    expect(body).toEqual({ status: "ok", ai_enabled: true, ai_provider: "fake", ai_model: "fake-model" });
+    expect(body).toMatchObject({ status: "ok", ai_enabled: true, ai_provider: "fake", ai_model: "fake-model" });
+    expect(body.limits.max_candidates).toBe(5);
     expect(JSON.stringify(body)).not.toMatch(/key|secret|token/i);
   });
 
@@ -50,7 +79,7 @@ describe("/health", () => {
     const port = activeServer.address().port;
 
     const res = await fetch(`http://localhost:${port}/health`);
-    expect(await res.json()).toEqual({ status: "ok", ai_enabled: false, ai_provider: null, ai_model: null });
+    expect(await res.json()).toMatchObject({ status: "ok", ai_enabled: false, ai_provider: null, ai_model: null, limits: { max_candidates: 5 } });
   });
 });
 
@@ -93,7 +122,7 @@ describe("POST /api/decision/stream", () => {
     const events = parseSseEvents(await res.text());
     expect(events).toHaveLength(1);
     expect(events[0].event).toBe("error");
-    expect(events[0].data.message).toMatch(/role.title/);
+    expect(events[0].data.message).toBe("Invalid evaluation request.");
   });
 
   it("emits an error event when the submitted candidate count exceeds AI_MAX_CANDIDATES", async () => {
@@ -107,7 +136,9 @@ describe("POST /api/decision/stream", () => {
     const events = parseSseEvents(await res.text());
     expect(events).toHaveLength(1);
     expect(events[0].event).toBe("error");
-    expect(events[0].data.message).toMatch(/At most 2 candidates/);
+    expect(events[0].data.message).toBe(
+      "You can evaluate at most 2 candidates in this environment.",
+    );
   });
 
   it("emits an error event and closes cleanly when a pipeline stage fails — never hangs", async () => {
@@ -190,7 +221,30 @@ describe("POST /api/decision (non-streaming)", () => {
     });
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/At most 2 candidates/);
+    expect(body.error).toBe(
+      "You can evaluate at most 2 candidates in this environment.",
+    );
+  });
+
+  it("rejects oversized and whitespace-only values without echoing them", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    activeServer = await startServer({ provider, aiEnabled: true });
+    const port = activeServer.address().port;
+    const submittedText = "private submitted profile";
+    const tooLongTitle = `${submittedText}${"x".repeat(120)}`;
+    const input = defaultInput();
+    input.role.title = tooLongTitle;
+    input.candidates[0].description = "   ";
+
+    const response = await fetch(`http://localhost:${port}/api/decision`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({ error: "Invalid evaluation request." });
+    expect(JSON.stringify(body)).not.toContain(submittedText);
   });
 
   it("returns 503 when AI is unavailable, without a secret-revealing message", async () => {

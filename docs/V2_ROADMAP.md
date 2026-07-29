@@ -1,5 +1,13 @@
 # V2 roadmap
 
+## Phase 2B-1 — validation and accessibility
+
+**Goal:** constrain public inputs consistently and make the controlled React
+workflow usable with keyboards and assistive technology. Shared contracts own
+technical text/count ceilings, while `AI_MAX_CANDIDATES` remains the resolved
+per-run backend budget cap exposed safely through `/health`. This phase does not
+start Phase 2B-2 or Phase 3.
+
 ## Phase 0 — preserve and understand
 
 **Goal:** establish a trustworthy baseline before changing behavior.

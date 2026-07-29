@@ -2,7 +2,10 @@
 
 **Scenario-aware decision support for comparing leadership candidates under different business conditions.**
 
-> **Project status:** Phase 2A establishes shared public contracts and a feature-oriented frontend while preserving Phase 1 behavior. The `main` branch is the public source of truth.
+> **Project status:** Phase 2B-1 is implemented on the unmerged
+> `v2/phase-2b-validation-accessibility` branch. It adds shared input limits,
+> accessible validation, focus management, and keyboard-operable result tabs
+> without changing Phase 1 scoring or provider behavior.
 
 ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 

@@ -43,8 +43,10 @@ candidate display names remain unambiguous. Final verification passed 255
 tests (70 frontend + 185 backend), lint, server lint, typecheck, readability,
 build, and Node syntax checks. `npm ci` and a separate `npm audit` both
 succeeded; the audit reports 9 known findings (3 moderate, 6 high), with no
-dependency changes. Phase 2B and Phase 3 have not started. The exact next step
-is understanding and reviewing Phase 2A before planning Phase 2B.
+dependency changes. Phase 2B-1 now adds shared input limits, runtime candidate
+limits in health, and frontend validation/accessibility semantics without
+changing scoring, prompts, or provider behavior. Phase 2B-2 and Phase 3 remain
+unstarted.
 
 ## Project objective
 
@@ -771,13 +773,13 @@ as partial success" design overstated what was actually evaluated
 
 1. Candidate scoring depends on very limited evidence (short free-text
    descriptions).
-2. The active frontend page remains one large file (backend module
-   boundaries were split in Phase 1D; the frontend split is Phase 2).
-3. Duplicated contracts: pipeline types exist both inline in the frontend
-   page and in `src/types/pipeline.ts` (the latter, plus
-   `src/components/v3/*` and `src/components/AgentFlowSection.tsx`, are
-   confirmed dead code still using the retired "bias"/"agent" naming —
-   Phase 2 cleanup).
+2. Phase 2A resolved the former frontend monolith, duplicate transport
+   contracts, and confirmed dead decision components. Phase 2B-1 adds bounded
+   input validation and accessibility mechanics; its remaining manual review
+   items are recorded in `docs/testing/ACCESSIBILITY_CHECKLIST.md`.
+3. Phase 3 is still required for multi-scenario evaluation evidence and model
+   evaluation datasets. Security, privacy, rate limiting, persistence, and
+   deployment hardening remain later milestones.
 4. Backup files, an older dataset, and unused component families are
    still present (Phase 2 cleanup).
 5. No model evaluation dataset, golden examples, or prompt-regression
