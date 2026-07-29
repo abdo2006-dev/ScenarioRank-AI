@@ -74,3 +74,11 @@ The maintainer should be able to explain the current system in approximately two
    must those transport invariants differ from provider prompt-output schemas?
 6. What safe text does the UI show for malformed SSE JSON, and why must native
    JSON parser details never become user-facing errors?
+7. Why does the SSE parser retain a pending `\r` between chunks, and what would
+   go wrong if each chunk normalized CRLF independently?
+8. Which messages may pass through `SafeDecisionClientError`, and why are raw
+   fetch and stream-reader messages converted to generic text?
+9. How do the result-tab and evaluation-editor directories keep their
+   composition roots small?
+10. Which successful-pairing invariants are public transport guarantees, and
+    which complete-coverage guarantee remains internal to the pipeline?

@@ -33,17 +33,23 @@ Still open — unchanged. Short user-written descriptions are treated as suffici
 
 ## Priority 1 — architecture and maintainability
 
-### P1.1 Oversized active files
+### P1.1 Oversized active files — RESOLVED (Phase 2A)
 
-Narrowed, not closed. The backend was split into clear module boundaries in Phase 1D (`server/config`, `server/ai`, `server/domain`, `server/pipeline`, `server/http`) — see `docs/architecture/CURRENT_ARCHITECTURE.md`. `server.mjs` itself is now a thin composition root. The frontend page is still one large file; Phase 1D only extracted `Results`/`EvalForm` as independently-exported components and moved `BACKEND_URL` out — a full feature-folder split remains Phase 2.
+The backend has explicit Phase 1D boundaries. Phase 2A moved the frontend into
+`src/features/decision/`, decomposed results and evaluation editing into
+cohesive modules, restored ordinary multiline formatting, and added an
+enforced 180-character source-line guard.
 
-### P1.2 Duplicate and likely abandoned code
+### P1.2 Duplicate and likely abandoned code — RESOLVED (Phase 2A)
 
-Still open — unchanged. Backup files, an older dataset, multiple unused component families, and generated UI primitives make it difficult to identify the real system. Deliberately not deleted in Phase 1 (out of scope per the phase's constraints); Phase 2 cleanup.
+Import-graph review confirmed and removed the backup files, old dataset, stale
+presentation families, `src/components/v3/`, and obsolete duplicate types.
 
-### P1.3 Duplicated contracts
+### P1.3 Duplicated contracts — RESOLVED (Phase 2A)
 
-Still open — unchanged. Pipeline types exist inside the active page and in `src/types/pipeline.ts`. They can drift independently and do not validate runtime data.
+`shared/contracts/decisionApi.js` is the runtime source of truth for public
+HTTP/SSE data. The browser imports those schemas and derives types with
+`z.infer`; the stale duplicate type file was removed.
 
 ### P1.4 Hardcoded deployment configuration — PARTIALLY RESOLVED (Phase 1C)
 

@@ -31,7 +31,15 @@ OpenAPI document remains possible if external consumers arrive.
 Invalid responses become safe errors rather than partially-rendered data.
 Schema changes now require a deliberate browser/server compatibility review.
 
-The correction round also records public numeric invariants (rather than every
-finite number) and treats malformed SSE JSON as a transport error with a fixed
-safe public message. Provider failure text is never used as a scenario fallback
-note.
+The final correction records semantic, not merely structural, invariants:
+
+- health is a union of enabled-with-non-empty-provider/model and
+  disabled-with-null-provider/model;
+- decision confidence is 0–1 and stage duration is a nonnegative integer;
+- successful pairing has non-empty `top_pairs`, distinct names, no duplicate
+  or reversed combinations, and an exact `best_pair` entry in `top_pairs`.
+
+The browser's stateful parser coalesces CRLF across chunk boundaries and only
+dispatches blank-line-terminated events. Malformed JSON has fixed safe text.
+Only application-authored safe client errors and validated SSE error messages
+retain their text; native fetch, reader, decoder, and browser failures do not.

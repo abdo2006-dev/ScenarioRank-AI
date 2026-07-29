@@ -105,7 +105,8 @@ sequenceDiagram
 
     P-->>B: Final response object + run_metadata (logicalProviderStageCount, providerAttemptCount, token usage, estimated cost)
     B-->>F: complete event
-    F-->>F: Render results
+    F->>F: Validate complete payload with shared contract
+    F-->>F: Render composed result tabs
 ```
 
 ## Trust boundaries
@@ -139,13 +140,23 @@ The explanation prompt includes computed metrics. The LLM should explain them wi
 - total pipeline timeout: the route emits an error after 150 seconds;
 - pairing incomplete after the corrective retry (missing, duplicate, or unknown pairs) or the pairing call failing entirely: `pairing_result` is honestly `{"status":"unavailable","reason":"Complete pair analysis was unavailable.","best_pair":null,"top_pairs":[]}` — never a fabricated or partial-coverage pair, and the stage's real attempts/usage are still recorded in `run_metadata`;
 - frontend timeout: the request is aborted after three minutes;
+- a CRLF split between network chunks: the parser retains the trailing `\r`
+  and coalesces the next leading `\n`, preventing a false event terminator;
+- malformed JSON or an invalid stage/complete/error contract: rejected before
+  feature state consumes it, using stable public text;
+- raw fetch, decoder, browser, or stream-reader failure: converted to a generic
+  client error; only application-authored safe errors and validated SSE error
+  messages retain their text;
 - page refresh: all current input and result state is lost;
 - no silent provider fallback: there is exactly one provider (OpenAI); nothing in this codebase catches a failure and silently retries against a different provider or model.
 
 Public transport validation also constrains final numeric output: confidence,
 risk, and normalized pair metrics are 0–1; criterion and pair scores are 1–10
 and 0–10 respectively; aggregate scores are 0–100; logical provider stages are
-0–4; tokens and estimated cost cannot be negative.
+0–4; decision confidence is 0–1; stage duration is a nonnegative integer;
+tokens and estimated cost cannot be negative. A successful public pairing has
+at least one top pair, two distinct names per pair, no duplicate/reversed
+combination, and an exact best-pair result included in `top_pairs`.
 
 Phase 2A adds a transport-validation checkpoint on both sides of this flow:
 malformed browser input stops at Express with a safe 400/error event; malformed
