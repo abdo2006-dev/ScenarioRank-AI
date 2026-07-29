@@ -10,9 +10,24 @@ vi.mock("../api/decisionApi", async (importOriginal) => {
   const actual = await importOriginal<
     typeof import("../api/decisionApi")
   >();
+  const getAiEnabled = vi.fn();
   return {
     ...actual,
-    getAiEnabled: vi.fn(),
+    getAiEnabled,
+    getHealth: vi.fn(async () => {
+      const aiEnabled = await getAiEnabled();
+      return {
+        status: "ok" as const,
+        ai_enabled: aiEnabled,
+        ai_provider: aiEnabled ? "openai" : null,
+        ai_model: aiEnabled ? "gpt-5-mini" : null,
+        limits: {
+          max_candidates: 5, max_scenarios: 5, role_title_max_chars: 120,
+          role_description_max_chars: 4000, scenario_max_chars: 2000,
+          candidate_name_max_chars: 120, candidate_description_max_chars: 4000,
+        },
+      };
+    }),
     generateScenarios: vi.fn(),
     runEvaluation: vi.fn(),
   };

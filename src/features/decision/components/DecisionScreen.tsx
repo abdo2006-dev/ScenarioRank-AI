@@ -77,6 +77,9 @@ export function DecisionScreen() {
           onLoadDefaults={workflow.loadDefaults}
           onResetInputs={workflow.resetInputs}
           aiEnabled={workflow.aiEnabled}
+          maxCandidates={workflow.maxCandidates}
+          validationResetKey={workflow.validationResetKey}
+          scenarioGenerationStatus={workflow.scenarioGenerationStatus}
         />
       )}
 

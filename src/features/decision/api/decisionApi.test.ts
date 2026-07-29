@@ -83,6 +83,11 @@ describe("getAiEnabled", () => {
         ai_enabled: true,
         ai_provider: "openai",
         ai_model: "gpt-5-mini",
+        limits: {
+          max_candidates: 5, max_scenarios: 5, role_title_max_chars: 120,
+          role_description_max_chars: 4000, scenario_max_chars: 2000,
+          candidate_name_max_chars: 120, candidate_description_max_chars: 4000,
+        },
       }),
     );
 
@@ -96,6 +101,11 @@ describe("getAiEnabled", () => {
         ai_enabled: false,
         ai_provider: null,
         ai_model: null,
+        limits: {
+          max_candidates: 5, max_scenarios: 5, role_title_max_chars: 120,
+          role_description_max_chars: 4000, scenario_max_chars: 2000,
+          candidate_name_max_chars: 120, candidate_description_max_chars: 4000,
+        },
       }),
     );
 

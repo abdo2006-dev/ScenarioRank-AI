@@ -10,7 +10,7 @@ function statusIcon(status: PipelineStage["status"]) {
 
 function statusColor(status: PipelineStage["status"]) {
   if (status === "completed") return "text-emerald-400";
-  if (status === "running") return "animate-pulse text-amber-400";
+  if (status === "running") return "animate-pulse motion-reduce:animate-none text-amber-400";
   if (status === "failed") return "text-red-400";
   return "text-white/20";
 }
@@ -25,16 +25,17 @@ export function PipelineProgress({ stages }: { stages: PipelineStage[] }) {
   if (!stages.length) return null;
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-6">
+    <div className="mx-auto max-w-3xl px-6 py-6" aria-labelledby="pipeline-progress-heading">
       <Card>
-        <h3 className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/60">
+        <h3 id="pipeline-progress-heading" className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/60">
           Decision Pipeline
         </h3>
 
-        <div className="space-y-2">
+        <div className="space-y-2" role="status" aria-live="polite" aria-atomic="false">
           {stages.map((stage) => (
             <div key={stage.id} className="flex items-center gap-3">
               <span
+                aria-hidden="true"
                 className={
                   `w-4 text-center font-mono text-sm ${statusColor(stage.status)}`
                 }

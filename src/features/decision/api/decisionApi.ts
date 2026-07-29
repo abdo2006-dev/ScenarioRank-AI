@@ -60,16 +60,20 @@ async function requestWithTimeout(
   }
 }
 
-export async function getAiEnabled(): Promise<boolean> {
+export async function getHealth() {
   try {
     const response = await fetch(`${BACKEND_URL}/health`);
-    if (!response.ok) return false;
+    if (!response.ok) return null;
 
     const parsed = healthResponseSchema.safeParse(await readJson(response));
-    return parsed.success && parsed.data.ai_enabled;
+    return parsed.success ? parsed.data : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function getAiEnabled(): Promise<boolean> {
+  return (await getHealth())?.ai_enabled ?? false;
 }
 
 export async function generateScenarios(

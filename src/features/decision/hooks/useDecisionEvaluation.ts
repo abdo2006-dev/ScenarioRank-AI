@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   generateScenarios,
-  getAiEnabled,
+  getHealth,
   runEvaluation,
   SafeDecisionClientError,
 } from "../api/decisionApi";
@@ -19,6 +19,7 @@ import type {
   PipelineResponse,
   PipelineStage,
 } from "../contracts";
+import { DEFAULT_RUNTIME_MAX_CANDIDATES } from "../../../../shared/contracts/decisionInputLimits.js";
 
 export type DecisionPhase = "landing" | "eval" | "running" | "results";
 
@@ -37,11 +38,19 @@ export function useDecisionEvaluation() {
   const [response, setResponse] = useState<PipelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aiEnabled, setAiEnabled] = useState(true);
+  const [maxCandidates, setMaxCandidates] = useState(
+    DEFAULT_RUNTIME_MAX_CANDIDATES,
+  );
   const [isGeneratingScenarios, setIsGeneratingScenarios] = useState(false);
+  const [scenarioGenerationStatus, setScenarioGenerationStatus] = useState("");
+  const [validationResetKey, setValidationResetKey] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    void getAiEnabled().then(setAiEnabled);
+    void getHealth().then((health) => {
+      setAiEnabled(health?.ai_enabled ?? false);
+      if (health) setMaxCandidates(health.limits.max_candidates);
+    });
   }, []);
 
   useEffect(() => {
@@ -59,6 +68,8 @@ export function useDecisionEvaluation() {
     setResponse(null);
     setStages([]);
     setError(null);
+    setScenarioGenerationStatus("");
+    setValidationResetKey((key) => key + 1);
     setPhase("eval");
   }, []);
 
@@ -73,12 +84,17 @@ export function useDecisionEvaluation() {
     setResponse(null);
     setStages([]);
     setError(null);
+    setScenarioGenerationStatus("");
+    setValidationResetKey((key) => key + 1);
     setPhase("eval");
   }, []);
 
   const handleGenerateScenarios = useCallback(async () => {
     if (!role.title.trim() || !role.description.trim()) {
       setError("Enter a role title and description first.");
+      setScenarioGenerationStatus(
+        "Scenario generation needs a role title and description.",
+      );
       return;
     }
 
@@ -92,12 +108,20 @@ export function useDecisionEvaluation() {
       );
       setScenarios(result.scenarios);
       setScenario(result.scenarios[0]);
+      setScenarioGenerationStatus(
+        result.source === "fallback"
+          ? "Scenario suggestions are ready using fallback examples."
+          : "Scenario suggestions are ready.",
+      );
     } catch (caught) {
       const message =
         caught instanceof SafeDecisionClientError
           ? caught.message
           : "Scenario generation failed. Please try again.";
       setError(message);
+      setScenarioGenerationStatus(
+        "Scenario generation failed. You can add scenarios manually.",
+      );
     } finally {
       setIsGeneratingScenarios(false);
     }
@@ -160,7 +184,10 @@ export function useDecisionEvaluation() {
     response,
     error,
     aiEnabled,
+    maxCandidates,
     isGeneratingScenarios,
+    scenarioGenerationStatus,
+    validationResetKey,
     resultsRef,
     resetInputs,
     loadDefaults,
