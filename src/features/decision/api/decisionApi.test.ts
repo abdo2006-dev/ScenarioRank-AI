@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateScenarios, getAiEnabled } from "./decisionApi";
+import { generateScenarios, getAiEnabled, runEvaluation } from "./decisionApi";
+import { pipelineResponseFixture } from "../test/fixtures";
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 const json = (body: unknown, ok = true) => new Response(JSON.stringify(body), { status: ok ? 200 : 500, headers: { "Content-Type": "application/json" } });
+const stream = (...chunks: string[]) => new Response(new ReadableStream({ start(controller) { chunks.forEach((chunk) => controller.enqueue(new TextEncoder().encode(chunk))); controller.close(); } }));
+const request = { role: { title: "VP", description: "Leads growth." }, scenario: "Growth", decision_mode: "best_fit" as const, candidates: [{ id: "a", name: "Alice", description: "Experience." }, { id: "b", name: "Bob", description: "Experience." }], options: { enable_pair_simulation: false } };
 
 afterEach(() => { fetchMock.mockReset(); vi.useRealTimers(); });
 
@@ -32,5 +35,17 @@ describe("decision API health and scenario generation", () => {
   it("validates scenario request before fetching", async () => {
     await expect(generateScenarios({ title: "", description: "x" }, 1000)).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("validates streamed progress and complete responses", async () => {
+    const completed = pipelineResponseFixture();
+    fetchMock.mockResolvedValue(stream(`event: stage_update\ndata: [{"id":"input","label":"Input Received","status":"completed"}]\n\nevent: complete\ndata: ${JSON.stringify(completed)}\n\n`));
+    const stages = vi.fn();
+    await expect(runEvaluation(request, stages, 1000)).resolves.toEqual(completed);
+    expect(stages).toHaveBeenCalledTimes(1);
+  });
+  it("converts safe error and malformed stream payloads without parser detail", async () => {
+    fetchMock.mockResolvedValueOnce(stream('event: error\ndata: {"message":"Safe server error"}\n\n')).mockResolvedValueOnce(stream("event: complete\ndata: nope\n\n"));
+    await expect(runEvaluation(request, vi.fn(), 1000)).rejects.toThrow("Safe server error");
+    await expect(runEvaluation(request, vi.fn(), 1000)).rejects.toThrow("The server returned a malformed evaluation stream.");
   });
 });
