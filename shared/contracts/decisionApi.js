@@ -13,15 +13,32 @@ const unitInterval = finiteNumber.min(0).max(1);
 const percentage = finiteNumber.min(0).max(100);
 const criterionScore = finiteNumber.min(1).max(10);
 
-export const safeErrorSchema = z.object({ error: nonEmptyString, message: nonEmptyString.optional() }).strict();
+export const safeErrorSchema = z
+  .object({
+    error: nonEmptyString,
+    message: nonEmptyString.optional(),
+  })
+  .strict();
 export const sseErrorEventSchema = z.object({ message: nonEmptyString }).strict();
 
-export const healthResponseSchema = z.object({
-  status: z.literal("ok"),
-  ai_enabled: z.boolean(),
-  ai_provider: z.string().nullable(),
-  ai_model: z.string().nullable(),
-}).strict();
+export const healthResponseSchema = z.discriminatedUnion("ai_enabled", [
+  z
+    .object({
+      status: z.literal("ok"),
+      ai_enabled: z.literal(true),
+      ai_provider: nonEmptyString,
+      ai_model: nonEmptyString,
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("ok"),
+      ai_enabled: z.literal(false),
+      ai_provider: z.null(),
+      ai_model: z.null(),
+    })
+    .strict(),
+]);
 
 export const scenarioGenerationRequestSchema = z.object({
   title: nonEmptyString,
@@ -60,7 +77,7 @@ export const pipelineStageSchema = z.object({
   status: z.enum(["pending", "running", "completed", "failed"]),
   summary: z.string().optional(),
   warnings: z.array(z.string()).optional(),
-  duration_ms: finiteNumber.optional(),
+  duration_ms: z.number().int().nonnegative().optional(),
 }).strict();
 export const pipelineStageProgressEventSchema = z.array(pipelineStageSchema);
 
@@ -88,11 +105,18 @@ export const confidenceEvidenceReviewSchema = z.object({
   confidence_evidence_flags: z.array(z.object({ type: nonEmptyString, severity: z.string(), description: z.string(), candidate_id: nonEmptyString }).strict()),
   weak_evidence_flags: z.array(z.string()), recommend_human_review: z.boolean(), recommend_rescore: z.boolean(), review_summary: z.string(),
 }).strict();
-const decisionResultSchema = z.object({
-  recommended_candidate_id: nonEmptyString, recommended_candidate_name: nonEmptyString, decision_mode: nonEmptyString,
-  scenario: nonEmptyString, final_label: z.string(), key_reason: z.string(), overall_confidence: finiteNumber,
-  executive_interpretation: z.string(),
-}).strict();
+const decisionResultSchema = z
+  .object({
+    recommended_candidate_id: nonEmptyString,
+    recommended_candidate_name: nonEmptyString,
+    decision_mode: nonEmptyString,
+    scenario: nonEmptyString,
+    final_label: z.string(),
+    key_reason: z.string(),
+    overall_confidence: unitInterval,
+    executive_interpretation: z.string(),
+  })
+  .strict();
 const tradeOffSchema = z.object({ title: z.string(), description: z.string(), type: z.string(), severity: z.string().optional() }).strict();
 const adaptabilityProfileSchema = z.object({
   candidate_name: nonEmptyString, adaptability_score: unitInterval, best_scenario: z.literal("not_measured"),
@@ -102,15 +126,73 @@ const adaptabilityProfileSchema = z.object({
 const pipelineStageOutputSchema = z.object({
   stage_name: nonEmptyString, stage_role: nonEmptyString, inputs: z.array(z.string()), outputs: z.array(z.string()), summary: z.string(),
 }).strict();
-const pairResultSchema = z.object({
-  pair: z.tuple([nonEmptyString, nonEmptyString]), pair_score: finiteNumber.min(0).max(10), explanation: z.string(),
-  scenario_coverage: unitInterval.optional(), complementarity: unitInterval.optional(), overlap_risk: unitInterval.optional(),
-  conflict_risk: unitInterval.optional(), execution_cohesion: unitInterval.optional(), pair_adaptability: unitInterval.optional(),
-}).strict();
-export const pairingResultSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("ok"), best_pair: pairResultSchema, top_pairs: z.array(pairResultSchema) }).strict(),
-  z.object({ status: z.literal("unavailable"), reason: nonEmptyString, best_pair: z.null(), top_pairs: z.tuple([]) }).strict(),
-]);
+const pairNamesSchema = z
+  .tuple([nonEmptyString, nonEmptyString])
+  .refine(([first, second]) => first !== second, {
+    message: "A pair must contain two distinct candidate names.",
+  });
+
+const pairResultSchema = z
+  .object({
+    pair: pairNamesSchema,
+    pair_score: finiteNumber.min(0).max(10),
+    explanation: z.string(),
+    scenario_coverage: unitInterval.optional(),
+    complementarity: unitInterval.optional(),
+    overlap_risk: unitInterval.optional(),
+    conflict_risk: unitInterval.optional(),
+    execution_cohesion: unitInterval.optional(),
+    pair_adaptability: unitInterval.optional(),
+  })
+  .strict();
+
+function pairKey(pairResult) {
+  return [...pairResult.pair].sort().join("\u0000");
+}
+
+export const pairingResultSchema = z
+  .discriminatedUnion("status", [
+    z
+      .object({
+        status: z.literal("ok"),
+        best_pair: pairResultSchema,
+        top_pairs: z.array(pairResultSchema).min(1),
+      })
+      .strict(),
+    z
+      .object({
+        status: z.literal("unavailable"),
+        reason: nonEmptyString,
+        best_pair: z.null(),
+        top_pairs: z.tuple([]),
+      })
+      .strict(),
+  ])
+  .superRefine((result, context) => {
+    if (result.status !== "ok") return;
+
+    const seenPairs = new Set();
+    result.top_pairs.forEach((pair, index) => {
+      const key = pairKey(pair);
+      if (seenPairs.has(key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["top_pairs", index, "pair"],
+          message: "Top pairs must not contain duplicate or reversed pairs.",
+        });
+      }
+      seenPairs.add(key);
+    });
+
+    const bestPair = JSON.stringify(result.best_pair);
+    if (!result.top_pairs.some((pair) => JSON.stringify(pair) === bestPair)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["best_pair"],
+        message: "The best pair must appear in top_pairs.",
+      });
+    }
+  });
 export const runMetadataSchema = z.object({
   provider: nonEmptyString, model: nonEmptyString, logicalProviderStageCount: z.number().int().min(0).max(4),
   providerAttemptCount: z.number().int().nonnegative(), inputTokens: z.number().int().nonnegative(),

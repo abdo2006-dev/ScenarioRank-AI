@@ -23,6 +23,18 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    files: ["src/features/decision/**/*.{ts,tsx}"],
+    rules: {
+      "max-len": [
+        "error",
+        {
+          code: 180,
+          ignoreUrls: true,
+        },
+      ],
+    },
+  },
   // Backend modules (Phase 1A + Phase 1B/C/D modularization). server.mjs
   // is now a thin composition root (Phase 1D), so it's covered here too.
   {
