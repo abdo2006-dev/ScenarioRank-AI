@@ -1073,8 +1073,16 @@ Application-authored transport errors and validated SSE error messages are the
 only details preserved; raw fetch, reader, decoder, and browser errors become
 stable generic messages.
 
-Latest correction verification: 69 frontend tests and 176 backend tests pass
-(245 total), with lint, server lint, typecheck, readability, build, and syntax
+Pair transport identity is now canonicalized by sorted `candidate_id_a` /
+`candidate_id_b`, never by display name. A successful public pair includes both
+IDs and ordered display labels. Duplicate candidate names are valid when IDs
+differ; completed-response validation checks that every pair ID exists in
+`candidate_evaluations` and that each displayed name matches that ID. The
+pairing-enabled fake pipeline and both decision routes now parse completed
+responses through the shared public contract.
+
+Latest correction verification: 70 frontend tests and 185 backend tests pass
+(255 total), with lint, server lint, typecheck, readability, build, and syntax
 checks. No real OpenAI call was made. The correction did not change dependency
 versions or `package-lock.json`.
 

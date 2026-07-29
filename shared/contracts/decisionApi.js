@@ -126,15 +126,13 @@ const adaptabilityProfileSchema = z.object({
 const pipelineStageOutputSchema = z.object({
   stage_name: nonEmptyString, stage_role: nonEmptyString, inputs: z.array(z.string()), outputs: z.array(z.string()), summary: z.string(),
 }).strict();
-const pairNamesSchema = z
-  .tuple([nonEmptyString, nonEmptyString])
-  .refine(([first, second]) => first !== second, {
-    message: "A pair must contain two distinct candidate names.",
-  });
-
 const pairResultSchema = z
   .object({
-    pair: pairNamesSchema,
+    candidate_id_a: nonEmptyString,
+    candidate_id_b: nonEmptyString,
+    // Names are display labels. Different candidates may legitimately have
+    // the same name, so pair identity is deliberately based on IDs below.
+    pair: z.tuple([nonEmptyString, nonEmptyString]),
     pair_score: finiteNumber.min(0).max(10),
     explanation: z.string(),
     scenario_coverage: unitInterval.optional(),
@@ -144,10 +142,56 @@ const pairResultSchema = z
     execution_cohesion: unitInterval.optional(),
     pair_adaptability: unitInterval.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((pairResult, context) => {
+    if (pairResult.candidate_id_a === pairResult.candidate_id_b) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["candidate_id_b"],
+        message: "A pair must contain two distinct candidate IDs.",
+      });
+    }
+  });
 
 function pairKey(pairResult) {
-  return [...pairResult.pair].sort().join("\u0000");
+  return [pairResult.candidate_id_a, pairResult.candidate_id_b]
+    .sort()
+    .join("\u0000");
+}
+
+function pairResultMatches(left, right) {
+  const normalize = (pairResult) => {
+    const isReversed = pairResult.candidate_id_a > pairResult.candidate_id_b;
+    return {
+      candidate_id_a: isReversed
+        ? pairResult.candidate_id_b
+        : pairResult.candidate_id_a,
+      candidate_id_b: isReversed
+        ? pairResult.candidate_id_a
+        : pairResult.candidate_id_b,
+      pair: isReversed
+        ? [pairResult.pair[1], pairResult.pair[0]]
+        : pairResult.pair,
+    };
+  };
+  const normalizedLeft = normalize(left);
+  const normalizedRight = normalize(right);
+
+  return (
+    pairKey(left) === pairKey(right) &&
+    normalizedLeft.candidate_id_a === normalizedRight.candidate_id_a &&
+    normalizedLeft.candidate_id_b === normalizedRight.candidate_id_b &&
+    normalizedLeft.pair[0] === normalizedRight.pair[0] &&
+    normalizedLeft.pair[1] === normalizedRight.pair[1] &&
+    left.pair_score === right.pair_score &&
+    left.explanation === right.explanation &&
+    left.scenario_coverage === right.scenario_coverage &&
+    left.complementarity === right.complementarity &&
+    left.overlap_risk === right.overlap_risk &&
+    left.conflict_risk === right.conflict_risk &&
+    left.execution_cohesion === right.execution_cohesion &&
+    left.pair_adaptability === right.pair_adaptability
+  );
 }
 
 export const pairingResultSchema = z
@@ -184,8 +228,7 @@ export const pairingResultSchema = z
       seenPairs.add(key);
     });
 
-    const bestPair = JSON.stringify(result.best_pair);
-    if (!result.top_pairs.some((pair) => JSON.stringify(pair) === bestPair)) {
+    if (!result.top_pairs.some((pair) => pairResultMatches(pair, result.best_pair))) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["best_pair"],
@@ -205,7 +248,7 @@ const executiveSummarySchema = z.object({
   recommendation: z.string(), reason: z.string(), trade_off: z.string(), opportunity_cost: z.string(), adaptability: z.string(), alternative: z.string(),
 }).strict();
 
-export const completedPipelineResponseSchema = z.object({
+const completedPipelineResponseBaseSchema = z.object({
   request_id: nonEmptyString, pipeline_steps: z.array(pipelineStageSchema),
   role_analysis: z.object({ title: z.string(), key_requirements: z.array(z.string()), complexity: z.string() }).strict(),
   scenario_analysis: z.object({ scenario: z.string(), key_pressures: z.array(z.string()), weight_rationale: z.string() }).strict(),
@@ -215,3 +258,56 @@ export const completedPipelineResponseSchema = z.object({
   pipeline_stage_outputs: z.array(pipelineStageOutputSchema), executive_summary: executiveSummarySchema,
   run_metadata: runMetadataSchema,
 }).strict();
+
+function validatePairReferences(pairResult, candidatesById, path, context) {
+  [
+    [pairResult.candidate_id_a, pairResult.pair[0]],
+    [pairResult.candidate_id_b, pairResult.pair[1]],
+  ].forEach(([candidateId, displayName], index) => {
+    const candidate = candidatesById.get(candidateId);
+    if (!candidate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, index === 0 ? "candidate_id_a" : "candidate_id_b"],
+        message: "Pair candidate IDs must reference candidate evaluations.",
+      });
+      return;
+    }
+
+    if (candidate.candidate_name !== displayName) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, "pair", index],
+        message: "Each pair display name must match its candidate ID.",
+      });
+    }
+  });
+}
+
+export const completedPipelineResponseSchema =
+  completedPipelineResponseBaseSchema.superRefine((response, context) => {
+    const candidatesById = new Map(
+      response.candidate_evaluations.map((candidate) => [
+        candidate.candidate_id,
+        candidate,
+      ]),
+    );
+    const pairing = response.pairing_result;
+
+    if (pairing?.status !== "ok") return;
+
+    validatePairReferences(
+      pairing.best_pair,
+      candidatesById,
+      ["pairing_result", "best_pair"],
+      context,
+    );
+    pairing.top_pairs.forEach((pair, index) => {
+      validatePairReferences(
+        pair,
+        candidatesById,
+        ["pairing_result", "top_pairs", index],
+        context,
+      );
+    });
+  });

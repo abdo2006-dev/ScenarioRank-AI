@@ -17,6 +17,18 @@ import {
 } from "../pipeline/testSupport/fakePipelineProvider.js";
 
 let completedResponse;
+let pairedCompletedResponse;
+
+function publicPair(overrides = {}) {
+  return {
+    candidate_id_a: "candidate-a",
+    candidate_id_b: "candidate-b",
+    pair: ["Alex Smith", "Alex Smith"],
+    pair_score: 8,
+    explanation: "Evidence.",
+    ...overrides,
+  };
+}
 
 beforeAll(async () => {
   const provider = createFakePipelineProvider({
@@ -26,6 +38,22 @@ beforeAll(async () => {
     provider,
     provider.model,
     defaultInput(),
+    undefined,
+    {
+      maxCandidates: 5,
+    },
+  );
+
+  const pairedProvider = createFakePipelineProvider({
+    handlers: defaultHandlers(),
+  });
+  pairedCompletedResponse = await runPipeline(
+    pairedProvider,
+    pairedProvider.model,
+    defaultInput({
+      candidateIds: ["a", "b", "c"],
+      enablePairing: true,
+    }),
     undefined,
     {
       maxCandidates: 5,
@@ -216,11 +244,7 @@ describe("public decision API contracts", () => {
   });
 
   it("accepts a successful pairing whose best pair is in top pairs", () => {
-    const bestPair = {
-      pair: ["Alice", "Bob"],
-      pair_score: 8,
-      explanation: "Evidence.",
-    };
+    const bestPair = publicPair();
 
     expect(
       pairingResultSchema.safeParse({
@@ -232,11 +256,7 @@ describe("public decision API contracts", () => {
   });
 
   it("requires at least one successful top pair", () => {
-    const bestPair = {
-      pair: ["Alice", "Bob"],
-      pair_score: 8,
-      explanation: "Evidence.",
-    };
+    const bestPair = publicPair();
 
     expect(
       pairingResultSchema.safeParse({
@@ -247,28 +267,20 @@ describe("public decision API contracts", () => {
     ).toBe(false);
   });
 
-  it("requires two distinct names in every successful pair", () => {
-    const repeatedNamePair = {
-      pair: ["Alice", "Alice"],
-      pair_score: 8,
-      explanation: "Invalid.",
-    };
+  it("allows duplicate display names when candidate IDs differ", () => {
+    const duplicateNamePair = publicPair();
 
     expect(
       pairingResultSchema.safeParse({
         status: "ok",
-        best_pair: repeatedNamePair,
-        top_pairs: [repeatedNamePair],
+        best_pair: duplicateNamePair,
+        top_pairs: [duplicateNamePair],
       }).success,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("requires the complete best-pair result to appear in top pairs", () => {
-    const bestPair = {
-      pair: ["Alice", "Bob"],
-      pair_score: 8,
-      explanation: "Best evidence.",
-    };
+    const bestPair = publicPair({ explanation: "Best evidence." });
     const differentResult = {
       ...bestPair,
       pair_score: 7,
@@ -284,16 +296,14 @@ describe("public decision API contracts", () => {
   });
 
   it("rejects duplicate and reversed successful pairs", () => {
-    const firstPair = {
-      pair: ["Alice", "Bob"],
-      pair_score: 8,
-      explanation: "Evidence.",
-    };
-    const reversedPair = {
-      pair: ["Bob", "Alice"],
+    const firstPair = publicPair();
+    const reversedPair = publicPair({
+      candidate_id_a: "candidate-b",
+      candidate_id_b: "candidate-a",
+      pair: ["Alex Smith", "Alex Smith"],
       pair_score: 7,
       explanation: "Same combination.",
-    };
+    });
 
     for (const duplicate of [firstPair, reversedPair]) {
       expect(
@@ -318,13 +328,106 @@ describe("public decision API contracts", () => {
     expect(
       pairingResultSchema.safeParse({
         ...unavailable,
-        best_pair: {
-          pair: ["Alice", "Bob"],
-          pair_score: 8,
-          explanation: "Impossible.",
-        },
+        best_pair: publicPair({ explanation: "Impossible." }),
       }).success,
     ).toBe(false);
+  });
+
+  it("rejects the same candidate ID on both sides of a pair", () => {
+    const invalidPair = publicPair({ candidate_id_b: "candidate-a" });
+
+    expect(
+      pairingResultSchema.safeParse({
+        status: "ok",
+        best_pair: invalidPair,
+        top_pairs: [invalidPair],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires candidate IDs on every public pair result", () => {
+    const missingIds = publicPair();
+    delete missingIds.candidate_id_a;
+
+    expect(
+      pairingResultSchema.safeParse({
+        status: "ok",
+        best_pair: missingIds,
+        top_pairs: [missingIds],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("parses a real pairing-enabled pipeline result through the public contract", () => {
+    expect(pairedCompletedResponse.pairing_result.status).toBe("ok");
+    expect(
+      completedPipelineResponseSchema.parse(pairedCompletedResponse),
+    ).toEqual(pairedCompletedResponse);
+  });
+
+  it("accepts different candidates with the same display name", async () => {
+    const provider = createFakePipelineProvider({
+      handlers: defaultHandlers(),
+    });
+    const input = defaultInput({
+      candidateIds: ["candidate-a", "candidate-b", "candidate-c"],
+      enablePairing: true,
+    });
+    input.candidates[0].name = "Alex Smith";
+    input.candidates[1].name = "Alex Smith";
+    const response = await runPipeline(
+      provider,
+      provider.model,
+      input,
+      undefined,
+      { maxCandidates: 5 },
+    );
+
+    expect(response.pairing_result.status).toBe("ok");
+    expect(
+      completedPipelineResponseSchema.safeParse(response).success,
+    ).toBe(true);
+  });
+
+  it("rejects unknown pair candidate IDs in a completed response", () => {
+    const response = structuredClone(pairedCompletedResponse);
+    response.pairing_result.best_pair.candidate_id_a = "unknown";
+    response.pairing_result.top_pairs[0].candidate_id_a = "unknown";
+
+    expect(
+      completedPipelineResponseSchema.safeParse(response).success,
+    ).toBe(false);
+  });
+
+  it("rejects a pair name that does not match its candidate ID", () => {
+    const response = structuredClone(pairedCompletedResponse);
+    response.pairing_result.best_pair.pair[0] = "Wrong name";
+    response.pairing_result.top_pairs[0].pair[0] = "Wrong name";
+
+    expect(
+      completedPipelineResponseSchema.safeParse(response).success,
+    ).toBe(false);
+  });
+
+  it("accepts a reversed pair order when the name order is reversed too", () => {
+    const response = structuredClone(pairedCompletedResponse);
+    const bestPair = {
+      ...response.pairing_result.best_pair,
+      pair: [...response.pairing_result.best_pair.pair],
+    };
+    response.pairing_result.best_pair = bestPair;
+    [bestPair.candidate_id_a, bestPair.candidate_id_b] = [
+      bestPair.candidate_id_b,
+      bestPair.candidate_id_a,
+    ];
+    [bestPair.pair[0], bestPair.pair[1]] = [
+      bestPair.pair[1],
+      bestPair.pair[0],
+    ];
+
+    expect(
+      completedPipelineResponseSchema.safeParse(response).success,
+    ).toBe(true);
   });
 
   it("rejects retired output names and requires full metadata", () => {

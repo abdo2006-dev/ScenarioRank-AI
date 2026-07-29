@@ -51,7 +51,7 @@ export function ScenarioEditor({
 
         <div className="mt-3 space-y-2">
           {scenarios.map((item, index) => (
-            <div key={`${index}-${item}`} className="flex gap-2">
+            <div key={index} className="flex gap-2">
               <input
                 className={editorInputClass}
                 value={item}
@@ -84,7 +84,7 @@ export function ScenarioEditor({
         >
           {scenarios.length === 0 && <option value="">No scenarios yet</option>}
           {scenarios.map((item, index) => (
-            <option key={`${index}-${item}`} value={item}>
+            <option key={index} value={item}>
               {item || `Scenario ${index + 1}`}
             </option>
           ))}

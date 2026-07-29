@@ -278,5 +278,10 @@ terminator and discards an unterminated event at end of stream.
 The health response is a discriminated union: enabled responses require
 non-empty provider/model strings, while disabled responses require both values
 to be `null`. Decision confidence is 0–1, stage durations are nonnegative
-integers, and successful public pairing results require distinct names,
+integers, and successful public pairing results require distinct candidate IDs,
 non-empty unique `top_pairs`, and the complete `best_pair` entry in that list.
+Candidate IDs are the canonical pair identity; names are display labels, so two
+different candidates may share a name. Each completed pair reference is checked
+against `candidate_evaluations` for both ID existence and ordered name/ID
+agreement. Pairing-enabled SSE and JSON route integrations exercise this final
+transport check.

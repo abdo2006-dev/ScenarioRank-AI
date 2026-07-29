@@ -155,8 +155,12 @@ risk, and normalized pair metrics are 0–1; criterion and pair scores are 1–1
 and 0–10 respectively; aggregate scores are 0–100; logical provider stages are
 0–4; decision confidence is 0–1; stage duration is a nonnegative integer;
 tokens and estimated cost cannot be negative. A successful public pairing has
-at least one top pair, two distinct names per pair, no duplicate/reversed
-combination, and an exact best-pair result included in `top_pairs`.
+at least one top pair, two distinct candidate IDs per pair, no duplicate or
+reversed ID combination, and an exact best-pair result included in `top_pairs`.
+Candidate IDs are canonical identity; names are display labels and may be
+identical for different candidates. Completed responses cross-check every pair
+ID and ordered name against `candidate_evaluations`. Pairing-enabled streaming
+and non-streaming route tests parse the completed payload through this contract.
 
 Phase 2A adds a transport-validation checkpoint on both sides of this flow:
 malformed browser input stops at Express with a safe 400/error event; malformed

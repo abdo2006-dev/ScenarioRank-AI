@@ -36,8 +36,16 @@ The final correction records semantic, not merely structural, invariants:
 - health is a union of enabled-with-non-empty-provider/model and
   disabled-with-null-provider/model;
 - decision confidence is 0–1 and stage duration is a nonnegative integer;
-- successful pairing has non-empty `top_pairs`, distinct names, no duplicate
-  or reversed combinations, and an exact `best_pair` entry in `top_pairs`.
+- successful pairing has non-empty `top_pairs`, distinct candidate IDs, no
+  duplicate or reversed ID combinations, and an exact `best_pair` entry in
+  `top_pairs`.
+
+Candidate IDs, sorted as a pair, are the public pairing identity. `pair` names
+remain ordered display labels and can be equal when different candidates share
+a name. The completed-response schema resolves every pair ID through
+`candidate_evaluations` and rejects unknown IDs or a name that does not match
+its ordered ID. Fake-pipeline and both Express decision-route regressions parse
+pairing-enabled completed responses through the public schema.
 
 The browser's stateful parser coalesces CRLF across chunk boundaries and only
 dispatches blank-line-terminated events. Malformed JSON has fixed safe text.

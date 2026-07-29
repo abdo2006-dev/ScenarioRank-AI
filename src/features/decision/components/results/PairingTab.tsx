@@ -1,6 +1,12 @@
 import { Badge, Card } from "../ui";
 import type { PairingResult } from "./types";
 
+type SuccessfulPairing = Extract<PairingResult, { status: "ok" }>;
+
+function pairIdentity(pair: SuccessfulPairing["best_pair"]) {
+  return [pair.candidate_id_a, pair.candidate_id_b].sort().join("-");
+}
+
 export function PairingTab({ pairing }: { pairing: PairingResult }) {
   if (pairing.status === "unavailable") {
     return (
@@ -41,7 +47,7 @@ export function PairingTab({ pairing }: { pairing: PairingResult }) {
             Other Pairs Evaluated
           </h3>
           {pairing.top_pairs.slice(1).map((pair) => (
-            <div key={pair.pair.join("+")} className="mb-3">
+            <div key={pairIdentity(pair)} className="mb-3">
               <b className="text-sm">
                 {pair.pair[0]} + {pair.pair[1]}
               </b>

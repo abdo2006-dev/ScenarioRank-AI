@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createApp } from "./app.js";
 import { createFakePipelineProvider, defaultHandlers, defaultInput } from "../pipeline/testSupport/fakePipelineProvider.js";
+import { completedPipelineResponseSchema } from "../../shared/contracts/decisionApi.js";
 
 const DEFAULT_TEST_DEPS = { maxCandidates: 5 };
 
@@ -139,6 +140,27 @@ describe("POST /api/decision/stream", () => {
     expect(events[0].event).toBe("error");
     expect(events[0].data.message).toMatch(/AI pipeline is unavailable/);
   });
+
+  it("completes a pairing-enabled stream with public pair candidate IDs", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    activeServer = await startServer({ provider, aiEnabled: true });
+    const port = activeServer.address().port;
+
+    const res = await fetch(`http://localhost:${port}/api/decision/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(defaultInput({ candidateIds: ["a", "b", "c"], enablePairing: true })),
+    });
+    const events = parseSseEvents(await res.text());
+    const complete = events.at(-1);
+
+    expect(events.some((event) => event.event === "stage_update")).toBe(true);
+    expect(events.some((event) => event.event === "error")).toBe(false);
+    expect(complete.event).toBe("complete");
+    expect(completedPipelineResponseSchema.safeParse(complete.data).success).toBe(true);
+    expect(complete.data.pairing_result.best_pair.candidate_id_a).toBeTruthy();
+    expect(complete.data.pairing_result.best_pair.candidate_id_b).toBeTruthy();
+  });
 });
 
 describe("POST /api/decision (non-streaming)", () => {
@@ -181,5 +203,24 @@ describe("POST /api/decision (non-streaming)", () => {
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.error).toMatch(/AI pipeline is unavailable/);
+  });
+
+  it("returns a valid pairing-enabled response with candidate IDs", async () => {
+    const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
+    activeServer = await startServer({ provider, aiEnabled: true });
+    const port = activeServer.address().port;
+
+    const res = await fetch(`http://localhost:${port}/api/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(defaultInput({ candidateIds: ["a", "b", "c"], enablePairing: true })),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(completedPipelineResponseSchema.safeParse(body).success).toBe(true);
+    expect(body.pairing_result.status).toBe("ok");
+    expect(body.pairing_result.best_pair.candidate_id_a).toBeTruthy();
+    expect(body.pairing_result.best_pair.candidate_id_b).toBeTruthy();
   });
 });
