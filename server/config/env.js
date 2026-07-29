@@ -22,6 +22,7 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { REASONING_EFFORT_VALUES } from "../ai/providers/openaiProvider.js";
+import { DECISION_INPUT_LIMITS, DEFAULT_RUNTIME_MAX_CANDIDATES } from "../../shared/contracts/decisionInputLimits.js";
 
 function parseEnvFile(path) {
   const result = {};
@@ -106,9 +107,9 @@ export function resolveStartupAiStatus({ env = process.env, nodeEnv = env.NODE_E
 
 // ===== CANDIDATE-COUNT SAFEGUARD =====
 
-export const DEFAULT_AI_MAX_CANDIDATES = 5;
-export const MIN_AI_MAX_CANDIDATES = 2; // matches the existing "2+ candidates" input requirement
-export const MAX_AI_MAX_CANDIDATES = 10; // hard technical ceiling — see docs/PROJECT_STATUS.md for why 5 is the default
+export const DEFAULT_AI_MAX_CANDIDATES = DEFAULT_RUNTIME_MAX_CANDIDATES;
+export const MIN_AI_MAX_CANDIDATES = DECISION_INPUT_LIMITS.candidates.min;
+export const MAX_AI_MAX_CANDIDATES = DECISION_INPUT_LIMITS.candidates.max;
 
 /**
  * Resolves AI_MAX_CANDIDATES — the most candidates a single evaluation run

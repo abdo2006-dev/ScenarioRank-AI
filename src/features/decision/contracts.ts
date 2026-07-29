@@ -6,8 +6,10 @@ import {
   pipelineStageProgressEventSchema,
   scenarioGenerationRequestSchema,
   scenarioGenerationResponseSchema,
+  scenarioInputSchema,
   sseErrorEventSchema,
 } from "../../../shared/contracts/decisionApi.js";
+import { DECISION_INPUT_LIMITS } from "../../../shared/contracts/decisionInputLimits.js";
 
 export {
   completedPipelineResponseSchema,
@@ -16,7 +18,9 @@ export {
   pipelineStageProgressEventSchema,
   scenarioGenerationRequestSchema,
   scenarioGenerationResponseSchema,
+  scenarioInputSchema,
   sseErrorEventSchema,
+  DECISION_INPUT_LIMITS,
 };
 
 export type EvaluationRequest = z.infer<typeof evaluationRequestSchema>;

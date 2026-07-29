@@ -6,6 +6,7 @@
  * server/ai/schemas where it is validated before deterministic computation.
  */
 import { z } from "zod";
+import { DECISION_INPUT_LIMITS } from "./decisionInputLimits.js";
 
 const nonEmptyString = z.string().trim().min(1);
 const finiteNumber = z.number().finite();
@@ -21,6 +22,35 @@ export const safeErrorSchema = z
   .strict();
 export const sseErrorEventSchema = z.object({ message: nonEmptyString }).strict();
 
+const trimmedText = (limits, requiredMessage, maximumMessage) =>
+  z.string().trim().min(limits.min, requiredMessage).max(limits.max, maximumMessage);
+
+export const roleTitleSchema = trimmedText(
+  DECISION_INPUT_LIMITS.roleTitle,
+  "Enter a role title.",
+  `Role title must be ${DECISION_INPUT_LIMITS.roleTitle.max} characters or fewer.`,
+);
+export const roleDescriptionSchema = trimmedText(
+  DECISION_INPUT_LIMITS.roleDescription,
+  "Enter a role description.",
+  `Role description must be ${DECISION_INPUT_LIMITS.roleDescription.max} characters or fewer.`,
+);
+export const scenarioInputSchema = trimmedText(
+  DECISION_INPUT_LIMITS.scenario,
+  "Enter a scenario.",
+  `Scenario must be ${DECISION_INPUT_LIMITS.scenario.max} characters or fewer.`,
+);
+export const candidateNameSchema = trimmedText(
+  DECISION_INPUT_LIMITS.candidateName,
+  "Enter a candidate name.",
+  `Candidate name must be ${DECISION_INPUT_LIMITS.candidateName.max} characters or fewer.`,
+);
+export const candidateDescriptionSchema = trimmedText(
+  DECISION_INPUT_LIMITS.candidateDescription,
+  "Candidate description is required.",
+  `Candidate description must be ${DECISION_INPUT_LIMITS.candidateDescription.max} characters or fewer.`,
+);
+
 export const healthResponseSchema = z.discriminatedUnion("ai_enabled", [
   z
     .object({
@@ -28,6 +58,15 @@ export const healthResponseSchema = z.discriminatedUnion("ai_enabled", [
       ai_enabled: z.literal(true),
       ai_provider: nonEmptyString,
       ai_model: nonEmptyString,
+      limits: z.object({
+        max_candidates: z.number().int().min(DECISION_INPUT_LIMITS.candidates.min).max(DECISION_INPUT_LIMITS.candidates.max),
+        max_scenarios: z.literal(DECISION_INPUT_LIMITS.scenarios.max),
+        role_title_max_chars: z.literal(DECISION_INPUT_LIMITS.roleTitle.max),
+        role_description_max_chars: z.literal(DECISION_INPUT_LIMITS.roleDescription.max),
+        scenario_max_chars: z.literal(DECISION_INPUT_LIMITS.scenario.max),
+        candidate_name_max_chars: z.literal(DECISION_INPUT_LIMITS.candidateName.max),
+        candidate_description_max_chars: z.literal(DECISION_INPUT_LIMITS.candidateDescription.max),
+      }).strict(),
     })
     .strict(),
   z
@@ -36,32 +75,43 @@ export const healthResponseSchema = z.discriminatedUnion("ai_enabled", [
       ai_enabled: z.literal(false),
       ai_provider: z.null(),
       ai_model: z.null(),
+      limits: z.object({
+        max_candidates: z.number().int().min(DECISION_INPUT_LIMITS.candidates.min).max(DECISION_INPUT_LIMITS.candidates.max),
+        max_scenarios: z.literal(DECISION_INPUT_LIMITS.scenarios.max),
+        role_title_max_chars: z.literal(DECISION_INPUT_LIMITS.roleTitle.max),
+        role_description_max_chars: z.literal(DECISION_INPUT_LIMITS.roleDescription.max),
+        scenario_max_chars: z.literal(DECISION_INPUT_LIMITS.scenario.max),
+        candidate_name_max_chars: z.literal(DECISION_INPUT_LIMITS.candidateName.max),
+        candidate_description_max_chars: z.literal(DECISION_INPUT_LIMITS.candidateDescription.max),
+      }).strict(),
     })
     .strict(),
 ]);
 
 export const scenarioGenerationRequestSchema = z.object({
-  title: nonEmptyString,
-  description: nonEmptyString,
+  title: roleTitleSchema,
+  description: roleDescriptionSchema,
 }).strict();
 
 export const scenarioGenerationResponseSchema = z.object({
-  scenarios: z.array(nonEmptyString).min(1).max(5),
+  scenarios: z.array(nonEmptyString)
+    .min(DECISION_INPUT_LIMITS.scenarios.min)
+    .max(DECISION_INPUT_LIMITS.scenarios.max),
   source: z.enum(["ai", "fallback"]),
   note: z.string().optional(),
 }).strict();
 
 export const candidateInputSchema = z.object({
   id: nonEmptyString,
-  name: nonEmptyString,
-  description: nonEmptyString,
+  name: candidateNameSchema,
+  description: candidateDescriptionSchema,
 }).strict();
 
 export const evaluationRequestSchema = z.object({
-  role: z.object({ title: nonEmptyString, description: nonEmptyString }).strict(),
-  scenario: nonEmptyString,
+  role: z.object({ title: roleTitleSchema, description: roleDescriptionSchema }).strict(),
+  scenario: scenarioInputSchema,
   decision_mode: z.enum(["best_fit", "lowest_risk", "best_outcome"]),
-  candidates: z.array(candidateInputSchema).min(2).superRefine((candidates, context) => {
+  candidates: z.array(candidateInputSchema).min(DECISION_INPUT_LIMITS.candidates.min, "Add at least two candidates.").max(DECISION_INPUT_LIMITS.candidates.max, `Add at most ${DECISION_INPUT_LIMITS.candidates.max} candidates.`).superRefine((candidates, context) => {
     const ids = new Set();
     candidates.forEach((candidate, index) => {
       if (ids.has(candidate.id)) context.addIssue({ code: z.ZodIssueCode.custom, path: [index, "id"], message: "Candidate IDs must be unique." });
