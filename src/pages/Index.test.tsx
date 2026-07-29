@@ -1,44 +1,29 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { DecisionResults as Results } from "@/features/decision/components/DecisionResults";
-import { EvaluationForm as EvalForm } from "@/features/decision/components/EvaluationForm";
+import { DecisionResults as Results } from "@/features/decision/components/results/DecisionResults";
+import { EvaluationForm as EvalForm } from "@/features/decision/components/evaluation/EvaluationForm";
 import { BACKEND_URL } from "@/lib/backendUrl";
-import { completedPipelineResponseSchema } from "@/features/decision/contracts";
 import type { PipelineResponse } from "@/features/decision/contracts";
+import {
+  pipelineResponseFixture,
+  successfulPairingFixture,
+  unavailablePairingFixture,
+} from "@/features/decision/test/fixtures";
 
 /** Adaptability profiles and confidence/evidence flags render under the "analysis" tab, not the default "overview" tab. */
 function openAnalysisTab() {
-  fireEvent.click(screen.getByRole("button", { name: "analysis" }));
+  fireEvent.click(screen.getByRole("button", { name: /analysis/i }));
 }
 
-function buildResponse(overrides: Record<string, unknown> = {}): PipelineResponse {
-  return completedPipelineResponseSchema.parse({
-    request_id: "test-request",
-    pipeline_steps: [],
-    role_analysis: { title: "VP", key_requirements: ["domain_expertise"], complexity: "high" },
-    scenario_analysis: { scenario: "Post-merger integration", key_pressures: ["Speed"], weight_rationale: "Rationale text." },
-    candidate_evaluations: [
-      {
-        candidate_id: "a", candidate_name: "Alice", rank: 1, weighted_fit_score: 82, risk_adjusted_score: 70,
-        expected_outcome_score: 78, overall_confidence: 0.84, strategic_labels: ["Balanced Performer"],
-        criteria_scores: {}, strengths: ["Strong trust"], weaknesses: ["Limited digital"],
-        risk_profile: { execution_risk: 0.2, culture_risk: 0.1, time_risk: 0.15, adaptability_risk: 0.3, confidence_risk: 0.16, opportunity_cost_risk: 0.2 },
-        outcome_model: { expected_execution_success: 0.8, scenario_fit: 0.82, adaptability_score: 0.7, likely_outcome: "Solid results.", strategic_label: "Balanced Performer", cross_scenario_consistency: "not_measured" },
-      },
-    ],
-    confidence_evidence_reviews: [], outcome_models: [],
+function buildResponse(
+  overrides: Partial<PipelineResponse> = {},
+): PipelineResponse {
+  const base = pipelineResponseFixture();
+  return pipelineResponseFixture({
     decision_result: {
-      recommended_candidate_id: "a", recommended_candidate_name: "Alice", decision_mode: "best_fit",
-      scenario: "Post-merger integration", final_label: "Best Fit", key_reason: "Highest weighted fit score.",
-      overall_confidence: 0.84, executive_interpretation: "Alice is the recommended candidate.",
+      ...base.decision_result,
+      key_reason: "Highest weighted fit score.",
     },
-    trade_offs: [],
-    adaptability_profiles: [
-      { candidate_name: "Alice", adaptability_score: 0.7, best_scenario: "not_measured", worst_scenario: "not_measured", resilience_note: "Shows strong adaptability.", cross_scenario_consistency: "not_measured" },
-    ],
-    pipeline_stage_outputs: [],
-    executive_summary: { recommendation: "Alice recommended.", reason: "Highest score.", trade_off: "", opportunity_cost: "", adaptability: "", alternative: "" },
-    run_metadata: { provider: "openai", model: "gpt-5-mini", logicalProviderStageCount: 3, providerAttemptCount: 3, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0, estimatedCostUsd: null, promptVersions: {}, schemaVersions: {}, attempts: {}, startedAt: "", completedAt: "" },
     ...overrides,
   });
 }
@@ -46,7 +31,7 @@ function buildResponse(overrides: Record<string, unknown> = {}): PipelineRespons
 describe("Results — rendering a completed decision result", () => {
   it("shows the recommended candidate and key reason", () => {
     render(<Results response={buildResponse()} />);
-    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getAllByText("Alice").length).toBeGreaterThan(0);
     expect(screen.getByText("Highest weighted fit score.")).toBeInTheDocument();
   });
 });
@@ -115,16 +100,12 @@ describe("Results — confidence/evidence wording, not bias-detection wording", 
 describe("Results — no unsupported cross-scenario claims (docs/architecture/KNOWN_LIMITATIONS.md P0.2)", () => {
   it("never renders fabricated cross-scenario phrases anywhere in the response", () => {
     const response = buildResponse({
-      pairing_result: {
-        status: "ok",
-        best_pair: { pair: ["Alice", "Bob"], pair_score: 8.4, explanation: "Strong complementary skill sets." },
-        top_pairs: [],
-      },
+      pairing_result: successfulPairingFixture(),
     });
     render(<Results response={response} />);
     openAnalysisTab();
-    fireEvent.click(screen.getByRole("button", { name: "pairing" }));
-    fireEvent.click(screen.getByRole("button", { name: "pipeline" }));
+    fireEvent.click(screen.getByRole("button", { name: /pairing/i }));
+    fireEvent.click(screen.getByRole("button", { name: /pipeline/i }));
 
     const forbiddenPhrases = [
       /rapid crisis\/pivot scenario/i,
@@ -141,14 +122,10 @@ describe("Results — no unsupported cross-scenario claims (docs/architecture/KN
 describe("Results — pairing tab reflects honest pairing state, never a fabricated pair", () => {
   it("shows the best pair and its metrics when pairing succeeded", () => {
     const response = buildResponse({
-      pairing_result: {
-        status: "ok",
-        best_pair: { pair: ["Alice", "Bob"], pair_score: 8.4, explanation: "Strong complementary skill sets." },
-        top_pairs: [],
-      },
+      pairing_result: successfulPairingFixture(),
     });
     render(<Results response={response} />);
-    fireEvent.click(screen.getByRole("button", { name: "pairing" }));
+    fireEvent.click(screen.getByRole("button", { name: /pairing/i }));
     expect(screen.getByText("Best Leadership Pair")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
     expect(screen.getByText("Strong complementary skill sets.")).toBeInTheDocument();
@@ -156,10 +133,13 @@ describe("Results — pairing tab reflects honest pairing state, never a fabrica
 
   it("shows an honest unavailable message, with no fabricated pair, when every pair evaluation failed", () => {
     const response = buildResponse({
-      pairing_result: { status: "unavailable", reason: "All pair evaluations failed.", best_pair: null, top_pairs: [] },
+      pairing_result: {
+        ...unavailablePairingFixture(),
+        reason: "All pair evaluations failed.",
+      },
     });
     render(<Results response={response} />);
-    fireEvent.click(screen.getByRole("button", { name: "pairing" }));
+    fireEvent.click(screen.getByRole("button", { name: /pairing/i }));
 
     expect(screen.getByText("Pairing Unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Default pair.")).not.toBeInTheDocument();
@@ -168,7 +148,9 @@ describe("Results — pairing tab reflects honest pairing state, never a fabrica
 
   it("does not show a pairing tab at all when pairing_result is absent", () => {
     render(<Results response={buildResponse()} />);
-    expect(screen.queryByRole("button", { name: "pairing" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /pairing/i }),
+    ).not.toBeInTheDocument();
   });
 });
 
