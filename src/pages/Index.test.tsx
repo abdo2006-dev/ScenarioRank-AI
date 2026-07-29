@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { Results, EvalForm } from "./Index";
+import { Results, EvalForm } from "@/features/decision/components/DecisionViews";
 import { BACKEND_URL } from "@/lib/backendUrl";
 
 /** Adaptability profiles and confidence/evidence flags render under the "analysis" tab, not the default "overview" tab. */
