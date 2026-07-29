@@ -1046,3 +1046,10 @@ removed. `npm run typecheck` is available. Node/Express is retained by
 ADR-0006; Phase 3 reliability/evaluation work has not started. The next
 milestone is **Phase 2B: application-level input validation, frontend
 accessibility review, and remaining maintainability cleanup**.
+
+Phase 2A correction round: the former `DecisionViews.tsx` monolith was split
+into `DecisionScreen`, `Landing`, `EvaluationForm`, `PipelineProgress`,
+`DecisionResults`, and shared display primitives. The feature now has focused
+API and hook tests; malformed SSE JSON and scenario-provider errors become
+safe public messages. Public response schemas enforce documented score,
+confidence, metadata, and cost ranges. Phase 2B and Phase 3 remain unstarted.

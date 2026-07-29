@@ -30,3 +30,8 @@ OpenAPI document remains possible if external consumers arrive.
 
 Invalid responses become safe errors rather than partially-rendered data.
 Schema changes now require a deliberate browser/server compatibility review.
+
+The correction round also records public numeric invariants (rather than every
+finite number) and treats malformed SSE JSON as a transport error with a fixed
+safe public message. Provider failure text is never used as a scenario fallback
+note.
