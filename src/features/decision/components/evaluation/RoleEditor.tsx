@@ -30,8 +30,10 @@ export function RoleEditor(props: RoleEditorProps) {
   return (
     <Card>
       <fieldset className="space-y-3" aria-busy={isGeneratingScenarios}>
+        <legend className="text-xs font-semibold uppercase tracking-widest text-white/50">
+          Role
+        </legend>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <legend className="text-xs font-semibold uppercase tracking-widest text-white/50">Role</legend>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onGenerateScenarios} disabled={generationDisabled}
               className={`rounded-lg bg-blue-400/15 px-3 py-1.5 text-xs font-semibold text-blue-300 disabled:opacity-40 ${editorButtonFocusClass}`}>

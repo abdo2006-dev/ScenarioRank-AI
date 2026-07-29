@@ -66,7 +66,7 @@ describe("/health", () => {
     activeServer = await startServer({ provider, aiEnabled: true });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/health`);
+    const res = await fetch(`http://127.0.0.1:${port}/health`);
     const body = await res.json();
 
     expect(body).toMatchObject({ status: "ok", ai_enabled: true, ai_provider: "fake", ai_model: "fake-model" });
@@ -78,7 +78,7 @@ describe("/health", () => {
     activeServer = await startServer({ provider: null, aiEnabled: false });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/health`);
+    const res = await fetch(`http://127.0.0.1:${port}/health`);
     expect(await res.json()).toMatchObject({ status: "ok", ai_enabled: false, ai_provider: null, ai_model: null, limits: { max_candidates: 5 } });
   });
 });
@@ -89,7 +89,7 @@ describe("POST /api/decision/stream", () => {
     activeServer = await startServer({ provider, aiEnabled: true });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision/stream`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(defaultInput()),
@@ -114,7 +114,7 @@ describe("POST /api/decision/stream", () => {
     activeServer = await startServer({ provider: createFakePipelineProvider({ handlers: defaultHandlers() }), aiEnabled: true });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision/stream`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scenario: "x" }), // missing role, candidates
@@ -129,7 +129,7 @@ describe("POST /api/decision/stream", () => {
     activeServer = await startServer({ provider: createFakePipelineProvider({ handlers: defaultHandlers() }), aiEnabled: true, maxCandidates: 2 });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision/stream`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision/stream`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(defaultInput({ candidateIds: ["a", "b", "c"] })),
     });
@@ -148,7 +148,7 @@ describe("POST /api/decision/stream", () => {
 
     const start = Date.now();
     const res = await Promise.race([
-      fetch(`http://localhost:${port}/api/decision/stream`, {
+      fetch(`http://127.0.0.1:${port}/api/decision/stream`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(defaultInput()),
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error("test timeout — response hung")), 5000)),
@@ -163,7 +163,7 @@ describe("POST /api/decision/stream", () => {
     activeServer = await startServer({ provider: null, aiEnabled: false });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision/stream`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision/stream`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(defaultInput()),
     });
     const events = parseSseEvents(await res.text());
@@ -177,7 +177,7 @@ describe("POST /api/decision/stream", () => {
     activeServer = await startServer({ provider, aiEnabled: true });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision/stream`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(defaultInput({ candidateIds: ["a", "b", "c"], enablePairing: true })),
@@ -200,7 +200,7 @@ describe("POST /api/decision (non-streaming)", () => {
     activeServer = await startServer({ provider, aiEnabled: true });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(defaultInput()),
     });
     const body = await res.json();
@@ -215,7 +215,7 @@ describe("POST /api/decision (non-streaming)", () => {
     activeServer = await startServer({ provider, aiEnabled: true, maxCandidates: 2 });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(defaultInput({ candidateIds: ["a", "b", "c"] })),
     });
@@ -236,7 +236,7 @@ describe("POST /api/decision (non-streaming)", () => {
     input.role.title = tooLongTitle;
     input.candidates[0].description = "   ";
 
-    const response = await fetch(`http://localhost:${port}/api/decision`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/decision`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
@@ -251,7 +251,7 @@ describe("POST /api/decision (non-streaming)", () => {
     activeServer = await startServer({ provider: null, aiEnabled: false });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(defaultInput()),
     });
     expect(res.status).toBe(503);
@@ -264,7 +264,7 @@ describe("POST /api/decision (non-streaming)", () => {
     activeServer = await startServer({ provider, aiEnabled: true });
     const port = activeServer.address().port;
 
-    const res = await fetch(`http://localhost:${port}/api/decision`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(defaultInput({ candidateIds: ["a", "b", "c"], enablePairing: true })),

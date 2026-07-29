@@ -32,19 +32,22 @@ export function ScenarioEditor(props: ScenarioEditorProps) {
 
   return <>
     <Card>
-      <fieldset>
+      <fieldset id="scenario-count" tabIndex={-1}
+        aria-describedby={countError ? "scenario-count-error" : undefined}
+        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
+        <legend className="text-xs font-semibold uppercase tracking-widest text-white/50">
+          Scenarios ({scenarios.length} / {DECISION_INPUT_LIMITS.scenarios.max})
+        </legend>
         <div className="flex items-center justify-between">
-          <legend id="scenario-count" className="text-xs font-semibold uppercase tracking-widest text-white/50">
-            Scenarios ({scenarios.length} / {DECISION_INPUT_LIMITS.scenarios.max})
-          </legend>
           <button type="button" disabled={scenarios.length >= DECISION_INPUT_LIMITS.scenarios.max}
-            title={scenarios.length >= DECISION_INPUT_LIMITS.scenarios.max ? `A maximum of ${DECISION_INPUT_LIMITS.scenarios.max} scenarios is allowed.` : undefined}
+            aria-describedby={scenarios.length >= DECISION_INPUT_LIMITS.scenarios.max ? "scenario-limit-help" : undefined}
             onClick={() => setScenarios([...scenarios, ""])}
             className={`text-xs text-amber-400 disabled:cursor-not-allowed disabled:opacity-50 ${editorButtonFocusClass}`}>
             + Add Scenario
           </button>
         </div>
-        {countError && <p className="mt-1 text-xs text-red-300">{countError.message}</p>}
+        {scenarios.length >= DECISION_INPUT_LIMITS.scenarios.max && <p id="scenario-limit-help" className="mt-1 text-xs text-white/50">Maximum scenario limit reached.</p>}
+        {countError && <p id="scenario-count-error" className="mt-1 text-xs text-red-300">{countError.message}</p>}
         <div className="mt-3 space-y-2">
           {scenarios.map((item, index) => {
             const fieldId = `scenario-${index}`;

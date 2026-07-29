@@ -35,15 +35,17 @@ export function CandidateEditor(props: CandidateEditorProps) {
 
   return (
     <Card>
-      <fieldset>
+      <fieldset id="candidate-count" tabIndex={-1}
+        aria-describedby={countError ? "candidate-count-error" : undefined}
+        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">
+        <legend className="text-xs font-semibold uppercase tracking-widest text-white/50">
+          Candidates ({candidates.length} / {maxCandidates})
+        </legend>
         <div className="flex items-center justify-between">
-          <legend id="candidate-count" className="text-xs font-semibold uppercase tracking-widest text-white/50">
-            Candidates ({candidates.length} / {maxCandidates})
-          </legend>
           <button
             type="button"
             disabled={!canAdd}
-            title={!canAdd ? `You can evaluate at most ${maxCandidates} candidates in this environment.` : undefined}
+            aria-describedby={!canAdd ? "candidate-limit-help" : undefined}
             onClick={() => setCandidates([...candidates, { id: createCandidateId(), name: "", description: "" }])}
             className={`text-xs text-amber-400 disabled:cursor-not-allowed disabled:opacity-50 ${editorButtonFocusClass}`}
           >
@@ -51,7 +53,8 @@ export function CandidateEditor(props: CandidateEditorProps) {
           </button>
         </div>
         <p className="mt-1 text-xs text-white/50">At least {DECISION_INPUT_LIMITS.candidates.min} candidates are required.</p>
-        {countError && <p className="mt-1 text-xs text-red-300">{countError.message}</p>}
+        {!canAdd && <p id="candidate-limit-help" className="mt-1 text-xs text-white/50">Maximum candidate limit reached for this environment.</p>}
+        {countError && <p id="candidate-count-error" className="mt-1 text-xs text-red-300">{countError.message}</p>}
         <div className="mt-3 space-y-3">
           {candidates.map((candidate, index) => {
             const nameId = `candidate-${candidate.id}-name`;
