@@ -11,6 +11,12 @@ The baseline is a small two-process web application:
 
 It is best described as an **LLM-assisted sequential decision pipeline with deterministic scoring**, not as a fully autonomous multi-agent system, and (since Phase 1B) as **provider-neutral** — the pipeline calls an `AIProvider` interface, never a specific vendor's SDK directly, even though there is currently exactly one supported provider. Groq and Gemini were real, tested integrations from an earlier phase, removed after a live end-to-end test showed neither could reliably complete a full run on its free tier — see [`docs/decisions/ADR-0004-single-openai-provider.md`](../decisions/ADR-0004-single-openai-provider.md).
 
+Phase 2B-1 adds a shared public-input boundary: `decisionInputLimits.js` owns
+technical maxima and minima, `/health` publishes only safe frontend limits, and
+the browser maps the shared Zod request schema to field-level validation before
+opening an SSE evaluation. The resolved `AI_MAX_CANDIDATES` value remains a
+server-owned runtime cap and can be lower than the technical ceiling.
+
 ## Component diagram
 
 ```mermaid

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EvaluationRequest } from "../contracts";
+import { DECISION_INPUT_LIMITS } from "../contracts";
 import { pipelineResponseFixture } from "../test/fixtures";
 import {
   generateScenarios,
@@ -83,6 +84,11 @@ describe("getAiEnabled", () => {
         ai_enabled: true,
         ai_provider: "openai",
         ai_model: "gpt-5-mini",
+        limits: {
+          max_candidates: 5, max_scenarios: 5, role_title_max_chars: 120,
+          role_description_max_chars: 4000, scenario_max_chars: 2000,
+          candidate_name_max_chars: 120, candidate_description_max_chars: 4000,
+        },
       }),
     );
 
@@ -96,6 +102,11 @@ describe("getAiEnabled", () => {
         ai_enabled: false,
         ai_provider: null,
         ai_model: null,
+        limits: {
+          max_candidates: 5, max_scenarios: 5, role_title_max_chars: 120,
+          role_description_max_chars: 4000, scenario_max_chars: 2000,
+          candidate_name_max_chars: 120, candidate_description_max_chars: 4000,
+        },
       }),
     );
 
@@ -177,7 +188,7 @@ describe("generateScenarios", () => {
   it("rejects an invalid scenario response contract", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
-        scenarios: [],
+        scenarios: ["s".repeat(DECISION_INPUT_LIMITS.scenario.max + 1)],
         source: "ai",
       }),
     );

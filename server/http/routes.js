@@ -16,6 +16,7 @@ import {
   sseErrorEventSchema,
   pipelineStageProgressEventSchema,
 } from "../../shared/contracts/decisionApi.js";
+import { DECISION_INPUT_LIMITS } from "../../shared/contracts/decisionInputLimits.js";
 
 // FIX (kept from the pre-migration implementation): both /api/decision and
 // /api/decision/stream race the pipeline against this timeout so a stalled
@@ -43,13 +44,22 @@ export function registerRoutes(app, { provider, aiEnabled, maxCandidates }) {
       ai_enabled: aiEnabled,
       ai_provider: aiEnabled ? provider?.name ?? null : null,
       ai_model: aiEnabled ? provider?.model ?? null : null,
+      limits: {
+        max_candidates: maxCandidates,
+        max_scenarios: DECISION_INPUT_LIMITS.scenarios.max,
+        role_title_max_chars: DECISION_INPUT_LIMITS.roleTitle.max,
+        role_description_max_chars: DECISION_INPUT_LIMITS.roleDescription.max,
+        scenario_max_chars: DECISION_INPUT_LIMITS.scenario.max,
+        candidate_name_max_chars: DECISION_INPUT_LIMITS.candidateName.max,
+        candidate_description_max_chars: DECISION_INPUT_LIMITS.candidateDescription.max,
+      },
     }));
   });
 
   app.post("/api/scenarios", async (req, res) => {
     const parsed = scenarioGenerationRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json(safeErrorSchema.parse({ error: "Role title and description are required." }));
+      return res.status(400).json(safeErrorSchema.parse({ error: "Invalid scenario request." }));
     }
     const result = await generateScenarios(aiEnabled ? provider : null, parsed.data.title, parsed.data.description);
     return res.json(scenarioGenerationResponseSchema.parse(result));
@@ -59,9 +69,7 @@ export function registerRoutes(app, { provider, aiEnabled, maxCandidates }) {
     const parsed = evaluationRequestSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json(safeErrorSchema.parse({ error: "Invalid evaluation request." }));
     const input = parsed.data;
-    if (input.candidates.length > maxCandidates) {
-      return res.status(400).json(safeErrorSchema.parse({ error: `At most ${maxCandidates} candidates are supported per evaluation (AI_MAX_CANDIDATES=${maxCandidates}).` }));
-    }
+    if (input.candidates.length > maxCandidates) return res.status(400).json(safeErrorSchema.parse({ error: `You can evaluate at most ${maxCandidates} candidates in this environment.` }));
     if (!aiEnabled) return res.status(503).json(safeErrorSchema.parse({ error: "AI pipeline is unavailable: the OpenAI provider is not ready. Check server configuration." }));
 
     try {
@@ -96,14 +104,14 @@ export function registerRoutes(app, { provider, aiEnabled, maxCandidates }) {
 
     const parsed = evaluationRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-      send("error", sseErrorEventSchema.parse({ message: "Invalid request: role.title, scenario, decision mode, and two unique candidate profiles are required." }));
+      send("error", sseErrorEventSchema.parse({ message: "Invalid evaluation request." }));
       clearInterval(heartbeat);
       res.end();
       return;
     }
     const input = parsed.data;
     if (input.candidates.length > maxCandidates) {
-      send("error", sseErrorEventSchema.parse({ message: `At most ${maxCandidates} candidates are supported per evaluation (AI_MAX_CANDIDATES=${maxCandidates}).` }));
+      send("error", sseErrorEventSchema.parse({ message: `You can evaluate at most ${maxCandidates} candidates in this environment.` }));
       clearInterval(heartbeat);
       res.end();
       return;

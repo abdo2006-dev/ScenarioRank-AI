@@ -9,6 +9,7 @@ import {
   scenarioGenerationRequestSchema,
   scenarioGenerationResponseSchema,
 } from "../../shared/contracts/decisionApi.js";
+import { DECISION_INPUT_LIMITS } from "../../shared/contracts/decisionInputLimits.js";
 import { runPipeline } from "../pipeline/runPipeline.js";
 import {
   createFakePipelineProvider,
@@ -69,6 +70,7 @@ describe("public decision API contracts", () => {
         ai_enabled: true,
         ai_provider: "openai",
         ai_model: "gpt-5-mini",
+        limits: { max_candidates: 5, max_scenarios: 5, role_title_max_chars: 120, role_description_max_chars: 4000, scenario_max_chars: 2000, candidate_name_max_chars: 120, candidate_description_max_chars: 4000 },
       }).success,
     ).toBe(true);
   });
@@ -80,6 +82,7 @@ describe("public decision API contracts", () => {
         ai_enabled: false,
         ai_provider: null,
         ai_model: null,
+        limits: { max_candidates: 5, max_scenarios: 5, role_title_max_chars: 120, role_description_max_chars: 4000, scenario_max_chars: 2000, candidate_name_max_chars: 120, candidate_description_max_chars: 4000 },
       }).success,
     ).toBe(true);
   });
@@ -106,19 +109,64 @@ describe("public decision API contracts", () => {
     ).toBe(false);
   });
 
-  it("validates scenario request and response boundaries", () => {
+  it("validates scenario-generation requests", () => {
     expect(
       scenarioGenerationRequestSchema.safeParse({
         title: "VP",
         description: "Leads strategy.",
       }).success,
     ).toBe(true);
-    expect(
-      scenarioGenerationResponseSchema.safeParse({
-        scenarios: [],
-        source: "ai",
-      }).success,
-    ).toBe(false);
+  });
+
+  it("accepts a generated scenario at the shared maximum", () => {
+    expect(scenarioGenerationResponseSchema.safeParse({
+      scenarios: ["s".repeat(DECISION_INPUT_LIMITS.scenario.max)],
+      source: "ai",
+    }).success).toBe(true);
+  });
+
+  it("rejects a generated scenario above the shared maximum", () => {
+    expect(scenarioGenerationResponseSchema.safeParse({
+      scenarios: ["s".repeat(DECISION_INPUT_LIMITS.scenario.max + 1)],
+      source: "ai",
+    }).success).toBe(false);
+  });
+
+  it("rejects whitespace-only generated scenarios", () => {
+    expect(scenarioGenerationResponseSchema.safeParse({
+      scenarios: ["   "],
+      source: "ai",
+    }).success).toBe(false);
+  });
+
+  it("enforces shared trimmed text and technical candidate limits", () => {
+    const input = defaultInput();
+    const atRoleTitleLimit = "t".repeat(DECISION_INPUT_LIMITS.roleTitle.max);
+    const atDescriptionLimit = "d".repeat(DECISION_INPUT_LIMITS.candidateDescription.max);
+
+    expect(evaluationRequestSchema.safeParse({
+      ...input,
+      role: { ...input.role, title: atRoleTitleLimit },
+      candidates: input.candidates.map((candidate, index) => (
+        index === 0 ? { ...candidate, description: atDescriptionLimit } : candidate
+      )),
+    }).success).toBe(true);
+    expect(evaluationRequestSchema.safeParse({
+      ...input,
+      role: { ...input.role, title: " ".repeat(DECISION_INPUT_LIMITS.roleTitle.max + 1) },
+    }).success).toBe(false);
+    expect(evaluationRequestSchema.safeParse({
+      ...input,
+      candidates: Array.from({ length: DECISION_INPUT_LIMITS.candidates.max + 1 }, (_, index) => ({
+        id: `candidate-${index}`, name: `Candidate ${index}`, description: "Profile.",
+      })),
+    }).success).toBe(false);
+  });
+
+  it("accepts duplicate names when candidate IDs remain unique", () => {
+    const input = defaultInput({ candidateIds: ["one", "two"] });
+    input.candidates[1].name = input.candidates[0].name;
+    expect(evaluationRequestSchema.safeParse(input).success).toBe(true);
   });
 
   it("rejects malformed or duplicate evaluation candidates", () => {

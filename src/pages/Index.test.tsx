@@ -12,7 +12,7 @@ import {
 
 /** Adaptability profiles and confidence/evidence flags render under the "analysis" tab, not the default "overview" tab. */
 function openAnalysisTab() {
-  fireEvent.click(screen.getByRole("button", { name: /analysis/i }));
+  fireEvent.click(screen.getByRole("tab", { name: /analysis/i }));
 }
 
 function buildResponse(
@@ -104,8 +104,8 @@ describe("Results — no unsupported cross-scenario claims (docs/architecture/KN
     });
     render(<Results response={response} />);
     openAnalysisTab();
-    fireEvent.click(screen.getByRole("button", { name: /pairing/i }));
-    fireEvent.click(screen.getByRole("button", { name: /pipeline/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /pairing/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /pipeline/i }));
 
     const forbiddenPhrases = [
       /rapid crisis\/pivot scenario/i,
@@ -125,7 +125,7 @@ describe("Results — pairing tab reflects honest pairing state, never a fabrica
       pairing_result: successfulPairingFixture(),
     });
     render(<Results response={response} />);
-    fireEvent.click(screen.getByRole("button", { name: /pairing/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /pairing/i }));
     expect(screen.getByText("Best Leadership Pair")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
     expect(screen.getByText("Strong complementary skill sets.")).toBeInTheDocument();
@@ -139,7 +139,7 @@ describe("Results — pairing tab reflects honest pairing state, never a fabrica
       },
     });
     render(<Results response={response} />);
-    fireEvent.click(screen.getByRole("button", { name: /pairing/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /pairing/i }));
 
     expect(screen.getByText("Pairing Unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Default pair.")).not.toBeInTheDocument();
@@ -149,7 +149,7 @@ describe("Results — pairing tab reflects honest pairing state, never a fabrica
   it("does not show a pairing tab at all when pairing_result is absent", () => {
     render(<Results response={buildResponse()} />);
     expect(
-      screen.queryByRole("button", { name: /pairing/i }),
+      screen.queryByRole("tab", { name: /pairing/i }),
     ).not.toBeInTheDocument();
   });
 });

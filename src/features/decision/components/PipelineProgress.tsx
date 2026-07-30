@@ -10,7 +10,7 @@ function statusIcon(status: PipelineStage["status"]) {
 
 function statusColor(status: PipelineStage["status"]) {
   if (status === "completed") return "text-emerald-400";
-  if (status === "running") return "animate-pulse text-amber-400";
+  if (status === "running") return "animate-pulse motion-reduce:animate-none text-amber-400";
   if (status === "failed") return "text-red-400";
   return "text-white/20";
 }
@@ -21,20 +21,43 @@ function labelColor(status: PipelineStage["status"]) {
   return "text-white/25";
 }
 
+function currentAnnouncement(stages: PipelineStage[]) {
+  const failedStage = stages.find((stage) => stage.status === "failed");
+  if (failedStage) return `${failedStage.label}: failed`;
+
+  const runningStage = stages.find((stage) => stage.status === "running");
+  if (runningStage) return `${runningStage.label}: running`;
+
+  if (stages.every((stage) => stage.status === "completed")) {
+    return "Decision Pipeline completed";
+  }
+
+  const completedStage = [...stages]
+    .reverse()
+    .find((stage) => stage.status === "completed");
+  if (completedStage) return `${completedStage.label}: completed`;
+
+  return "Decision Pipeline pending";
+}
+
 export function PipelineProgress({ stages }: { stages: PipelineStage[] }) {
   if (!stages.length) return null;
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-6">
+    <div className="mx-auto max-w-3xl px-6 py-6" aria-labelledby="pipeline-progress-heading">
       <Card>
-        <h3 className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/60">
+        <h3 id="pipeline-progress-heading" className="mb-4 text-sm font-semibold uppercase tracking-widest text-white/60">
           Decision Pipeline
         </h3>
 
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {currentAnnouncement(stages)}
+        </p>
         <div className="space-y-2">
           {stages.map((stage) => (
             <div key={stage.id} className="flex items-center gap-3">
               <span
+                aria-hidden="true"
                 className={
                   `w-4 text-center font-mono text-sm ${statusColor(stage.status)}`
                 }

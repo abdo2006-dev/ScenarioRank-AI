@@ -2,6 +2,14 @@
 
 These questions are not documentation decoration. The maintainer should answer them verbally and, where appropriate, point to the relevant code.
 
+## Phase 2B-1 understanding
+
+1. Why are technical candidate ceilings in shared contracts while `AI_MAX_CANDIDATES` is resolved by the server?
+2. How does `validateEvaluationDraft` turn shared-schema issues into stable candidate-ID field errors?
+3. Why does the form validate before transitioning the workflow to `running`?
+4. How do the error summary, live regions, and result focus preserve useful keyboard context?
+5. Which WAI-ARIA tab attributes and keys make the result sections keyboard operable?
+
 ## Phase 0 understanding
 
 1. Why is the current system better described as an LLM pipeline than a fully autonomous multi-agent system?

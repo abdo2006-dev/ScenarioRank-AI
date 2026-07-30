@@ -34,17 +34,24 @@ below. **Phase 2A is complete and merged.** Draft PR #3 was squash-merged at
 `71a8416dfeed57c8635735a41fde1dbce31f7fef`
 (`refactor: complete ScenarioRank V2 Phase 2A`); its temporary
 `v2/phase-2a-contracts-frontend` branch was deleted locally and remotely.
-`main` is the sole active branch.
+`main` remains the public baseline; PR #4 is the active, unmerged
+implementation branch.
 
 Phase 2A establishes shared transport contracts, a real frontend feature
 boundary, readable component decomposition, and verified dead-code removal.
 Successful pairing payloads use canonical candidate-ID pairs, so duplicate
-candidate display names remain unambiguous. Final verification passed 255
-tests (70 frontend + 185 backend), lint, server lint, typecheck, readability,
-build, and Node syntax checks. `npm ci` and a separate `npm audit` both
-succeeded; the audit reports 9 known findings (3 moderate, 6 high), with no
-dependency changes. Phase 2B and Phase 3 have not started. The exact next step
-is understanding and reviewing Phase 2A before planning Phase 2B.
+candidate display names remain unambiguous. **Phase 2B-1 is implemented on
+`v2/phase-2b-validation-accessibility` at PR #4 (draft, open, unmerged)** and
+adds shared input limits, health runtime limits, validation, focus management,
+live regions, and keyboard tabs without changing scoring, prompts, or provider
+behavior. The browser begins with the shared two-candidate minimum; loading
+defaults never exceeds the health-resolved runtime maximum and health never
+silently removes user-entered candidates. Final verification passed 282 tests
+(91 frontend + 191 backend),
+lint, server lint, typecheck, readability, build, Node syntax, and `npm ci`.
+`npm audit` reports the same 9 known findings (3 moderate, 6 high), with no
+dependency changes. The exact next action is owner review and merge of PR #4;
+Phase 2B-2 and Phase 3 remain unstarted.
 
 ## Project objective
 
@@ -175,8 +182,8 @@ cannot change based on explanation wording.
   response body has no usage to report, so the estimate can honestly
   under-report true spend in that case; this is a displayed estimate for
   the user's own budget awareness, not an invoice.
-- 159 backend tests and 16 frontend tests now run (was 0 backend, 1
-  frontend placeholder before Phase 1A).
+- **Current verification:** 191 backend tests and 91 frontend tests now run
+  (282 total). The earlier Phase 1 counts below are preserved as history.
 
 Details: [`architecture/CURRENT_ARCHITECTURE.md`](architecture/CURRENT_ARCHITECTURE.md),
 [`architecture/TECHNOLOGY_INVENTORY.md`](architecture/TECHNOLOGY_INVENTORY.md),
@@ -771,15 +778,13 @@ as partial success" design overstated what was actually evaluated
 
 1. Candidate scoring depends on very limited evidence (short free-text
    descriptions).
-2. The active frontend page remains one large file (backend module
-   boundaries were split in Phase 1D; the frontend split is Phase 2).
-3. Duplicated contracts: pipeline types exist both inline in the frontend
-   page and in `src/types/pipeline.ts` (the latter, plus
-   `src/components/v3/*` and `src/components/AgentFlowSection.tsx`, are
-   confirmed dead code still using the retired "bias"/"agent" naming —
-   Phase 2 cleanup).
-4. Backup files, an older dataset, and unused component families are
-   still present (Phase 2 cleanup).
+2. Phase 2A resolved the former frontend monolith, duplicate transport
+   contracts, and confirmed dead decision components. Phase 2B-1 adds bounded
+   input validation and accessibility mechanics; its remaining manual review
+   items are recorded in `docs/testing/ACCESSIBILITY_CHECKLIST.md`.
+3. Phase 3 is still required for multi-scenario evaluation evidence and model
+   evaluation datasets. Security, privacy, rate limiting, persistence, and
+   deployment hardening remain later milestones.
 5. No model evaluation dataset, golden examples, or prompt-regression
    checks yet (Phase 3).
 6. Opportunity-cost risk is still misnamed (averages risks rather than
@@ -902,27 +907,12 @@ completeness correction round) was approved by the owner and squash-
 merged into `main` as commit `8f19bb7`. No further Phase 1 work is
 planned.
 
-**The exact next milestone is Phase 2 planning and understanding, before
-any implementation** — architecture and maintainability work. **Phase 2
-has not started; no Phase 2 code has been written.**
-
-Per `docs/V2_ROADMAP.md`, Phase 2 is planned to:
-
-- split the frontend into feature components, an API client, schemas, and
-  hooks (the backend side of this was done in Phase 1D);
-- establish one source of truth for contracts (currently duplicated
-  between the frontend page and `src/types/pipeline.ts`, the latter
-  confirmed dead code);
-- remove confirmed dead code and backup files (including
-  `src/types/pipeline.ts`, `src/components/v3/*`, and
-  `src/components/AgentFlowSection.tsx`, which still use the retired
-  "bias"/"agent" naming);
-- decide, via ADR, whether to retain Node/Express or migrate the backend
-  to Python/FastAPI (reaffirmed as Node for now — see the Phase 1
-  single-OpenAI-provider simplification milestone above);
-- the real end-to-end demo concern from the earlier Groq/Gemini retest is
-  now resolved — the real OpenAI smoke test (above) reached `complete`
-  successfully, so this is no longer an open follow-up.
+**The exact next action is owner review and merge of draft PR #4.** Phase 2A
+is merged, and Phase 2B-1 is implemented on
+`v2/phase-2b-validation-accessibility` at this branch's final correction
+`HEAD`; PR #4 is draft and unmerged. Phase 2B-2 and Phase 3 have not started.
+Phase 2B-2 is reserved for unused template/dependency cleanup and planned
+audit work; it does not reopen completed Phase 2A contracts or component work.
 
 ## Later roadmap
 
@@ -978,8 +968,9 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
 - Temporary branches are merged and deleted; they are not permanent
   project branches.
 - New implementation branches should only be created when work begins.
-  Phase 2A follows that rule on `v2/phase-2a-contracts-frontend`; it remains
-  isolated in draft PR #3 pending owner review.
+  PR #3 was merged and its branch deleted. The sole active implementation
+  branch is PR #4's `v2/phase-2b-validation-accessibility` at its final
+  correction `HEAD`, which remains draft and unmerged pending owner review.
 - Prefer one active implementation branch at a time.
 
 ## Learning checkpoints
@@ -1096,6 +1087,27 @@ versions or `package-lock.json`.
 the execution privacy policy because it would disclose private dependency
 metadata to npm's advisory service; no workaround was attempted. The final
 approved `npm audit` ran successfully and confirmed the same 9 findings.
+
+### Phase 2B-1 — validation and accessibility (draft PR #4)
+
+- Shared technical text/count limits now define the public input envelope;
+  `AI_MAX_CANDIDATES` remains the resolved runtime cap returned safely by
+  health. The initial candidate set uses the shared two-candidate minimum;
+  `Load defaults` is capped by that runtime value and health never removes
+  user-entered candidates.
+- The controlled browser form validates through the shared Zod request schema,
+  maps field errors by candidate ID, and blocks invalid runs before `running`.
+- Labels, direct fieldset legends, counters, error-summary links (including
+  the active-scenario select), focusable count sections, concise live status,
+  safe async error focus, and WAI-ARIA keyboard tabs are covered by focused
+  accessibility-oriented prototype validation.
+- HTTP route tests use an ephemeral `127.0.0.1` listener that waits for
+  `listening`, rejects errors, and closes cleanly.
+- Current verification: 91 frontend + 191 backend = 282 tests; `npm ci`, lint,
+  typecheck, readability, build, and syntax checks pass. `npm audit` remains
+  9 findings (3 moderate, 6 high), with no dependency changes and no real
+  OpenAI calls. Manual limits remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`;
+  this is not WCAG certification.
 
 ### Merge record
 

@@ -10,11 +10,11 @@ sequenceDiagram
 
     U->>F: Open application
     F->>B: GET /health
-    B-->>F: { status, ai_enabled }
+    B-->>F: { status, ai_enabled, limits }
     F-->>U: Show whether live AI evaluation is available
 ```
 
-The health endpoint checks whether `OPENAI_API_KEY` (`server/config/env.js`) is present, and reports the configured model (`ai_model`). It does not confirm the key is valid, the model is reachable, or the account has quota.
+The health endpoint checks whether `OPENAI_API_KEY` (`server/config/env.js`) is present, reports the configured model (`ai_model`), and exposes only safe numeric input limits. It does not confirm the key is valid, the model is reachable, or the account has quota. The frontend uses the returned runtime candidate maximum while static input maxima come from the shared contract.
 
 ## 2. Scenario generation
 

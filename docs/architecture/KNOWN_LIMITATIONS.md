@@ -5,6 +5,14 @@ how each was resolved once it is. Numbering is stable across phases so
 history and cross-references stay valid — a resolved item is marked
 resolved in place, not deleted or renumbered.
 
+## Phase 2B-1 validation and accessibility
+
+Shared schema limits, safe direct-API validation errors, semantic form labels,
+error-summary focus, live status, visible focus rings, and keyboard tabs are
+implemented. This is an accessibility-oriented prototype review, not a WCAG
+certification; manual checks remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`.
+Phase 2B-2 and Phase 3 remain unstarted.
+
 ## Priority 0 — correctness and integrity
 
 ### P0.1 Pair simulation uses submission order — RESOLVED (Phase 1C)
@@ -67,7 +75,7 @@ HTTP/SSE data. The browser imports those schemas and derives types with
 
 ### P2.1 No meaningful unit tests — RESOLVED (Phase 1A/1D)
 
-~~The existing Vitest test asserts that `true` is `true`.~~ 159 backend tests now cover deterministic formulas (with characterization tests pinning exact behavior before/after the P0.2 fix), normalization, all 6 production schemas' conversion and adapter round-trips, provider-contract behavior for both adapters, and full mocked pipeline execution including the P0.1/P0.2 regressions. The frontend placeholder test is supplemented (not fully replaced) by 10 tests covering real rendering behavior (`src/pages/Index.test.tsx`).
+~~The existing Vitest test asserts that `true` is `true`.~~ The current suite has 191 backend and 91 frontend tests, covering deterministic formulas (with characterization tests pinning exact behavior before/after the P0.2 fix), normalization, public/provider contracts, mocked pipeline execution, routes, and focused rendered frontend behavior.
 
 ### P2.2 No route or stream integration tests — RESOLVED (Phase 1D)
 
