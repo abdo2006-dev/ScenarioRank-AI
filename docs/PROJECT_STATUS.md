@@ -34,24 +34,28 @@ below. **Phase 2A is complete and merged.** Draft PR #3 was squash-merged at
 `71a8416dfeed57c8635735a41fde1dbce31f7fef`
 (`refactor: complete ScenarioRank V2 Phase 2A`); its temporary
 `v2/phase-2a-contracts-frontend` branch was deleted locally and remotely.
-`main` remains the public baseline; PR #4 is the active, unmerged
-implementation branch.
+**Phase 2B-1 is also complete and merged.** PR #4 was squash-merged into
+`main` at `2026-07-30T12:14:42Z` as
+`0058ed0f4e53df8a57f9e0cfdb47a084a0f4af65`
+(`feat: complete ScenarioRank V2 Phase 2B-1`); its temporary
+`v2/phase-2b-validation-accessibility` branch was deleted locally and
+remotely. `main` is the sole active V2 line.
 
 Phase 2A establishes shared transport contracts, a real frontend feature
 boundary, readable component decomposition, and verified dead-code removal.
 Successful pairing payloads use canonical candidate-ID pairs, so duplicate
-candidate display names remain unambiguous. **Phase 2B-1 is implemented on
-`v2/phase-2b-validation-accessibility` at PR #4 (draft, open, unmerged)** and
-adds shared input limits, health runtime limits, validation, focus management,
-live regions, and keyboard tabs without changing scoring, prompts, or provider
-behavior. The browser begins with the shared two-candidate minimum; loading
-defaults never exceeds the health-resolved runtime maximum and health never
-silently removes user-entered candidates. Final verification passed 282 tests
-(91 frontend + 191 backend),
-lint, server lint, typecheck, readability, build, Node syntax, and `npm ci`.
-`npm audit` reports the same 9 known findings (3 moderate, 6 high), with no
-dependency changes. The exact next action is owner review and merge of PR #4;
-Phase 2B-2 and Phase 3 remain unstarted.
+candidate display names remain unambiguous. **Phase 2B-1 added shared technical
+input limits, a separate runtime `AI_MAX_CANDIDATES` cap exposed by health,
+Zod-driven browser/server validation, semantic form errors and focus
+management, concise pipeline live announcements, and keyboard-operable result
+tabs without changing scoring, prompts, or provider behavior.** The browser
+starts with the shared two-candidate minimum; `Load defaults` never exceeds the
+health-resolved runtime maximum, and health never silently removes
+user-entered candidates. Final verification passed 282 tests (91 frontend +
+191 backend), lint, server lint, typecheck, readability, build, Node syntax,
+and `npm ci`. `npm audit` remains at 9 known findings (3 moderate, 6 high),
+with no dependency or lockfile changes. No real OpenAI calls were made during
+Phase 2B-1. Phase 2B-2 and Phase 3 remain unstarted.
 
 ## Project objective
 
@@ -907,12 +911,13 @@ completeness correction round) was approved by the owner and squash-
 merged into `main` as commit `8f19bb7`. No further Phase 1 work is
 planned.
 
-**The exact next action is owner review and merge of draft PR #4.** Phase 2A
-is merged, and Phase 2B-1 is implemented on
-`v2/phase-2b-validation-accessibility` at this branch's final correction
-`HEAD`; PR #4 is draft and unmerged. Phase 2B-2 and Phase 3 have not started.
-Phase 2B-2 is reserved for unused template/dependency cleanup and planned
-audit work; it does not reopen completed Phase 2A contracts or component work.
+**The exact next action is one manual synthetic end-to-end owner smoke test
+before Phase 2B-2.** It should use clearly synthetic role, scenario, and
+candidate data and confirm the completed local/preview flow without sending
+real candidate information. Phase 2B-2 and Phase 3 have not started. After
+that smoke test, Phase 2B-2 covers unused template/dependency cleanup and
+audit-remediation planning; it does not reopen completed Phase 2A or Phase
+2B-1 work.
 
 ## Later roadmap
 
@@ -968,9 +973,10 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
 - Temporary branches are merged and deleted; they are not permanent
   project branches.
 - New implementation branches should only be created when work begins.
-  PR #3 was merged and its branch deleted. The sole active implementation
-  branch is PR #4's `v2/phase-2b-validation-accessibility` at its final
-  correction `HEAD`, which remains draft and unmerged pending owner review.
+  PR #3 and PR #4 were squash-merged and their temporary branches deleted.
+  PR #4 merged at `2026-07-30T12:14:42Z` as
+  `0058ed0f4e53df8a57f9e0cfdb47a084a0f4af65`; no implementation branch is
+  active until work is explicitly started again.
 - Prefer one active implementation branch at a time.
 
 ## Learning checkpoints
@@ -1088,7 +1094,7 @@ the execution privacy policy because it would disclose private dependency
 metadata to npm's advisory service; no workaround was attempted. The final
 approved `npm audit` ran successfully and confirmed the same 9 findings.
 
-### Phase 2B-1 — validation and accessibility (draft PR #4)
+### Phase 2B-1 — validation and accessibility (completed and merged)
 
 - Shared technical text/count limits now define the public input envelope;
   `AI_MAX_CANDIDATES` remains the resolved runtime cap returned safely by
@@ -1103,11 +1109,12 @@ approved `npm audit` ran successfully and confirmed the same 9 findings.
   accessibility-oriented prototype validation.
 - HTTP route tests use an ephemeral `127.0.0.1` listener that waits for
   `listening`, rejects errors, and closes cleanly.
-- Current verification: 91 frontend + 191 backend = 282 tests; `npm ci`, lint,
-  typecheck, readability, build, and syntax checks pass. `npm audit` remains
-  9 findings (3 moderate, 6 high), with no dependency changes and no real
-  OpenAI calls. Manual limits remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`;
-  this is not WCAG certification.
+- Final verification: 91 frontend + 191 backend = 282 tests; `npm ci`, lint,
+  server lint, typecheck, readability, build, and syntax checks pass. `npm
+  audit` remains 9 findings (3 moderate, 6 high), with no dependency or
+  lockfile changes and no real OpenAI calls during Phase 2B-1. Manual limits
+  remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`; this is not WCAG
+  certification.
 
 ### Merge record
 
@@ -1115,5 +1122,10 @@ PR #3 was squash-merged into `main` at `2026-07-29T19:52:38Z` as commit
 `71a8416dfeed57c8635735a41fde1dbce31f7fef`
 (`refactor: complete ScenarioRank V2 Phase 2A`). The temporary
 `v2/phase-2a-contracts-frontend` branch was deleted locally and on the remote.
+PR #4 was squash-merged into `main` at `2026-07-30T12:14:42Z` as commit
+`0058ed0f4e53df8a57f9e0cfdb47a084a0f4af65`
+(`feat: complete ScenarioRank V2 Phase 2B-1`). Its temporary
+`v2/phase-2b-validation-accessibility` branch was deleted locally and on the
+remote.
 The preserved `archive/bmw-award-original` branch and `bmw-award-original` tag
 remain intact.
