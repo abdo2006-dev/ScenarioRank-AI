@@ -1002,9 +1002,10 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
   `0058ed0f4e53df8a57f9e0cfdb47a084a0f4af65`.
 - `v2/phase-2b2-dependency-cleanup` is the current active implementation
   branch, created from `main` at `32e6d1282451f430f11903ec3d27376d69ef01d5`,
-  pushed as a **draft** PR targeting `main` — **not merged**. It will be
-  squash-merged and deleted, like every prior phase branch, once the owner
-  reviews and approves it.
+  pushed as **draft PR #5**
+  (https://github.com/abdo2006-dev/ScenarioRank-AI/pull/5) targeting
+  `main` — **not merged**. It will be squash-merged and deleted, like every
+  prior phase branch, once the owner reviews and approves it.
 - Prefer one active implementation branch at a time.
 
 ## Learning checkpoints
@@ -1263,9 +1264,9 @@ PR #4 was squash-merged into `main` at `2026-07-30T12:14:42Z` as commit
 (`feat: complete ScenarioRank V2 Phase 2B-1`). Its temporary
 `v2/phase-2b-validation-accessibility` branch was deleted locally and on the
 remote.
-Phase 2B-2 is implemented on `v2/phase-2b2-dependency-cleanup`, pushed as a
-**draft** pull request targeting `main` — **not merged**. It stays open and
-active until the owner reviews and approves it, exactly like every prior
-phase's draft PR.
+Phase 2B-2 is implemented on `v2/phase-2b2-dependency-cleanup`, pushed as
+**draft PR #5** (https://github.com/abdo2006-dev/ScenarioRank-AI/pull/5)
+targeting `main` — **not merged**. It stays open and active until the owner
+reviews and approves it, exactly like every prior phase's draft PR.
 The preserved `archive/bmw-award-original` branch and `bmw-award-original` tag
 remain intact.
