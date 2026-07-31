@@ -20,11 +20,8 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 | `src/features/decision/validation/` | Active | Zod-issue-to-field-error mapping for controlled evaluation drafts |
 | `src/pages/NotFound.tsx` | Active | Catch-all route |
 | `src/index.css` | Active | Global styling and Tailwind layers |
-| `src/components/ui/sonner.tsx` | Active through `App.tsx` | Toast renderer |
-| `src/components/ui/toaster.tsx` | Active through `App.tsx` | Toast renderer |
-| `src/components/ui/tooltip.tsx` | Active through `App.tsx` | Tooltip provider |
-| `src/hooks/use-toast.ts` | Active transitively | Toast state helper |
-| `src/components/ui/toast.tsx` | Active transitively | Toast UI contract |
+| `src/lib/backendUrl.ts` | Active | `VITE_BACKEND_URL`-configurable backend origin |
+| `src/features/decision/components/ui.tsx` | Active | Feature-owned `Card`/`Badge`/`ScoreBar` presentation primitives — not the generated shadcn/Radix set, which was removed in Phase 2B-2 |
 | `server.mjs` | Active, thin (Phase 1D) | Composition root only: env loading, provider resolution, app startup |
 | `server/config/env.js` | Active | `.env`/`.env.local` loading, provider-config validation |
 | `server/ai/` | Active | Provider-neutral contract, the single OpenAI adapter, pricing, schemas, prompts (docs/decisions/ADR-0004-single-openai-provider.md) |
@@ -37,10 +34,9 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 ## Configuration and build support
 
 - `package.json`
-- `package-lock.json`
-- `bun.lock` and `bun.lockb`
+- `package-lock.json` (the sole lockfile — see below)
 - `vite.config.ts`
-- `vitest.config.ts`
+- `vitest.config.ts` / `vitest.server.config.ts` (the latter also covers `scripts/**/*.test.js`)
 - `playwright.config.ts`
 - `playwright-fixture.ts`
 - `tsconfig*.json`
@@ -49,8 +45,12 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 - `postcss.config.js`
 - `components.json`
 - `.gitignore`
+- `scripts/check-decision-source-readability.mjs` (`npm run check:decision-readability`)
+- `scripts/check-unused-template.mjs` (`npm run check:unused-template` — Phase 2B-2 reintroduction guard for the paths, lockfiles, dependency names, and root-provider imports this phase confirmed dead)
 
-The repository currently contains lockfiles for both npm and Bun. V2 should choose one primary package manager and document it.
+Phase 2B-2 removed `bun.lock` and `bun.lockb`; npm (`package-lock.json`) is
+now the sole supported package manager — see
+[`decisions/ADR-0007-npm-only-lockfile.md`](decisions/ADR-0007-npm-only-lockfile.md).
 
 ## Resolved legacy and contract duplication
 
@@ -59,7 +59,19 @@ presentation families, `src/components/v3/`, and stale
 `src/types/pipeline.ts`. `DecisionViews.tsx` was also retired after its
 responsibilities were decomposed. Public browser/server types now come only
 from `shared/contracts/decisionApi.js`; the frontend derives its static types
-from those runtime schemas.
+from those runtime schemas. **Phase 2B-2** confirmed and removed the entire
+generated shadcn/Radix template set (55 files under `src/components/ui/`),
+`src/components/NavLink.tsx`, `src/hooks/use-mobile.tsx`, and
+`src/hooks/use-toast.ts` — none had an importer reachable from
+`src/main.tsx`. `src/components/` and `src/hooks/` no longer exist as
+directories; the only remaining presentation code outside
+`src/features/decision/` is `src/lib/`. `src/lib/utils.ts` (the shadcn `cn()`
+helper) is now itself unreachable too, but was deliberately **not** deleted
+this phase — it sits outside the explicitly scoped deletion directories
+(`src/components/ui/`, `src/components/`, `src/hooks/`) named in the Phase
+2B-2 task instructions, so it and its two dependencies (`clsx`,
+`tailwind-merge`) are recorded here as a deferred future-cleanup candidate,
+not a missed deletion.
 
 ## Recommended future ownership boundaries
 

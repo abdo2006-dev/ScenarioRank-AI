@@ -11,7 +11,25 @@ Shared schema limits, safe direct-API validation errors, semantic form labels,
 error-summary focus, live status, visible focus rings, and keyboard tabs are
 implemented. This is an accessibility-oriented prototype review, not a WCAG
 certification; manual checks remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`.
-Phase 2B-2 and Phase 3 remain unstarted.
+
+## Phase 2B-2 template/dependency cleanup — RESOLVED (unused template debt)
+
+The repository carried a large generated shadcn/Radix component set
+(55 files under the former `src/components/ui/`), several dead helper files,
+45 npm dependencies with zero remaining importers, two unused root providers
+(`QueryClientProvider`, `TooltipProvider`) and two toast systems that were
+mounted but never invoked, and three lockfiles for two package managers. All
+were removed with each deletion proven by an exhaustive import-graph search,
+not assumed — see `docs/PROJECT_STATUS.md` ("Phase 2B-2") and
+`docs/security/DEPENDENCY_AUDIT.md`. `src/lib/utils.ts` (and the `clsx`/
+`tailwind-merge` dependencies it alone still uses) is now itself unreachable
+but was deliberately left in place — it fell outside this phase's explicitly
+scoped deletion directories — and is recorded as a deferred future-cleanup
+candidate. `npm audit` findings dropped from 9 to 4; the 4 remaining findings
+all require a major-version dependency migration (`vite` 5→8,
+`react-router-dom` 6→7) and are deliberately deferred as separate follow-ups,
+not silently left unaddressed — full classification in
+`docs/security/DEPENDENCY_AUDIT.md`. Phase 3 remains unstarted.
 
 ## Priority 0 — correctness and integrity
 

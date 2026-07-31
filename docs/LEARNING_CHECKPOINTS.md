@@ -2,6 +2,33 @@
 
 These questions are not documentation decoration. The maintainer should answer them verbally and, where appropriate, point to the relevant code.
 
+## Phase 2B-2 understanding
+
+1. How was "this file is unreachable" actually *proven* rather than assumed —
+   what exact search was run, and from which entrypoints?
+2. Why were `Toaster` and `Sonner` both removed even though `App.tsx` mounted
+   both of them? What is the difference between a component being *mounted*
+   and a component being *used*?
+3. Why was `TooltipProvider` removed — what did the "Model conf." text
+   actually turn out to be when checked, and why did that matter?
+4. Why does `src/lib/utils.ts` (and `clsx`/`tailwind-merge`) still exist in
+   the tree even though nothing calls `cn()` anymore? What would have to be
+   true for a future phase to delete it safely?
+5. Why was `lovable-tagger` removed from `vite.config.ts` even though it was
+   a real, working import (not a dead file) — what made it "unused" in a way
+   that matters for this project specifically?
+6. Why does `npm audit fix` (no `--force`) only fix `brace-expansion` and not
+   `react-router-dom`, even though npm's own report says a fix is
+   "available" for both? Show the exact advisory range that explains it
+   (`docs/security/DEPENDENCY_AUDIT.md`).
+7. Why is `react-router-dom`'s open-redirect/XSS advisory judged low-risk
+   *for this specific app today*, without the vulnerability being fixed?
+   What would have to change in the app for that judgment to become wrong?
+8. What does `npm run check:unused-template` actually check, and what are
+   the four categories of regression it's designed to catch?
+9. Why were `vite` 5→8 and `react-router-dom` 6→7 documented as deferred
+   follow-ups instead of just being done in this same phase?
+
 ## Phase 2B-1 understanding
 
 1. Why are technical candidate ceilings in shared contracts while `AI_MAX_CANDIDATES` is resolved by the server?

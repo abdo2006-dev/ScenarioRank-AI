@@ -255,13 +255,24 @@ with a dedicated API/SSE client and workflow hook. Dead frontend generations,
 the stale types, dataset, and backup files were removed. ADR-0005 records the
 contract choice and ADR-0006 retains Node/Express.
 
-### Phase 2B — 2B-1 done; 2B-2 next
+### Phase 2B — 2B-1 and 2B-2 done
 
 Phase 2B-1 added application-level input validation and an
-accessibility-oriented prototype review. Phase 2B-2 is reserved for unused
-template/dependency cleanup and planned audit work. This is not Phase 3
-reliability or model-evaluation work.
+accessibility-oriented prototype review. **Phase 2B-2 (done, draft PR open,
+not merged)** removed the unreachable generated shadcn/Radix template set
+under `src/components/ui/` (55 files) and three dead helper files, simplified
+`App.tsx` to only the root providers something active actually uses,
+removed 45 now-unused npm dependencies, standardized on npm as the sole
+package manager, reduced `npm audit` findings from 9 to 4 with safe in-range
+fixes only, and added a reintroduction guard
+(`npm run check:unused-template`). Full detail:
+`docs/PROJECT_STATUS.md` ("Phase 2B-2") and
+`docs/security/DEPENDENCY_AUDIT.md`. This was not Phase 3 reliability or
+model-evaluation work, and changed no scoring, prompt, or provider behavior.
 
 The Phase 2A correction round completed component boundaries, API-client and
 workflow-hook tests, safe SSE/scenario transport errors, and public numeric
-contract bounds. Phase 2B-2 and Phase 3 remain future work.
+contract bounds. Phase 3 remains future work. Two dependency major-version
+migrations (`vite` 5→8, `react-router-dom` 6→7) were deliberately deferred
+out of Phase 2B-2 — see `docs/security/DEPENDENCY_AUDIT.md` for why and the
+exact remediation path; either can be scheduled independently of Phase 3.

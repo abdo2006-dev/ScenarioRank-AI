@@ -2,10 +2,16 @@
 
 **Scenario-aware decision support for comparing leadership candidates under different business conditions.**
 
-> **Project status:** Phase 2B-1 is implemented on the unmerged
-> `v2/phase-2b-validation-accessibility` branch. It adds shared input limits,
-> accessible validation, focus management, and keyboard-operable result tabs
-> without changing Phase 1 scoring or provider behavior.
+> **Project status:** Phase 2B-2 is implemented on the unmerged
+> `v2/phase-2b2-dependency-cleanup` branch (draft PR, not yet merged). It
+> removes unused generated template components and dependencies, simplifies
+> `App.tsx` to only the root providers something active actually uses,
+> standardizes on npm as the sole package manager, and reduces `npm audit`
+> findings from 9 to 4 — all deferred findings need a major-version
+> migration and are documented in
+> [`docs/security/DEPENDENCY_AUDIT.md`](./docs/security/DEPENDENCY_AUDIT.md).
+> No scoring, prompt, or provider behavior changed. Phases 2A and 2B-1 are
+> already merged to `main`.
 
 ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 
@@ -71,14 +77,14 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 
 | Layer | Current technology | Current role |
 |---|---|---|
-| Frontend | React 18, TypeScript, Vite | Single-page interface and results rendering |
-| Styling/UI | Tailwind CSS, selected Radix/shadcn components | Layout and interface primitives |
+| Frontend | React 18, TypeScript, Vite | Single-page interface and results rendering, self-contained presentation primitives (`src/features/decision/components/ui.tsx`) — the generated shadcn/Radix component library was removed in Phase 2B-2 as unreachable template code |
 | Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
 | AI provider | OpenAI (`gpt-5-mini`) via a provider-neutral contract, Responses API + Structured Outputs | Role/scenario interpretation, batch candidate scoring, explanations, batch pair estimates |
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
 | Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
-| Automated testing | 191 backend + 91 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, and focused accessible component rendering |
+| Package manager | npm only (`package-lock.json`) | The stale `bun.lock`/`bun.lockb` lockfiles were removed in Phase 2B-2 — see [ADR-0007](./docs/decisions/ADR-0007-npm-only-lockfile.md) |
+| Automated testing | 193 backend + 93 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, focused accessible component rendering, and the Phase 2B-2 cleanup-reintroduction guard |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
@@ -152,6 +158,11 @@ Never commit `.env` or API keys.
 - [ADR-0002: provider abstraction (superseded by ADR-0004)](./docs/decisions/ADR-0002-provider-abstraction.md)
 - [ADR-0003: runtime provider configuration](./docs/decisions/ADR-0003-runtime-provider-configuration.md)
 - [ADR-0004: single OpenAI provider](./docs/decisions/ADR-0004-single-openai-provider.md)
+- [ADR-0005: shared HTTP contracts](./docs/decisions/ADR-0005-shared-http-contracts.md)
+- [ADR-0006: retain Node and Express](./docs/decisions/ADR-0006-retain-node-express.md)
+- [ADR-0007: npm-only lockfile](./docs/decisions/ADR-0007-npm-only-lockfile.md)
+- [Dependency audit (Phase 2B-2)](./docs/security/DEPENDENCY_AUDIT.md)
+- [Accessibility checklist](./docs/testing/ACCESSIBILITY_CHECKLIST.md)
 
 ## Branch model
 

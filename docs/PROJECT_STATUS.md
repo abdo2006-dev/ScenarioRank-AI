@@ -55,7 +55,22 @@ user-entered candidates. Final verification passed 282 tests (91 frontend +
 191 backend), lint, server lint, typecheck, readability, build, Node syntax,
 and `npm ci`. `npm audit` remains at 9 known findings (3 moderate, 6 high),
 with no dependency or lockfile changes. No real OpenAI calls were made during
-Phase 2B-1. Phase 2B-2 and Phase 3 remain unstarted.
+Phase 2B-1. **Phase 2B-2 is complete, on unmerged draft PR
+`v2/phase-2b2-dependency-cleanup` targeting `main`.** It removed every
+unreachable generated shadcn/Radix template file under `src/components/ui/`
+(55 files) plus `src/components/NavLink.tsx`, `src/hooks/use-mobile.tsx`, and
+`src/hooks/use-toast.ts`; simplified `App.tsx` to drop `QueryClientProvider`,
+`TooltipProvider`, `Toaster`, and `Sonner` (nothing in the active app called
+React Query, mounted a tooltip, or ever invoked `toast()`/`useToast()`);
+removed 45 now-unused npm dependencies; standardized on npm as the sole
+package manager (deleted `bun.lock`/`bun.lockb`, see
+[`decisions/ADR-0007-npm-only-lockfile.md`](decisions/ADR-0007-npm-only-lockfile.md));
+reduced `npm audit` findings from 9 to 4 via safe in-range fixes only (no
+`--force`, no major bumps, full classification in
+[`security/DEPENDENCY_AUDIT.md`](security/DEPENDENCY_AUDIT.md)); and added a
+reintroduction guard (`npm run check:unused-template`). Final verification
+passed 286 tests (93 frontend + 193 backend). See "Phase 2B-2" below for full
+detail. Phase 3 remains unstarted.
 
 ## Project objective
 
@@ -911,13 +926,22 @@ completeness correction round) was approved by the owner and squash-
 merged into `main` as commit `8f19bb7`. No further Phase 1 work is
 planned.
 
-**The exact next action is one manual synthetic end-to-end owner smoke test
-before Phase 2B-2.** It should use clearly synthetic role, scenario, and
-candidate data and confirm the completed local/preview flow without sending
-real candidate information. Phase 2B-2 and Phase 3 have not started. After
-that smoke test, Phase 2B-2 covers unused template/dependency cleanup and
-audit-remediation planning; it does not reopen completed Phase 2A or Phase
-2B-1 work.
+**Phase 2B-2 is complete on draft PR `v2/phase-2b2-dependency-cleanup`,
+awaiting owner review — not merged.** It removed unused generated template
+components and dependencies, simplified `App.tsx`'s root providers, resolved
+the npm/Bun lockfile duplication, and reduced `npm audit` findings from 9 to
+4 (full detail above and in
+[`security/DEPENDENCY_AUDIT.md`](security/DEPENDENCY_AUDIT.md)). It did not
+reopen completed Phase 2A or Phase 2B-1 work, and made no scoring, prompt, or
+provider-behavior change.
+
+**The exact next milestone is owner review and merge of the Phase 2B-2 draft
+PR, then Phase 3** (real multi-scenario robustness and AI evaluation
+infrastructure — see "Later roadmap" below). A second, separately-scoped
+follow-up remains open regardless of Phase 3 timing: the deferred `vite`
+5→8 and `react-router-dom` 6→7 major-version migrations documented in
+[`security/DEPENDENCY_AUDIT.md`](security/DEPENDENCY_AUDIT.md), each to be
+done as its own reviewable change, not mixed into Phase 3.
 
 ## Later roadmap
 
@@ -975,8 +999,12 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
 - New implementation branches should only be created when work begins.
   PR #3 and PR #4 were squash-merged and their temporary branches deleted.
   PR #4 merged at `2026-07-30T12:14:42Z` as
-  `0058ed0f4e53df8a57f9e0cfdb47a084a0f4af65`; no implementation branch is
-  active until work is explicitly started again.
+  `0058ed0f4e53df8a57f9e0cfdb47a084a0f4af65`.
+- `v2/phase-2b2-dependency-cleanup` is the current active implementation
+  branch, created from `main` at `32e6d1282451f430f11903ec3d27376d69ef01d5`,
+  pushed as a **draft** PR targeting `main` — **not merged**. It will be
+  squash-merged and deleted, like every prior phase branch, once the owner
+  reviews and approves it.
 - Prefer one active implementation branch at a time.
 
 ## Learning checkpoints
@@ -1116,6 +1144,114 @@ approved `npm audit` ran successfully and confirmed the same 9 findings.
   remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`; this is not WCAG
   certification.
 
+### Phase 2B-2 — verified template/dependency cleanup and audit remediation planning (completed, draft PR open, not yet merged)
+
+**Goal (unchanged from `docs/V2_ROADMAP.md`):** remove unused generated
+template infrastructure and dependencies while preserving every active
+ScenarioRank behavior. Not a redesign; no scoring, prompt, or provider
+behavior changed; no real OpenAI calls were made.
+
+1. **Active import-graph trace.** Every file under `src/components/ui/`,
+   `src/components/`, and `src/hooks/` was classified by exhaustive grep-based
+   import search (direct, `@/`-aliased, and type-only imports) from the real
+   entrypoints (`src/main.tsx` → `src/App.tsx` → `src/pages/`), cross-checked
+   against every test file and `public/demo.html` (a fully self-contained
+   static HTML file with zero references into `src/`). `src/features/decision/`
+   has its own small presentation primitives
+   (`src/features/decision/components/ui.tsx`) and never imported the
+   generated shadcn/Radix component set at all.
+2. **Deleted verified-dead files (58 total).** All 55 files under
+   `src/components/ui/` (every shadcn/Radix generated component — accordion,
+   alert-dialog, avatar, calendar, carousel, chart, checkbox, command,
+   dialog, dropdown-menu, form, menubar, navigation-menu, pagination,
+   popover, select, sidebar, table, tabs, toast/toaster/sonner, tooltip, and
+   the rest), `src/components/NavLink.tsx` (zero importers anywhere),
+   `src/hooks/use-mobile.tsx` (its only consumer, `components/ui/sidebar.tsx`,
+   was itself dead), and `src/hooks/use-toast.ts` (its only consumers,
+   `components/ui/toaster.tsx` and `components/ui/use-toast.ts`, were both
+   dead). Every deletion was proven, not assumed: a file was kept if any
+   active file imported it, directly or transitively.
+3. **`App.tsx` root providers simplified.** Removed `QueryClientProvider`
+   (grep found zero `useQuery`/`useMutation`/`queryClient` call sites
+   anywhere in `src/` outside `App.tsx`'s own construction of it),
+   `TooltipProvider` (zero `Tooltip`/`TooltipTrigger` consumers in the active
+   app — the "Model conf." text is plain text, not a Radix tooltip), and both
+   `Toaster` and `Sonner` (both were mounted, but grep found zero
+   `toast(`/`useToast(` call sites anywhere in the active app — neither
+   toast system was ever actually triggered). `BrowserRouter` and both real
+   routes (`/` and the catch-all) were kept unchanged — no React Router
+   migration, major or otherwise.
+4. **45 npm dependencies removed** after the file deletions and provider
+   simplification left them with zero remaining importers: `@hookform/resolvers`,
+   all 27 now-unused `@radix-ui/react-*` packages, `@tanstack/react-query`,
+   `class-variance-authority`, `cmdk`, `date-fns`, `embla-carousel-react`,
+   `framer-motion`, `input-otp`, `lucide-react`, `next-themes`,
+   `react-day-picker`, `react-hook-form`, `react-resizable-panels`,
+   `recharts`, `sonner`, `vaul`, plus the devDependencies `lovable-tagger`
+   (a Lovable.dev-platform-only Vite dev-server plugin, removed from
+   `vite.config.ts` along with the dependency — this project has been
+   maintained through ordinary git/ADR engineering since Phase 1, not the
+   Lovable editor, so the plugin had no remaining purpose) and
+   `@tailwindcss/typography` (never referenced by `tailwind.config.ts` or any
+   Tailwind class). `clsx` and `tailwind-merge` were **retained** even though
+   their only remaining importer, `src/lib/utils.ts` (`cn()`), now has zero
+   callers itself — `src/lib/` falls outside this phase's explicitly scoped
+   deletion directories (`src/components/ui/`, `src/components/`,
+   `src/hooks/`), so it and its two dependencies are documented as a deferred
+   future-cleanup candidate rather than deleted under implied scope.
+   `tailwindcss-animate` was kept (active `tailwind.config.ts` plugin).
+   Verified with `npm install`, `npm prune`, and `npm ls` — the resulting
+   tree contains exactly the expected active set. Production bundle:
+   1703 → 74 modules transformed, JS 414.15 kB → 268.64 kB, CSS
+   64.22 kB → 19.10 kB.
+5. **Lockfile duplication resolved.** A repo-wide search (`README`, `docs/`,
+   no `.github/` directory, no CI/Vercel/Netlify config, `package.json`
+   scripts) found no documented or automated Bun workflow — every real
+   command already used npm. `bun.lock` and `bun.lockb` were deleted;
+   `package-lock.json` is the sole lockfile. Documented in
+   [`decisions/ADR-0007-npm-only-lockfile.md`](decisions/ADR-0007-npm-only-lockfile.md).
+6. **`npm audit`: 9 → 4 findings**, safe remediation only (no `--force`, no
+   major bump mixed into this phase). Dependency removal's `npm install`
+   incidentally re-resolved `@eslint/config-array`/`@eslint/eslintrc` to
+   newer non-vulnerable transitive versions (a byproduct of the lockfile
+   re-resolution, not a targeted fix); `npm audit fix` then bumped the
+   transitive `brace-expansion` `1.1.16` → `1.1.18` (patch, in-range). The 4
+   remaining findings — `vite`/`esbuild` (both dev-tooling-only, requiring a
+   Vite 5→8 major bump) and `react-router`/`react-router-dom` (production,
+   but this app's two static routes and lack of any dynamic navigation
+   target mean the vulnerable open-redirect/XSS feature isn't exercised;
+   fixing requires a 6→7 major migration) — are fully classified, with exact
+   patched versions and a concrete future remediation path, in
+   [`security/DEPENDENCY_AUDIT.md`](security/DEPENDENCY_AUDIT.md). Neither
+   major migration was performed or mixed into this phase.
+7. **Reintroduction guard added.** `npm run check:unused-template`
+   (`scripts/check-unused-template.mjs`) fails if any of the 4 confirmed-dead
+   paths, either Bun lockfile, a removed `App.tsx` root-provider import, or
+   any of the 45 removed dependency names reappear. Covered by
+   `scripts/check-unused-template.test.js` (spawns the real script against
+   the real repository tree: one assertion that the clean tree currently
+   passes, one that a deliberately reintroduced decoy directory and
+   lockfile make it fail with the expected message, with `afterEach`
+   cleanup).
+8. **Tests.** `src/App.test.tsx` (new) proves the landing route renders and
+   the catch-all 404 route works with no query/tooltip/toast provider
+   mounted — the exact regression the provider removal could have caused.
+   `scripts/check-unused-template.test.js` (new, 2 tests) covers the guard
+   itself. No existing test changed behavior. Final counts: **93 frontend
+   tests (was 91: +2 in `src/App.test.tsx`) and 193 backend tests (was 191:
+   +2 in `scripts/check-unused-template.test.js`, now included via
+   `vitest.server.config.ts`'s `include` covering `scripts/**/*.test.js`
+   too) — 286 total.**
+9. **Full verification:** `npm ci`, `npm run lint`, `npm run lint:server`,
+   `npm run typecheck`, `npm run check:decision-readability`,
+   `npm run check:unused-template`, `npm test` (frontend + server),
+   `npm run build`, `node --check server.mjs`, and `npm audit` all pass.
+   `.env.local` remains untracked/ignored; secret scan of tracked files and
+   the production bundle (`dist/assets/*.js`) found no API-key-shaped
+   strings and no `openai`/backend SDK code. No active import references a
+   deleted component. No real OpenAI calls were made. Phase 3 was not
+   started.
+
 ### Merge record
 
 PR #3 was squash-merged into `main` at `2026-07-29T19:52:38Z` as commit
@@ -1127,5 +1263,9 @@ PR #4 was squash-merged into `main` at `2026-07-30T12:14:42Z` as commit
 (`feat: complete ScenarioRank V2 Phase 2B-1`). Its temporary
 `v2/phase-2b-validation-accessibility` branch was deleted locally and on the
 remote.
+Phase 2B-2 is implemented on `v2/phase-2b2-dependency-cleanup`, pushed as a
+**draft** pull request targeting `main` — **not merged**. It stays open and
+active until the owner reviews and approves it, exactly like every prior
+phase's draft PR.
 The preserved `archive/bmw-award-original` branch and `bmw-award-original` tag
 remain intact.

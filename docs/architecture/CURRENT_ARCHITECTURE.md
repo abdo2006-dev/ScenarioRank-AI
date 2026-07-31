@@ -63,6 +63,20 @@ index.html
   -> src/pages/Index.tsx
 ```
 
+**Phase 2B-2:** `App.tsx` now composes only `BrowserRouter` and its two
+routes. `QueryClientProvider`, `TooltipProvider`, `Toaster`, and `Sonner`
+were removed — an exhaustive import-graph search found no active
+`useQuery`/`useMutation`/`queryClient` call, no `Tooltip` consumer, and no
+`toast()`/`useToast()` call site anywhere in the active app; both toast
+systems were mounted but never actually invoked. The entire generated
+shadcn/Radix component set under the former `src/components/ui/` (55 files),
+plus `src/components/NavLink.tsx`, `src/hooks/use-mobile.tsx`, and
+`src/hooks/use-toast.ts`, was deleted as confirmed-unreachable template
+code — see `docs/PROJECT_STATUS.md` ("Phase 2B-2") and
+`docs/security/DEPENDENCY_AUDIT.md`. `src/features/decision/components/ui.tsx`
+is the feature's own small, self-contained set of presentation primitives
+and was never part of the generated set.
+
 ### Phase 2A feature boundary
 
 `src/pages/Index.tsx` only renders `DecisionScreen`. The active feature lives
