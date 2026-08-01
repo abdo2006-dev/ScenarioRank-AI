@@ -94,19 +94,30 @@ verification after both passes and again post-merge: 294 tests (93 frontend
 + 201 backend), package name `scenariorank-ai`, npm as the sole supported
 package manager, 25 top-level dependencies, build output
 `dist/assets/index-*.js` 268.64 kB / `dist/assets/index-*.css` 18.52 kB.
-**Phase 2C (draft, not yet merged, branch `v2/phase-2c-vite6-security`)**
-applies the `vite` `5.x` → `6.4.3` migration this phase identified: `vite`
-`5.4.21` → `6.4.3` (the minimum patched release), which also resolved the
-transitive `esbuild` finding (`0.21.5` → `0.25.12`) with no plugin or
-Vitest version change required. `npm audit` dropped from 4 findings to 2;
+**Phase 2C is complete and merged.** PR #6 was squash-merged into `main`
+at `2026-08-01T18:29:36Z` as `a07edc4b968d8d3ce71b22fc22d11e58cdc66025`
+(`chore: complete ScenarioRank V2 Phase 2C`); its temporary
+`v2/phase-2c-vite6-security` branch was deleted locally and remotely.
+`main` is again the sole active V2 line. It applied the `vite` `5.x` →
+`6.4.3` migration Phase 2B-2 had identified: `vite` `5.4.21` → `6.4.3`
+(the minimum patched release), which also resolved the transitive
+`esbuild` finding (`0.21.5` → `0.25.12`) with no plugin or Vitest version
+change required. `npm audit` dropped from 4 findings to 2;
 `react-router`/`react-router-dom` `6.x` → `7.x` remains a separate,
 deferred migration, not started, with its own scoped follow-up recorded
 in `docs/security/DEPENDENCY_AUDIT.md`. Phase 2C also fixed a pre-existing
 frontend test-teardown defect (an uncancelled health-check effect causing
-an unhandled-rejection warning) with a regression test, and added a
-dependency-free `npm run check:toolchain` guard. Final verification: 302
-tests (94 frontend + 208 backend), no unhandled-rejection warning. See
-"Phase 2C" below for full detail. Phase 3 remains unstarted.
+an unhandled-rejection warning) with a regression test, added a
+dependency-free `npm run check:toolchain` guard, and — during owner-review
+final verification, one commit after the draft PR was first opened —
+fixed a test-file race the new guard's own tests exposed against a
+pre-existing test file (both mutate the same tracked
+`package.json`/`package-lock.json`; `vitest.server.config.ts` now runs
+server/script test files sequentially). Final verification: 302 tests (94
+frontend + 208 backend), no unhandled-rejection warning. See "Phase 2C"
+below for full detail. No coding agent made a real OpenAI call at any
+point in Phase 2C. Phase 3 remains unstarted; the recommended next action
+is a short, independent React Router `6`→`7` migration review.
 
 ## Project objective
 
@@ -1472,11 +1483,13 @@ on the remote. `main` is again the sole active V2 line.
 The preserved `archive/bmw-award-original` branch and `bmw-award-original` tag
 remain intact.
 
-## Phase 2C — Vite 6 security and toolchain migration (draft, not merged)
+## Phase 2C — Vite 6 security and toolchain migration — completed, merged via PR #6 (squash commit `a07edc4`)
 
-**Branch:** `v2/phase-2c-vite6-security`. Draft PR targeting `main`, not
-merged. Phase 3 was not started. React Router was not migrated. No real
-OpenAI call was made.
+**Branch:** `v2/phase-2c-vite6-security` (deleted locally and remotely
+after merge). PR #6 targeted `main`, was reviewed and approved by the
+owner, and was squash-merged at `2026-08-01T18:29:36Z`. Phase 3 was not
+started. React Router was not migrated. No real OpenAI call was made at
+any point, by any coding agent.
 
 Phase 2B-2's correction pass had already identified the exact remediation
 path for the deferred `vite`/`esbuild` advisories (`vite@6.4.3`, no
@@ -1621,7 +1634,24 @@ defect this phase's baseline verification surfaced.
    the tracked diff and the rebuilt production bundle found no
    API-key-shaped strings. No real OpenAI call occurred at any point in
    this phase. Phase 3 was not started. React Router was not migrated.
-10. **Recommended next milestone:** the `react-router`/`react-router-dom`
+10. **Owner-review final verification found and fixed a second,
+    independent flake**, one commit after the draft PR was first opened
+    (squash commit `a07edc4`; pre-squash commit `b9c2a8c`).
+    `scripts/check-toolchain.test.js` (added in item 6 above) and the
+    pre-existing `scripts/check-unused-template.test.js` both mutate the
+    real tracked `package.json`/`package-lock.json` in place and restore
+    them in `afterEach`. Vitest runs test files in parallel workers by
+    default, so the two files' mutations could interleave — one file's
+    write landing mid-restore of the other — occasionally corrupting
+    `package.json` on disk and failing an unrelated assertion. Reproduced
+    deterministically (2 of 5 runs failed) by running both files together
+    in a loop; root-caused, not suppressed. Fixed by setting
+    `fileParallelism: false` in `vitest.server.config.ts` so `server/**`
+    and `scripts/**` test files run sequentially — no application code
+    changed. Verified clean across 5 repeated `npm run test:server` runs
+    afterward, and the PR body and squash-merge summary were both updated
+    to record it before merge.
+11. **Recommended next milestone:** the `react-router`/`react-router-dom`
     `6.x`→`7.x` migration `docs/security/DEPENDENCY_AUDIT.md` already
     scoped as its own follow-up (upgrade guide review, both routes
     re-verified, accessibility checklist re-checked since routing changes
