@@ -258,8 +258,9 @@ contract choice and ADR-0006 retains Node/Express.
 ### Phase 2B — 2B-1 and 2B-2 done
 
 Phase 2B-1 added application-level input validation and an
-accessibility-oriented prototype review. **Phase 2B-2 (done, draft PR open,
-not merged)** removed the unreachable generated shadcn/Radix template set
+accessibility-oriented prototype review. **Phase 2B-2 (done and merged,
+PR #5, squash commit `2bc721c2cb0bb08e64076ef1805c57d6c206f256`)** removed
+the unreachable generated shadcn/Radix template set
 under `src/components/ui/` (55 files) and three dead helper files, simplified
 `App.tsx` to only the root providers something active actually uses,
 removed 45 now-unused npm dependencies, standardized on npm as the sole

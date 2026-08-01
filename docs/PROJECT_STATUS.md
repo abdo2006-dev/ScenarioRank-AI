@@ -55,9 +55,15 @@ user-entered candidates. Final verification passed 282 tests (91 frontend +
 191 backend), lint, server lint, typecheck, readability, build, Node syntax,
 and `npm ci`. `npm audit` remains at 9 known findings (3 moderate, 6 high),
 with no dependency or lockfile changes. No real OpenAI calls were made during
-Phase 2B-1. **Phase 2B-2 is complete, on unmerged draft PR
-`v2/phase-2b2-dependency-cleanup` targeting `main`.** It removed every
-unreachable generated shadcn/Radix template file under `src/components/ui/`
+Phase 2B-1. **Phase 2B-2 is complete and merged.** PR #5
+(`v2/phase-2b2-dependency-cleanup`) was squash-merged into `main` at
+`2026-08-01T13:44:05Z` as `2bc721c2cb0bb08e64076ef1805c57d6c206f256`
+(`chore: complete ScenarioRank V2 Phase 2B-2`); its temporary branch was
+deleted locally and remotely. `main` is again the sole active V2 line. The
+merge was approved by the owner after a second real, synthetic,
+end-to-end OpenAI smoke test passed on the branch prior to merge — no
+coding agent made a real OpenAI call at any point in Phase 2B-2. It removed
+every unreachable generated shadcn/Radix template file under `src/components/ui/`
 (55 files) plus `src/components/NavLink.tsx`, `src/hooks/use-mobile.tsx`, and
 `src/hooks/use-toast.ts`; simplified `App.tsx` to drop `QueryClientProvider`,
 `TooltipProvider`, `Toaster`, and `Sonner` (nothing in the active app called
@@ -84,9 +90,16 @@ require `vite@8.2.0` — the real minimum patched release is `vite@6.4.3`,
 verified against the GHSA advisories directly and via a real isolated
 install. `npm audit` remains at 4 findings (none of the additionally
 removed packages were part of the vulnerable dependency graph). Final
-verification after both passes: 294 tests (93 frontend + 201 backend). See
-"Phase 2B-2" and "Phase 2B-2 correction pass" below for full detail. Phase
-3 remains unstarted.
+verification after both passes and again post-merge: 294 tests (93 frontend
++ 201 backend), package name `scenariorank-ai`, npm as the sole supported
+package manager, 25 top-level dependencies, build output
+`dist/assets/index-*.js` 268.64 kB / `dist/assets/index-*.css` 18.52 kB. The
+next small toolchain/security migration is `vite` `5.x` → `6.4.3+` (which
+also resolves the `esbuild` finding); `react-router`/`react-router-dom`
+`6.x` → `7.x` remains a separate, deferred migration. Both require their own
+short architecture/dependency review before being planned, and neither has
+been started. See "Phase 2B-2" and "Phase 2B-2 correction pass" below for
+full detail. Phase 3 remains unstarted.
 
 ## Project objective
 
@@ -942,22 +955,27 @@ completeness correction round) was approved by the owner and squash-
 merged into `main` as commit `8f19bb7`. No further Phase 1 work is
 planned.
 
-**Phase 2B-2 is complete on draft PR `v2/phase-2b2-dependency-cleanup`,
-awaiting owner review — not merged.** It removed unused generated template
-components and dependencies, simplified `App.tsx`'s root providers, resolved
-the npm/Bun lockfile duplication, and reduced `npm audit` findings from 9 to
-4 (full detail above and in
+**Phase 2B-2 is complete and merged.** PR #5
+(`v2/phase-2b2-dependency-cleanup`) was approved by the owner after a real,
+synthetic, end-to-end OpenAI smoke test passed, and was squash-merged into
+`main` at `2026-08-01T13:44:05Z` as commit
+`2bc721c2cb0bb08e64076ef1805c57d6c206f256`. It removed unused generated
+template components and dependencies, simplified `App.tsx`'s root
+providers, resolved the npm/Bun lockfile duplication, and reduced `npm
+audit` findings from 9 to 4 (full detail above and in
 [`security/DEPENDENCY_AUDIT.md`](security/DEPENDENCY_AUDIT.md)). It did not
 reopen completed Phase 2A or Phase 2B-1 work, and made no scoring, prompt, or
 provider-behavior change.
 
-**The exact next milestone is owner review and merge of the Phase 2B-2 draft
-PR, then Phase 3** (real multi-scenario robustness and AI evaluation
-infrastructure — see "Later roadmap" below). A second, separately-scoped
-follow-up remains open regardless of Phase 3 timing: the deferred `vite`
-5→8 and `react-router-dom` 6→7 major-version migrations documented in
-[`security/DEPENDENCY_AUDIT.md`](security/DEPENDENCY_AUDIT.md), each to be
-done as its own reviewable change, not mixed into Phase 3.
+**The exact next milestone is a short architecture/dependency review, ahead
+of planning the deferred `vite` `5.x` → `6.4.3+` migration** (which also
+resolves the `esbuild` finding), **then Phase 3** (real multi-scenario
+robustness and AI evaluation infrastructure — see "Later roadmap" below).
+The `react-router`/`react-router-dom` `6.x` → `7.x` migration remains a
+second, separately-scoped follow-up, documented in
+[`security/DEPENDENCY_AUDIT.md`](security/DEPENDENCY_AUDIT.md), to be done
+as its own reviewable change, not mixed into Phase 3. Neither migration has
+been started.
 
 ## Later roadmap
 
@@ -1016,17 +1034,26 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
   PR #3 and PR #4 were squash-merged and their temporary branches deleted.
   PR #4 merged at `2026-07-30T12:14:42Z` as
   `0058ed0f4e53df8a57f9e0cfdb47a084a0f4af65`.
-- `v2/phase-2b2-dependency-cleanup` is the current active implementation
-  branch, created from `main` at `32e6d1282451f430f11903ec3d27376d69ef01d5`,
-  pushed as **draft PR #5**
-  (https://github.com/abdo2006-dev/ScenarioRank-AI/pull/5) targeting
-  `main` — **not merged**. It will be squash-merged and deleted, like every
-  prior phase branch, once the owner reviews and approves it.
+- `v2/phase-2b2-dependency-cleanup` was created from `main` at
+  `32e6d1282451f430f11903ec3d27376d69ef01d5` and reviewed through draft
+  **PR #5** (https://github.com/abdo2006-dev/ScenarioRank-AI/pull/5)
+  targeting `main`.
 - A narrow correction pass (residual template cleanup, public-demo
   correction, dependency-audit fact correction) was completed on this same
   branch, updating the same draft PR #5 — no new branch was created, per
   explicit instruction.
-- Prefer one active implementation branch at a time.
+- **After a second real, synthetic, end-to-end OpenAI smoke test passed,
+  the owner approved PR #5. It was marked ready for review and
+  squash-merged into `main` at `2026-08-01T13:44:05Z` as commit
+  `2bc721c2cb0bb08e64076ef1805c57d6c206f256` (title: "chore: complete
+  ScenarioRank V2 Phase 2B-2").** The temporary branch
+  `v2/phase-2b2-dependency-cleanup` was deleted both locally and on the
+  remote after the merge.
+- `main` is again the sole active line for this work — there is no
+  outstanding Phase 2B-2 branch or PR.
+- Prefer one active implementation branch at a time. No new implementation
+  branch has been created yet for the next milestone (an architecture/
+  dependency review ahead of the deferred Vite `6.4.3+` migration).
 
 ## Learning checkpoints
 
@@ -1165,7 +1192,7 @@ approved `npm audit` ran successfully and confirmed the same 9 findings.
   remain in `docs/testing/ACCESSIBILITY_CHECKLIST.md`; this is not WCAG
   certification.
 
-### Phase 2B-2 — verified template/dependency cleanup and audit remediation planning (completed, draft PR open, not yet merged)
+### Phase 2B-2 — verified template/dependency cleanup and audit remediation planning (completed and merged)
 
 **Goal (unchanged from `docs/V2_ROADMAP.md`):** remove unused generated
 template infrastructure and dependencies while preserving every active
@@ -1273,7 +1300,7 @@ behavior changed; no real OpenAI calls were made.
    deleted component. No real OpenAI calls were made. Phase 3 was not
    started.
 
-### Phase 2B-2 correction pass — verified template/dependency cleanup and audit remediation planning (completed, same draft PR, not yet merged)
+### Phase 2B-2 correction pass — verified template/dependency cleanup and audit remediation planning (completed, same PR #5, merged with the rest of Phase 2B-2)
 
 A follow-up review of the merged Phase 2B-2 work found it incomplete in
 scope and wrong in one documented fact. This narrow correction addresses
@@ -1428,9 +1455,12 @@ PR #4 was squash-merged into `main` at `2026-07-30T12:14:42Z` as commit
 (`feat: complete ScenarioRank V2 Phase 2B-1`). Its temporary
 `v2/phase-2b-validation-accessibility` branch was deleted locally and on the
 remote.
-Phase 2B-2 is implemented on `v2/phase-2b2-dependency-cleanup`, pushed as
-**draft PR #5** (https://github.com/abdo2006-dev/ScenarioRank-AI/pull/5)
-targeting `main` — **not merged**. It stays open and active until the owner
-reviews and approves it, exactly like every prior phase's draft PR.
+PR #5 (https://github.com/abdo2006-dev/ScenarioRank-AI/pull/5) was
+squash-merged into `main` at `2026-08-01T13:44:05Z` as commit
+`2bc721c2cb0bb08e64076ef1805c57d6c206f256`
+(`chore: complete ScenarioRank V2 Phase 2B-2`), after a real, synthetic,
+end-to-end OpenAI smoke test passed and the owner approved the merge. Its
+temporary `v2/phase-2b2-dependency-cleanup` branch was deleted locally and
+on the remote. `main` is again the sole active V2 line.
 The preserved `archive/bmw-award-original` branch and `bmw-award-original` tag
 remain intact.

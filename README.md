@@ -2,11 +2,11 @@
 
 **Scenario-aware decision support for comparing leadership candidates under different business conditions.**
 
-> **Project status:** Phase 2B-2 is implemented on the unmerged
-> `v2/phase-2b2-dependency-cleanup` branch (draft PR, not yet merged). It
-> removes unused generated template components and dependencies, simplifies
+> **Project status:** Phase 2B-2 is complete and merged to `main` (PR #5,
+> squash commit `2bc721c2cb0bb08e64076ef1805c57d6c206f256`). It removed
+> unused generated template components and dependencies, simplified
 > `App.tsx` to only the root providers something active actually uses,
-> standardizes on npm as the sole package manager, and reduces `npm audit`
+> standardized on npm as the sole package manager, and reduced `npm audit`
 > findings from 9 to 4 — all deferred findings need a major-version
 > migration and are documented in
 > [`docs/security/DEPENDENCY_AUDIT.md`](./docs/security/DEPENDENCY_AUDIT.md).
@@ -17,8 +17,10 @@
 > ([`public/demo.html`](./public/demo.html)) to describe the current
 > OpenAI/gpt-5-mini pipeline instead of the retired award-build
 > architecture, and corrected a documentation error about the Vite
-> remediation path. No scoring, prompt, or provider behavior changed.
-> Phases 2A and 2B-1 are already merged to `main`.
+> remediation path. No scoring, prompt, or provider behavior changed. The
+> next milestone is a short architecture/dependency review ahead of the
+> deferred `vite` `5.x` → `6.4.3+` migration. Phases 2A, 2B-1, and 2B-2 are
+> all merged to `main`; Phase 3 has not started.
 
 ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 
