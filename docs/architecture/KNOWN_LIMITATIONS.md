@@ -58,6 +58,24 @@ patched `0.25.0` threshold). The corrected, smaller migration is still
 deferred as a separate follow-up rather than applied in this pass — see
 "Migration decision" in `docs/security/DEPENDENCY_AUDIT.md`.
 
+## Phase 2C Vite 6 security and toolchain migration — draft, not merged
+
+**Branch `v2/phase-2c-vite6-security`.** Of the 4 `npm audit` findings the
+Phase 2B-2 correction pass deferred, the `vite`/`esbuild` pair is now
+resolved: `vite` `5.4.21` → `6.4.3` (the minimum patched release),
+transitively resolving `esbuild` to `0.25.12`. `react-router`/
+`react-router-dom` remain open — see `docs/security/DEPENDENCY_AUDIT.md`
+("Phase 2C update") for the full before/after classification. This phase
+also fixed a pre-existing frontend test-teardown defect: an uncancelled
+health-check effect in `useDecisionEvaluation.ts` could apply a late
+`/health` response after the component unmounted, which — only when
+Vitest had already torn down that test file's jsdom environment —
+surfaced as an `Unhandled Rejection: window is not defined` warning
+(previously recorded, unresolved, in `docs/PROJECT_STATUS.md`'s Phase
+2B-2 correction-pass verification record). Fixed with a cancelled-flag
+effect-cleanup guard; no user-visible behavior changed. Full detail:
+`docs/PROJECT_STATUS.md` ("Phase 2C").
+
 ## Priority 0 — correctness and integrity
 
 ### P0.1 Pair simulation uses submission order — RESOLVED (Phase 1C)

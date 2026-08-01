@@ -17,10 +17,20 @@
 > ([`public/demo.html`](./public/demo.html)) to describe the current
 > OpenAI/gpt-5-mini pipeline instead of the retired award-build
 > architecture, and corrected a documentation error about the Vite
-> remediation path. No scoring, prompt, or provider behavior changed. The
-> next milestone is a short architecture/dependency review ahead of the
-> deferred `vite` `5.x` → `6.4.3+` migration. Phases 2A, 2B-1, and 2B-2 are
-> all merged to `main`; Phase 3 has not started.
+> remediation path. **Phase 2C (draft, not yet merged, branch
+> `v2/phase-2c-vite6-security`)** applies the deferred `vite` migration
+> this correction pass identified: `vite` `5.4.21` → `6.4.3`, the minimum
+> patched release for the dev-server advisories, which also pulls a
+> patched `esbuild` (`0.21.5` → `0.25.12`) transitively — no plugin or
+> Vitest version change was required. `npm audit` findings dropped from 4
+> to 2 (the remaining 2 are the separately-deferred
+> `react-router`/`react-router-dom` major migration). No scoring, prompt,
+> or provider behavior changed, React Router was not touched, and Phase 3
+> has not started — see
+> [`docs/security/DEPENDENCY_AUDIT.md`](./docs/security/DEPENDENCY_AUDIT.md)
+> ("Phase 2C update") and
+> [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md) for full detail.
+> Phases 2A, 2B-1, and 2B-2 are merged to `main`.
 
 ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 
@@ -86,14 +96,14 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 
 | Layer | Current technology | Current role |
 |---|---|---|
-| Frontend | React 18, TypeScript, Vite | Single-page interface and results rendering, self-contained presentation primitives (`src/features/decision/components/ui.tsx`) — the generated shadcn/Radix component library was removed in Phase 2B-2 as unreachable template code |
+| Frontend | React 18, TypeScript, Vite `6.4.3` | Single-page interface and results rendering, self-contained presentation primitives (`src/features/decision/components/ui.tsx`) — the generated shadcn/Radix component library was removed in Phase 2B-2 as unreachable template code |
 | Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
 | AI provider | OpenAI (`gpt-5-mini`) via a provider-neutral contract, Responses API + Structured Outputs | Role/scenario interpretation, batch candidate scoring, explanations, batch pair estimates |
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
 | Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
 | Package manager | npm only (`package-lock.json`) | The stale `bun.lock`/`bun.lockb` lockfiles were removed in Phase 2B-2 — see [ADR-0007](./docs/decisions/ADR-0007-npm-only-lockfile.md) |
-| Automated testing | 201 backend + 93 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, focused accessible component rendering, and the Phase 2B-2 cleanup-reintroduction guard |
+| Automated testing | 208 backend + 94 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, focused accessible component rendering, the Phase 2B-2 cleanup-reintroduction guard, and the Phase 2C toolchain guard (`npm run check:toolchain`) |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
@@ -170,7 +180,7 @@ Never commit `.env` or API keys.
 - [ADR-0005: shared HTTP contracts](./docs/decisions/ADR-0005-shared-http-contracts.md)
 - [ADR-0006: retain Node and Express](./docs/decisions/ADR-0006-retain-node-express.md)
 - [ADR-0007: npm-only lockfile](./docs/decisions/ADR-0007-npm-only-lockfile.md)
-- [Dependency audit (Phase 2B-2)](./docs/security/DEPENDENCY_AUDIT.md)
+- [Dependency audit (Phase 2B-2; updated Phase 2C)](./docs/security/DEPENDENCY_AUDIT.md)
 - [Accessibility checklist](./docs/testing/ACCESSIBILITY_CHECKLIST.md)
 
 ## Branch model

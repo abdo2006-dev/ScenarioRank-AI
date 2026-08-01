@@ -17,6 +17,12 @@ the browser maps the shared Zod request schema to field-level validation before
 opening an SSE evaluation. The resolved `AI_MAX_CANDIDATES` value remains a
 server-owned runtime cap and can be lower than the technical ceiling.
 
+**Phase 2C** (draft, not merged) migrated the frontend build tool from
+`vite@5.4.21` to `vite@6.4.3` — the minimum release patching the
+`npm audit` dev-server advisories, with no change to application entry
+points, dev-server behavior, production output structure, or Vitest
+environments. See `docs/security/DEPENDENCY_AUDIT.md`.
+
 ## Component diagram
 
 ```mermaid

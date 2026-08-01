@@ -286,3 +286,35 @@ narrow correction pass from an earlier, incorrect `5.x`→`8.x` claim; the
 real minimum patched Vite release is `6.4.3`, one major version up, not
 two) — see `docs/security/DEPENDENCY_AUDIT.md` for why and the exact
 remediation path; either can be scheduled independently of Phase 3.
+
+### Phase 2C — Vite 6 security and toolchain migration (draft, not merged)
+
+**Goal:** apply the smallest supported remediation for the deferred
+`vite`/`esbuild` `npm audit` findings, and nothing else — no Vite 7/8, no
+Rolldown, no React Router migration, no Phase 3 work.
+
+`vite` `5.4.21` → `6.4.3` (the minimum patched release across all three
+cited GHSA advisories), which transitively resolved `esbuild` to
+`0.25.12` (above its own `0.25.0` patched floor) with no
+`@vitejs/plugin-react-swc` or `vitest` version change required — both
+already declared compatible peer/dependency ranges, verified live against
+the npm registry. `npm audit` findings dropped from 4 to 2;
+`react-router`/`react-router-dom` remain deferred, unchanged, and were
+not touched. No `vite.config.ts`/`vitest.config.ts`/
+`vitest.server.config.ts`/`tsconfig*` changes were required — none of the
+Vite 5→6 breaking changes (`resolve.conditions` defaults, Sass, SSR
+CSS/`mainFields`, glob-engine swap) apply to this repository's actual
+configuration. A pre-existing frontend test-teardown defect (an
+uncancelled health-check effect in `useDecisionEvaluation.ts` causing an
+`Unhandled Rejection: window is not defined` warning after Vitest tears
+down a test file's jsdom environment — previously recorded as a known,
+unfixed timing quirk in the Phase 2B-2 correction pass) was diagnosed and
+fixed with a cancelled-flag effect-cleanup guard and a regression test. A
+new dependency-free guard, `npm run check:toolchain`
+(`scripts/check-toolchain.mjs`), fails deterministically if the locked
+Vite version regresses below the patched floor, moves to an undocumented
+major line, or if the locked `esbuild` version regresses below its own
+patched floor. Full detail, exact before/after versions, and the complete
+verification record: `docs/PROJECT_STATUS.md` ("Phase 2C") and
+`docs/security/DEPENDENCY_AUDIT.md` ("Phase 2C update"). Phase 3 was not
+started; React Router was not migrated; no real OpenAI call was made.

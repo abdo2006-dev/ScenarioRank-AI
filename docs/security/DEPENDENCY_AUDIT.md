@@ -9,6 +9,74 @@ exactly why each was deferred and what would resolve it. A lower finding
 count is not, by itself, a claim that the application is secure — see
 "What this audit does not claim" at the end.
 
+## Phase 2C update (2026-08-01) — Vite 6 migration applied
+
+**Branch:** `v2/phase-2c-vite6-security` (draft PR, not merged)
+
+Phase 2B-2's correction pass identified this exact remediation path
+("Migration decision" below) but deliberately deferred applying it, since
+that phase's scope was documentation accuracy and template cleanup, not a
+build-tool version bump. Phase 2C applies it as its own focused, reviewed
+follow-up.
+
+| | Vite | esbuild | Total findings |
+|---|---|---|---|
+| Before (start of Phase 2C, matches the table above) | `5.4.21` installed (`^5.4.19` in `package.json`) | `0.21.5` (transitive, vulnerable) | 4 (0 critical, 0 low, 3 moderate, 1 high) |
+| After (`npm install vite@^6.4.3`) | `6.4.3` installed (`^6.4.3` in `package.json`) | `0.25.12` (transitive, patched) | **2** (0 critical, 0 low, 2 moderate, 0 high) |
+
+**Advisories resolved:** all three `vite` advisories
+([GHSA-fx2h-pf6j-xcff](https://github.com/advisories/GHSA-fx2h-pf6j-xcff),
+[GHSA-4w7w-66w2-5vf9](https://github.com/advisories/GHSA-4w7w-66w2-5vf9),
+[GHSA-v6wh-96g9-6wx3](https://github.com/advisories/GHSA-v6wh-96g9-6wx3))
+and the `esbuild` advisory
+([GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99))
+— exactly as predicted in "Migration decision" below, verified live rather
+than assumed: `npm view vite@6.4.3 dependencies` declares `esbuild:
+"^0.25.0"`, and the real install in this repo resolved `esbuild` to
+`0.25.12`.
+
+**Findings remaining (2, both deferred, unchanged from the table below):**
+`react-router` and `react-router-dom` — both moderate, both **production**
+exposure (shipped in the browser bundle), both requiring the separate
+`6.x`→`7.x` major migration this phase explicitly does not perform (see
+"Explicitly out of scope" in the phase instructions). The reasoning is
+unchanged from "3. `react-router`" and "4. `react-router-dom`" below: this
+app has two static routes and no dynamic navigation target built from
+user input, so the open-redirect/XSS preconditions are not exercised
+today, but the finding is real and still deferred, not dismissed.
+
+**Compatibility, verified live (not assumed from documentation):**
+`@vitejs/plugin-react-swc@3.11.0`'s published peer-dependency range
+(`vite: "^4 || ^5 || ^6 || ^7"`) and `vitest@3.2.7`'s published dependency
+range on `vite` (`"^5.0.0 || ^6.0.0 || ^7.0.0-0"`) both already accept
+Vite 6 — confirmed via `npm view <pkg>@<version> peerDependencies` /
+`dependencies` against the live npm registry before installing anything.
+Neither package needed a version bump; `npm ls vite esbuild
+@vitejs/plugin-react-swc vitest` after the install shows exactly one Vite
+version (`6.4.3`) deduped everywhere, with no invalid or extraneous
+packages. No dependency override was used or needed.
+
+**Dev/production exposure (unchanged reasoning, now resolved for
+vite/esbuild):** `vite` and `esbuild` were always development-only
+exposure (dev server / build tool, never shipped in `dist/`) — this
+migration removes two real advisories that were already low-risk for this
+specific project's usage, not two advisories that were being actively
+exploited. `react-router`/`react-router-dom` remain the only
+production-exposed findings.
+
+**Commands used for this update:** `npm view vite versions`, `npm view
+@vitejs/plugin-react-swc@3.11.0 peerDependencies`, `npm view
+vitest@3.2.7 dependencies`, `npm view vite@6.4.3 dependencies`, `npm
+install vite@^6.4.3 --save-dev`, `npm ls vite esbuild
+@vitejs/plugin-react-swc vitest`, `npm audit` / `npm audit --json`, plus
+the full lint/typecheck/guard/test/build verification pass recorded in
+`docs/PROJECT_STATUS.md` ("Phase 2C").
+
+**Migration decision status:** superseded — the "Deferred" line in
+"1. `vite` — high" and "2. `esbuild` — moderate" below described the
+state before this phase. The tables are left as-is (historical record of
+the original classification and reasoning); this section is the update.
+
 **Correction (2026-08-01, Phase 2B-2 narrow correction pass):** this
 document originally stated the `vite`/`esbuild` findings require `vite`
 `8.2.0`. That was incorrect — it was `npm audit`'s own `fixAvailable`

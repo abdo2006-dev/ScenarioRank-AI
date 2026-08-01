@@ -122,6 +122,32 @@ The maintainer should be able to explain the current system in approximately two
 - Explain how a malicious public client could create API cost without rate limiting, and what `AI_MAX_CANDIDATES` and the fixed `MAX_LOGICAL_PROVIDER_STAGES` safety net do and do not protect against.
 - Show the exact code where a batch pairing response missing one expected pair is rejected, and the exact reason string a caller sees if it's still incomplete after the corrective retry.
 
+## Phase 2C understanding (Vite 6 security and toolchain migration)
+
+1. Why was `vite@6.4.3` chosen instead of the newest published Vite major
+   (7 or 8)? What does `npm run check:toolchain` do if that changes
+   without a deliberate, reviewed edit to its own approved-version
+   constants?
+2. `@vitejs/plugin-react-swc` and `vitest` did not need a version bump to
+   support Vite 6 — how was that confirmed, and why does "the published
+   peer-dependency range already includes `^6`" matter more than "the
+   currently pinned version is old"?
+3. Why did the `esbuild` advisory get resolved as a side effect of the
+   `vite` bump rather than needing its own `npm install esbuild@...` or
+   an override?
+4. The `Unhandled Rejection: window is not defined` warning only appeared
+   when running the full frontend suite (or any run including
+   `src/App.test.tsx`), never when running `useDecisionEvaluation.test.tsx`
+   alone. Why? What's different about how `App.test.tsx` exercises
+   `useDecisionEvaluation`'s health-check effect compared to the hook's
+   own dedicated test file?
+5. The regression test for the teardown fix deletes `globalThis.window`
+   mid-test rather than just asserting a mock wasn't called. Why was that
+   necessary to actually catch the regression, and what did reverting the
+   fix and re-running the test prove?
+6. Why does `npm run check:toolchain` read `package-lock.json` directly
+   instead of running `npm ls --json` or a real semver library?
+
 ## Phase 2A understanding
 
 1. Why are provider output schemas in `server/ai/schemas/` distinct from public transport schemas in `shared/contracts/`?
