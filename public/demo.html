@@ -231,11 +231,11 @@ section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:col
   <div class="nav-dot active" onclick="scrollTo(0)" data-label="Intro"></div>
   <div class="nav-dot" onclick="scrollTo(1)" data-label="Data Source"></div>
   <div class="nav-dot" onclick="scrollTo(2)" data-label="Architecture"></div>
-  <div class="nav-dot" onclick="scrollTo(3)" data-label="Role Agent"></div>
-  <div class="nav-dot" onclick="scrollTo(4)" data-label="Scenario Agent"></div>
-  <div class="nav-dot" onclick="scrollTo(5)" data-label="Scoring Agent"></div>
-  <div class="nav-dot" onclick="scrollTo(6)" data-label="Risk & Outcome"></div>
-  <div class="nav-dot" onclick="scrollTo(7)" data-label="Decision Agent"></div>
+  <div class="nav-dot" onclick="scrollTo(3)" data-label="Context Analysis — Role"></div>
+  <div class="nav-dot" onclick="scrollTo(4)" data-label="Context Analysis — Scenario"></div>
+  <div class="nav-dot" onclick="scrollTo(5)" data-label="Batch Scoring"></div>
+  <div class="nav-dot" onclick="scrollTo(6)" data-label="Confidence & Outcome"></div>
+  <div class="nav-dot" onclick="scrollTo(7)" data-label="Decision Generation"></div>
   <div class="nav-dot" onclick="scrollTo(8)" data-label="Final Output"></div>
   <div class="nav-dot" onclick="scrollTo(9)" data-label="Why It Matters"></div>
 </div>
@@ -248,10 +248,10 @@ section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:col
   <div class="section-content fade-up">
     <div class="hero-eyebrow">BMW Hackathon 2025 · System Architecture Demo</div>
     <div class="hero-title">Scenario<span class="hero-accent">Rank</span><br>AI</div>
-    <div class="hero-desc">A multi-agent decision intelligence system that evaluates leadership candidates against real business scenarios — using deterministic math and LLM reasoning in a traceable, auditable pipeline.</div>
+    <div class="hero-desc">A decision-intelligence system that evaluates leadership candidates against real business scenarios — combining deterministic math with LLM interpretation in a traceable, auditable pipeline.</div>
     <div class="hero-meta">
-      <span class="hero-pill amber">7-Stage Agent Pipeline</span>
-      <span class="hero-pill">Node.js + Anthropic Claude</span>
+      <span class="hero-pill amber">Up to 4 Logical Pipeline Stages</span>
+      <span class="hero-pill">Node.js + OpenAI (gpt-5-mini)</span>
       <span class="hero-pill">React + TypeScript</span>
       <span class="hero-pill">Deterministic Scoring Engine</span>
     </div>
@@ -338,91 +338,95 @@ section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:col
 <section id="s2">
   <div class="section-content">
     <div class="section-tag fade-up">02 — Architecture</div>
-    <div class="section-title fade-up fade-up-1">Seven-stage<br>agent pipeline</div>
-    <div class="section-sub fade-up fade-up-2">Each stage is a separate function with a defined input contract, processing logic, and output contract. Stages run sequentially. Earlier outputs become later inputs.</div>
+    <div class="section-title fade-up fade-up-1">Up to four<br>logical pipeline stages</div>
+    <div class="section-sub fade-up fade-up-2">Each stage is a separate function with a defined input contract, processing logic, and output contract. Stages run sequentially — earlier outputs become later inputs. Three model-backed stages always run; a fourth, pairing analysis, runs only when pair simulation is enabled.</div>
 
     <div class="pipeline fade-up fade-up-2" id="pipelineNav">
       <div class="pipe-agent active" onclick="selectAgent(0)" id="pa0">
         <div class="pipe-icon">📋</div>
-        <div class="pipe-name">Role Agent</div>
-        <div class="pipe-role">Extracts criteria & weights</div>
+        <div class="pipe-name">Context Analysis</div>
+        <div class="pipe-role">Role + scenario, one request</div>
         <div class="pipe-mode llm">LLM</div>
       </div>
       <div class="pipe-arrow">→</div>
       <div class="pipe-agent" onclick="selectAgent(1)" id="pa1">
-        <div class="pipe-icon">🎯</div>
-        <div class="pipe-name">Scenario Agent</div>
-        <div class="pipe-role">Adjusts weight vector</div>
+        <div class="pipe-icon">📊</div>
+        <div class="pipe-name">Batch Candidate Scoring</div>
+        <div class="pipe-role">Scores every candidate, one request</div>
         <div class="pipe-mode llm">LLM</div>
       </div>
       <div class="pipe-arrow">→</div>
       <div class="pipe-agent" onclick="selectAgent(2)" id="pa2">
-        <div class="pipe-icon">📊</div>
-        <div class="pipe-name">Scoring Agent</div>
-        <div class="pipe-role">Scores 7 criteria per candidate</div>
-        <div class="pipe-mode llm">LLM ×N</div>
+        <div class="pipe-icon">🧮</div>
+        <div class="pipe-name">Metric Calculation</div>
+        <div class="pipe-role">Weighted fit, risk, outcome scores</div>
+        <div class="pipe-mode det">Deterministic</div>
       </div>
       <div class="pipe-arrow">→</div>
       <div class="pipe-agent" onclick="selectAgent(3)" id="pa3">
         <div class="pipe-icon">🛡️</div>
-        <div class="pipe-name">Bias Review</div>
-        <div class="pipe-role">Flags low confidence</div>
+        <div class="pipe-name">Confidence & Evidence Review</div>
+        <div class="pipe-role">Flags low-confidence criteria</div>
         <div class="pipe-mode det">Deterministic</div>
       </div>
       <div class="pipe-arrow">→</div>
       <div class="pipe-agent" onclick="selectAgent(4)" id="pa4">
         <div class="pipe-icon">📈</div>
-        <div class="pipe-name">Outcome Model</div>
-        <div class="pipe-role">Computes 6 risk dimensions</div>
+        <div class="pipe-name">Outcome Modeling</div>
+        <div class="pipe-role">Derives risk & outcome labels</div>
         <div class="pipe-mode det">Deterministic</div>
       </div>
       <div class="pipe-arrow">→</div>
       <div class="pipe-agent" onclick="selectAgent(5)" id="pa5">
-        <div class="pipe-icon">🧭</div>
-        <div class="pipe-name">Decision Agent</div>
-        <div class="pipe-role">Ranks & synthesizes</div>
-        <div class="pipe-mode llm">LLM</div>
+        <div class="pipe-icon">🤝</div>
+        <div class="pipe-name">Batch Pairing Analysis</div>
+        <div class="pipe-role">Optional — top-4 pair combinations</div>
+        <div class="pipe-mode llm">LLM · optional</div>
       </div>
       <div class="pipe-arrow">→</div>
       <div class="pipe-agent" onclick="selectAgent(6)" id="pa6">
-        <div class="pipe-icon">🤝</div>
-        <div class="pipe-name">Pairing Agent</div>
-        <div class="pipe-role">Evaluates leader combos</div>
+        <div class="pipe-icon">🧭</div>
+        <div class="pipe-name">Decision Generation</div>
+        <div class="pipe-role">Explains the already-fixed ranking</div>
         <div class="pipe-mode llm">LLM</div>
       </div>
     </div>
 
     <div class="grid-3" style="margin-top:8px">
       <div class="card">
-        <div class="card-label">LLM stages</div>
-        <div class="card-title">5 Claude calls</div>
-        <div class="card-body">Role analysis, scenario calibration, candidate scoring (×N), decision synthesis, pair evaluation. Each call returns structured JSON.</div>
+        <div class="card-label">Model-backed stages</div>
+        <div class="card-title">3 (4 with pairing)</div>
+        <div class="card-body">Context analysis, batch candidate scoring, decision generation always run; batch pairing analysis runs only when pair simulation is enabled. Each call returns structured JSON validated against a Zod schema.</div>
       </div>
       <div class="card">
         <div class="card-label">Deterministic stages</div>
-        <div class="card-title">2 math stages</div>
-        <div class="card-body">Bias & confidence review and outcome modeling use pure arithmetic. No LLM. Results are reproducible and auditable.</div>
+        <div class="card-title">3 math stages</div>
+        <div class="card-body">Metric calculation, confidence & evidence review, and outcome modeling use pure arithmetic. No LLM. Results are reproducible and auditable.</div>
       </div>
       <div class="card">
         <div class="card-label">Ranking method</div>
-        <div class="card-title">Scores sort. LLM explains.</div>
-        <div class="card-body">Rankings are computed deterministically from weighted scores. Claude only generates the narrative — it cannot change who ranks first.</div>
+        <div class="card-title">Scores sort. Model explains.</div>
+        <div class="card-body">Rankings are computed deterministically from weighted scores before the model ever runs the decision-generation stage. OpenAI (gpt-5-mini) only generates the narrative — it cannot change who ranks first.</div>
       </div>
+    </div>
+
+    <div style="margin-top:16px;padding:12px 16px;background:var(--blue-dim);border:1px solid rgba(96,165,250,.15);border-radius:8px;font-size:13px;color:var(--muted)" class="fade-up fade-up-3">
+      <strong style="color:var(--blue)">Logical stages vs. real requests:</strong> a stage's own retry, or a corrective retry when a batch response is incomplete, adds real OpenAI attempts without adding a stage. The response reports both counts separately — <code style="font-family:var(--mono);color:var(--white)">logicalProviderStageCount</code> and <code style="font-family:var(--mono);color:var(--white)">providerAttemptCount</code> — so the two are never conflated.
     </div>
   </div>
 </section>
 
 <!-- ═══════════════════════════════════════════════ -->
-<!-- S3: ROLE AGENT -->
+<!-- S3: CONTEXT ANALYSIS — ROLE SIGNAL -->
 <!-- ═══════════════════════════════════════════════ -->
 <section id="s3">
   <div class="section-content">
-    <div class="step-counter fade-up">Stage 1 of 7</div>
-    <div class="section-tag fade-up">03 — Role Agent</div>
+    <div class="step-counter fade-up">Model-backed stage 1 of 3 (4 with pairing)</div>
+    <div class="section-tag fade-up">03 — Context Analysis · Role Signal</div>
     <div class="section-title fade-up fade-up-1">Role analysis<br>& weight extraction</div>
 
     <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap" class="fade-up fade-up-2">
-      <span class="badge badge-blue">LLM Call</span>
+      <span class="badge badge-blue">One combined request (role + scenario)</span>
       <span class="badge badge-amber">Input: role definition</span>
       <span class="badge badge-green">Output: 7 criteria + baseline weights</span>
     </div>
@@ -431,7 +435,7 @@ section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:col
       <div class="fade-up fade-up-2">
         <div class="io-label io-in">Input</div>
         <div class="json-wrap">
-          <div class="json-header"><div class="json-filename">role_agent_input.json</div></div>
+          <div class="json-header"><div class="json-filename">context_analysis_input.json</div></div>
           <div class="json-body">{
   <span class="k">"title"</span>: <span class="hi">"VP of People & Culture"</span>,
   <span class="k">"description"</span>: <span class="s">"Senior leader to oversee talent
@@ -442,49 +446,53 @@ section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:col
 }</div>
         </div>
         <div class="code-wrap" style="margin-top:12px">
-          <div class="code-header"><span class="code-file">server.mjs</span><span class="code-lang">javascript</span></div>
-          <div class="code-body"><span class="cm">// Sends role to Claude, gets back weights</span>
-<span class="ck">async function</span> <span class="cf">runRoleAgent</span>(input) {
-  <span class="ck">const</span> sys <span class="co">=</span> <span class="cs">`You are an expert org psychologist.
-    Return valid JSON only.`</span>
-  <span class="ck">const</span> r <span class="co">=</span> <span class="ck">await</span> <span class="cf">callClaudeJSON</span>(sys, msg, <span class="cn">2000</span>)
-  <span class="cm">// Force exact 7 criteria keys</span>
-  r.criteria <span class="co">=</span> [<span class="cs">"domain_expertise"</span>,
-    <span class="cs">"transformation_leadership"</span>, ...]
-  <span class="ck">return</span> r
+          <div class="code-header"><span class="code-file">server/pipeline/runPipeline.js</span><span class="code-lang">javascript</span></div>
+          <div class="code-body"><span class="cm">// Sends role + scenario to OpenAI in one request</span>
+<span class="ck">async function</span> <span class="cf">runContextAnalysis</span>(input) {
+  <span class="ck">const</span> result <span class="co">=</span> <span class="ck">await</span> provider.<span class="cf">generateStructured</span>({
+    schema: contextAnalysisSchema,
+    prompt: <span class="cf">buildContextAnalysisPrompt</span>(input),
+  })
+  <span class="cm">// result.role_analysis and result.scenario_analysis
+  // are both validated against the same Zod schema</span>
+  <span class="ck">return</span> result
 }</div>
         </div>
       </div>
 
       <div class="transform-arrow fade-up fade-up-3">
         <div class="transform-line"></div>
-        <div class="transform-label">Claude</div>
+        <div class="transform-label">OpenAI (gpt-5-mini)</div>
         <div class="transform-line"></div>
       </div>
 
       <div class="fade-up fade-up-3">
         <div class="io-label io-out">Output</div>
         <div class="json-wrap">
-          <div class="json-header"><div class="json-filename">role_agent_output.json</div></div>
+          <div class="json-header"><div class="json-filename">context_analysis_output.json</div></div>
           <div class="json-body">{
-  <span class="k">"complexity_rating"</span>: <span class="s">"high"</span>,
-  <span class="k">"must_have_criteria"</span>: [
-    <span class="s">"stakeholder_management"</span>,
-    <span class="s">"transformation_leadership"</span>
-  ],
-  <span class="k">"baseline_weights"</span>: {
-    <span class="k">"domain_expertise"</span>:          <span class="hi">15</span>,
-    <span class="k">"transformation_leadership"</span>:  <span class="hi">15</span>,
-    <span class="k">"operational_execution"</span>:      <span class="hi">15</span>,
-    <span class="k">"stakeholder_management"</span>:     <span class="hi">15</span>,
-    <span class="k">"crisis_management"</span>:          <span class="hi">15</span>,
-    <span class="k">"innovation_digital"</span>:         <span class="hi">12</span>,
-    <span class="k">"strategic_scalability"</span>:      <span class="hi">13</span>
-    <span class="c">// sums to 100</span>
-  },
-  <span class="k">"role_success_definition"</span>: <span class="s">"Drive rapid
-    geographic expansion while preserving
-    culture and talent retention."</span>
+  <span class="k">"role_analysis"</span>: {
+    <span class="k">"complexity_rating"</span>: <span class="s">"high"</span>,
+    <span class="k">"must_have_criteria"</span>: [
+      <span class="s">"stakeholder_management"</span>,
+      <span class="s">"transformation_leadership"</span>
+    ],
+    <span class="k">"baseline_weights"</span>: {
+      <span class="k">"domain_expertise"</span>:          <span class="hi">15</span>,
+      <span class="k">"transformation_leadership"</span>:  <span class="hi">15</span>,
+      <span class="k">"operational_execution"</span>:      <span class="hi">15</span>,
+      <span class="k">"stakeholder_management"</span>:     <span class="hi">15</span>,
+      <span class="k">"crisis_management"</span>:          <span class="hi">15</span>,
+      <span class="k">"innovation_digital"</span>:         <span class="hi">12</span>,
+      <span class="k">"strategic_scalability"</span>:      <span class="hi">13</span>
+      <span class="c">// sums to 100</span>
+    },
+    <span class="k">"role_success_definition"</span>: <span class="s">"Drive rapid
+      geographic expansion while preserving
+      culture and talent retention."</span>
+  }
+  <span class="c">// "scenario_analysis" is the nested sibling
+  // object from the same response — see next section</span>
 }</div>
         </div>
       </div>
@@ -493,22 +501,22 @@ section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:col
 </section>
 
 <!-- ═══════════════════════════════════════════════ -->
-<!-- S4: SCENARIO AGENT -->
+<!-- S4: CONTEXT ANALYSIS — SCENARIO SIGNAL -->
 <!-- ═══════════════════════════════════════════════ -->
 <section id="s4">
   <div class="section-content">
-    <div class="step-counter fade-up">Stage 2 of 7</div>
-    <div class="section-tag fade-up">04 — Scenario Agent</div>
+    <div class="step-counter fade-up">Same logical stage as Context Analysis — Role Signal</div>
+    <div class="section-tag fade-up">04 — Context Analysis · Scenario Signal</div>
     <div class="section-title fade-up fade-up-1">Weight vector<br>calibration</div>
 
     <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap" class="fade-up fade-up-2">
-      <span class="badge badge-blue">LLM Call</span>
+      <span class="badge badge-blue">Nested output — no extra request</span>
       <span class="badge badge-amber">Input: baseline weights + scenario</span>
       <span class="badge badge-green">Output: shifted normalized weights</span>
     </div>
 
     <div style="margin-top:20px;font-size:13px;color:var(--muted)" class="fade-up fade-up-2">
-      For <strong style="color:var(--white)">"Rapid scaling in a new geographic market"</strong>, Claude recommends boosting <strong style="color:var(--amber)">strategic_scalability</strong> and <strong style="color:var(--amber)">transformation_leadership</strong> — since this scenario demands leaders who can operate in unfamiliar territory and build teams from scratch. All weights re-normalize to 100.
+      For <strong style="color:var(--white)">"Rapid scaling in a new geographic market"</strong>, the model recommends boosting <strong style="color:var(--amber)">strategic_scalability</strong> and <strong style="color:var(--amber)">transformation_leadership</strong> — since this scenario demands leaders who can operate in unfamiliar territory and build teams from scratch. Application code re-normalizes all weights to 100 (<code style="font-family:var(--mono);color:var(--white)">server/domain/scoring.js</code>).
     </div>
 
     <div style="margin-top:24px" class="fade-up fade-up-3">
@@ -529,7 +537,7 @@ section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:col
     <div class="div-line"></div>
     <div class="grid-2" style="margin-top:0">
       <div class="json-wrap fade-up fade-up-2">
-        <div class="json-header"><div class="json-filename">weight_deltas.json <span class="badge badge-blue" style="margin-left:6px">from Claude</span></div></div>
+        <div class="json-header"><div class="json-filename">weight_deltas.json <span class="badge badge-blue" style="margin-left:6px">from scenario_analysis</span></div></div>
         <div class="json-body">{
   <span class="k">"weight_deltas"</span>: {
     <span class="k">"strategic_scalability"</span>:     <span class="hi">+12</span>,
@@ -567,28 +575,29 @@ section{min-height:100vh;scroll-snap-align:start;display:flex;flex-direction:col
 </section>
 
 <!-- ═══════════════════════════════════════════════ -->
-<!-- S5: SCORING AGENT -->
+<!-- S5: BATCH CANDIDATE SCORING -->
 <!-- ═══════════════════════════════════════════════ -->
 <section id="s5">
   <div class="section-content">
-    <div class="step-counter fade-up">Stage 3 of 7</div>
-    <div class="section-tag fade-up">05 — Candidate Scoring Agent</div>
+    <div class="step-counter fade-up">Model-backed stage 2 of 3 (4 with pairing)</div>
+    <div class="section-tag fade-up">05 — Batch Candidate Scoring</div>
     <div class="section-title fade-up fade-up-1">Evidence-based<br>criterion scoring</div>
 
     <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap" class="fade-up fade-up-2">
-      <span class="badge badge-blue">LLM Call × N candidates</span>
-      <span class="badge badge-amber">Concurrency = 2 (rate-limit safe)</span>
-      <span class="badge badge-green">Output: 7 scores + confidence + evidence</span>
+      <span class="badge badge-blue">One batched request scores every candidate</span>
+      <span class="badge badge-amber">Results mapped back by candidate ID</span>
+      <span class="badge badge-green">Output: 7 scores + confidence + evidence, per candidate</span>
     </div>
 
-    <div style="font-size:13px;color:var(--muted);margin-top:12px" class="fade-up fade-up-2">Each candidate's text description is evaluated independently. Claude scores 1–10 per criterion, reports its confidence (0–1), and must cite evidence from the profile text.</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:12px" class="fade-up fade-up-2">Every submitted candidate is scored in a single request. Each result carries the candidate's stable ID; <code style="font-family:var(--mono);color:var(--white)">mapBatchResultsById()</code> maps results back by that ID — never by array position — and rejects the whole batch, with one corrective retry, if any ID is duplicated, missing, or unrecognized. The model scores 1–10 per criterion, reports its confidence (0–1), and must cite evidence from the profile text.</div>
 
     <div class="grid-2" style="margin-top:20px">
       <div class="fade-up fade-up-2">
-        <div class="io-label io-out">Alexandra Chen — Scores</div>
+        <div class="io-label io-out">Alexandra Chen — one entry in the batch response</div>
         <div class="json-wrap">
-          <div class="json-header"><div class="json-filename">scoring_output_c1.json</div></div>
+          <div class="json-header"><div class="json-filename">batch_scoring_output.json (excerpt)</div></div>
           <div class="json-body">{
+  <span class="k">"candidate_id"</span>: <span class="s">"c1"</span>,
   <span class="k">"candidate_name"</span>: <span class="s">"Alexandra Chen"</span>,
   <span class="k">"criteria_scores"</span>: {
     <span class="k">"domain_expertise"</span>: {
@@ -644,7 +653,7 @@ WFS = 738.5 / 10 = <span class="hi">73.85</span>
         </div>
 
         <div class="code-wrap" style="margin-top:12px">
-          <div class="code-header"><span class="code-file">server.mjs — computeWeightedFitScore()</span></div>
+          <div class="code-header"><span class="code-file">server/domain/scoring.js — computeWeightedFitScore()</span></div>
           <div class="code-body"><span class="ck">function</span> <span class="cf">computeWeightedFitScore</span>(scores, weights) {
   <span class="ck">let</span> total <span class="co">=</span> <span class="cn">0</span>
   <span class="ck">for</span> (<span class="ck">const</span> k <span class="ck">of</span> Object.<span class="cf">keys</span>(weights))
@@ -659,12 +668,12 @@ WFS = 738.5 / 10 = <span class="hi">73.85</span>
 </section>
 
 <!-- ═══════════════════════════════════════════════ -->
-<!-- S6: RISK & OUTCOME MODELING -->
+<!-- S6: CONFIDENCE & EVIDENCE REVIEW + OUTCOME MODELING -->
 <!-- ═══════════════════════════════════════════════ -->
 <section id="s6">
   <div class="section-content">
-    <div class="step-counter fade-up">Stages 4 & 5 of 7</div>
-    <div class="section-tag fade-up">06 — Bias Review + Outcome Modeling</div>
+    <div class="step-counter fade-up">Deterministic stages — no LLM call</div>
+    <div class="section-tag fade-up">06 — Confidence & Evidence Review + Outcome Modeling</div>
     <div class="section-title fade-up fade-up-1">Pure math.<br>No LLM.</div>
 
     <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap" class="fade-up fade-up-2">
@@ -711,12 +720,14 @@ WFS = 738.5 / 10 = <span class="hi">73.85</span>
             <div style="text-align:center"><div style="font-family:'Bebas Neue';font-size:28px;color:var(--white)">50%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase">Adaptability</div></div>
           </div>
         </div>
+
+        <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.6">Adaptability is a prototype heuristic derived only from this run's criteria. Cross-scenario consistency is honestly reported as <code style="font-family:var(--mono);color:var(--white)">"not_measured"</code> — the system does not claim to have observed a candidate across multiple scenarios.</div>
       </div>
 
       <div class="fade-up fade-up-3">
-        <div class="card-label" style="margin-bottom:12px">Formulas used (from server.mjs)</div>
+        <div class="card-label" style="margin-bottom:12px">Illustrative formulas (weighting scheme)</div>
         <div class="code-wrap">
-          <div class="code-header"><span class="code-file">server.mjs — risk computation</span></div>
+          <div class="code-header"><span class="code-file">server/domain/scoring.js — risk computation</span></div>
           <div class="code-body"><span class="cm">// Execution risk: low exec ability = high risk</span>
 ExecutionRisk <span class="co">=</span> <span class="cn">100</span> <span class="co">-</span> (
   <span class="cn">0.45</span> <span class="co">×</span> operational_execution <span class="co">×</span> <span class="cn">10</span> <span class="co">+</span>
@@ -743,24 +754,23 @@ RAS <span class="co">=</span> WFS
         </div>
 
         <div style="margin-top:12px;padding:12px 16px;background:var(--blue-dim);border:1px solid rgba(96,165,250,.15);border-radius:8px;font-size:13px;color:var(--muted)">
-          <strong style="color:var(--blue)">Bias Review (deterministic):</strong> Flags any criterion where confidence &lt; 0.65. If 3+ criteria are flagged, recommends human review. Does not change scores — only annotates them.
-        </div>
+          <strong style="color:var(--blue)">Confidence & Evidence Review (deterministic):</strong> flags any criterion where confidence &lt; 0.65 or evidence text is under 15 characters. If 3+ criteria are flagged, recommends human review. It does <strong style="color:var(--white)">not</strong> test protected characteristics, proxy variables, or demographic/legal bias — it is a confidence check, not a fairness audit — and does not change scores, only annotates them.</div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ═══════════════════════════════════════════════ -->
-<!-- S7: DECISION AGENT -->
+<!-- S7: DECISION GENERATION -->
 <!-- ═══════════════════════════════════════════════ -->
 <section id="s7">
   <div class="section-content">
-    <div class="step-counter fade-up">Stage 6 of 7</div>
-    <div class="section-tag fade-up">07 — Decision Agent</div>
-    <div class="section-title fade-up fade-up-1">Deterministic ranking.<br>LLM narrates.</div>
+    <div class="step-counter fade-up">Model-backed stage 3 of 3 (4 of 4 with pairing)</div>
+    <div class="section-tag fade-up">07 — Decision Generation</div>
+    <div class="section-title fade-up fade-up-1">Deterministic ranking.<br>Model narrates.</div>
 
     <div style="margin-top:8px;font-size:13px;color:var(--muted)" class="fade-up fade-up-2">
-      The ranking is computed by sorting on the chosen decision mode's score. Claude receives the ranked metrics as input and generates explanations — it cannot reorder candidates.
+      Application code sorts candidates deterministically on the chosen decision mode's score — before the model is ever called for this stage. OpenAI (gpt-5-mini) receives the already-computed ranking (and, when pairing succeeded or was attempted, an already-known pairing summary) and generates explanations, trade-offs, and an executive summary — it cannot reorder candidates or invent a pairing result.
     </div>
 
     <div style="margin-top:20px" class="fade-up fade-up-2">
@@ -823,6 +833,11 @@ RAS <span class="co">=</span> WFS
       <div style="font-family:var(--mono);font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Key insight — mode sensitivity</div>
       <div style="color:var(--muted)">Samuel ranks <strong style="color:var(--white)">#1 in Best Fit</strong> because his strategic_scalability and stakeholder_management scores align with the scenario-shifted weights. Switch to <strong style="color:var(--white)">Lowest Risk</strong> and Alexandra may lead — her execution risk is lower. Same scores, different rank. The <strong style="color:var(--amber)">decision mode is the user's choice of what to optimize for.</strong></div>
     </div>
+
+    <div style="margin-top:16px;padding:14px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:13px" class="fade-up fade-up-3">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Optional — Batch Pairing Analysis</div>
+      <div style="color:var(--muted)">When pair simulation is enabled, the top four candidates from the actual deterministic ranking above are combined into every relevant pair (up to 6) and evaluated in a single batched request. A successful result must cover every expected pair — a partial batch is never reported as a successful "best pair." If coverage is still incomplete after one corrective retry, the pipeline honestly returns <code style="font-family:var(--mono);color:var(--white)">{"status":"unavailable"}</code> rather than a fabricated pairing.</div>
+    </div>
   </div>
 </section>
 
@@ -831,7 +846,7 @@ RAS <span class="co">=</span> WFS
 <!-- ═══════════════════════════════════════════════ -->
 <section id="s8">
   <div class="section-content">
-    <div class="step-counter fade-up">Stage 7 of 7</div>
+    <div class="step-counter fade-up">Assembled response</div>
     <div class="section-tag fade-up">08 — Final Output</div>
     <div class="section-title fade-up fade-up-1">From input text<br>to executive decision</div>
 
@@ -845,9 +860,9 @@ RAS <span class="co">=</span> WFS
     <span class="k">"recommended_candidate_name"</span>: <span class="hi">"Samuel Okafor"</span>,
     <span class="k">"final_label"</span>: <span class="s">"Best Fit"</span>,
     <span class="k">"key_reason"</span>: <span class="s">"Highest WFS for geographic
-      scaling — McKinsey DEI background and
-      strategic clarity align with the
-      scenario's top-weighted criteria."</span>,
+      scaling — strategic clarity aligns
+      with the scenario's top-weighted
+      criteria."</span>,
     <span class="k">"overall_confidence"</span>: <span class="hi">0.84</span>
   },
   <span class="k">"executive_summary"</span>: {
@@ -861,6 +876,14 @@ RAS <span class="co">=</span> WFS
     <span class="k">"best_pair"</span>: [<span class="hi">"Samuel Okafor"</span>, <span class="hi">"Alexandra Chen"</span>],
     <span class="k">"pair_score"</span>: <span class="hi">8.7</span>,
     <span class="k">"complementarity"</span>: <span class="hi">0.88</span>
+  },
+  <span class="k">"run_metadata"</span>: {
+    <span class="k">"provider"</span>: <span class="s">"openai"</span>,
+    <span class="k">"model"</span>: <span class="s">"gpt-5-mini"</span>,
+    <span class="k">"logicalProviderStageCount"</span>: <span class="hi">4</span>,
+    <span class="k">"providerAttemptCount"</span>: <span class="hi">5</span>
+    <span class="c">// providerAttemptCount includes a corrective
+    // retry, so it can exceed the logical stage count</span>
   }
 }</div>
         </div>
@@ -871,13 +894,13 @@ RAS <span class="co">=</span> WFS
           <div class="card-label">What the pipeline produced</div>
         </div>
         <ul class="tick-list">
-          <li>7 criteria extracted from role description by Claude</li>
-          <li>Weights recalibrated for geographic scaling scenario</li>
-          <li>5 candidates scored across 7 criteria with evidence</li>
+          <li>7 criteria and baseline weights extracted from the role + scenario in one combined request</li>
+          <li>Weights recalibrated for the geographic scaling scenario</li>
+          <li>5 candidates scored across 7 criteria with evidence, in one batched request</li>
           <li>Confidence scores computed per criterion</li>
-          <li>6 risk dimensions calculated from criterion scores</li>
-          <li>Full ranking produced deterministically</li>
-          <li>Executive summary, trade-offs, and pair score generated</li>
+          <li>6 risk dimensions calculated deterministically from criterion scores</li>
+          <li>Full ranking produced deterministically, before the model wrote any explanation</li>
+          <li>Executive summary, trade-offs, and (if enabled) a pair score generated</li>
         </ul>
 
         <div class="div-line"></div>
@@ -910,7 +933,7 @@ RAS <span class="co">=</span> WFS
       <div class="why-card">
         <div class="why-num">02</div>
         <div class="why-title">Scenario simulation</div>
-        <div class="why-body">The same candidate ranks differently under crisis vs growth vs transformation. The system shows where candidates are robust vs fragile.</div>
+        <div class="why-body">The same candidate ranks differently under crisis vs growth vs transformation. The system shows where candidates are robust vs fragile within a single run.</div>
       </div>
       <div class="why-card">
         <div class="why-num">03</div>
@@ -920,7 +943,7 @@ RAS <span class="co">=</span> WFS
       <div class="why-card">
         <div class="why-num">04</div>
         <div class="why-title">Leaders as a system</div>
-        <div class="why-body">Pair simulation surfaces combinations where complementarity is high but conflict risk is low — insight that individual evaluation cannot provide.</div>
+        <div class="why-body">Optional pair simulation surfaces combinations where complementarity is high but conflict risk is low — insight that individual evaluation cannot provide.</div>
       </div>
     </div>
 
@@ -929,18 +952,18 @@ RAS <span class="co">=</span> WFS
       <div style="font-size:15px;color:var(--muted);line-height:1.8;max-width:700px">
         <strong style="color:var(--white)">"Who is the best candidate?"</strong> is only part of the decision.<br>
         The harder question is: <strong style="color:var(--amber)">"Who is the best candidate for this scenario, optimizing for this objective, accepting these risks, at this opportunity cost?"</strong><br><br>
-        ScenarioRank AI structures that question so the answer is explainable — not just to the hiring team, but to every stakeholder who has to live with the outcome.
+        ScenarioRank AI structures that question so the answer is explainable — not just to the hiring team, but to every stakeholder who has to live with the outcome. This is a prototype, not a validated hiring instrument: it has not been empirically tested for fairness, its confidence scores are not calibrated against real outcomes, and it is not production-ready.
       </div>
     </div>
 
     <div style="margin-top:24px;display:flex;gap:16px;flex-wrap:wrap" class="fade-up fade-up-4">
       <div style="padding:12px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
         <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Built with</div>
-        <div style="font-size:13px;color:var(--white);margin-top:4px">Node.js · Anthropic Claude · React · TypeScript</div>
+        <div style="font-size:13px;color:var(--white);margin-top:4px">Node.js · OpenAI (gpt-5-mini) · React · TypeScript</div>
       </div>
       <div style="padding:12px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
         <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Architecture</div>
-        <div style="font-size:13px;color:var(--white);margin-top:4px">Single-file server · SSE streaming · 7-agent pipeline</div>
+        <div style="font-size:13px;color:var(--white);margin-top:4px">Modular Node/Express backend · SSE streaming · up to 4 logical pipeline stages</div>
       </div>
       <div style="padding:12px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
         <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em">Scoring</div>
@@ -1042,7 +1065,7 @@ function animateWeights() {
   }, 100);
 }
 
-// ── PIPELINE AGENT SELECT (for architecture page) ──
+// ── PIPELINE STAGE SELECT (for architecture page) ──
 function selectAgent(i) {
   document.querySelectorAll('.pipe-agent').forEach((a, j) => {
     a.classList.toggle('active', j === i);

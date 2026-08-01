@@ -14,7 +14,7 @@
 | Server-Sent Events | backend/frontend | Pipeline progress streaming | Simpler than WebSockets for one-way progress updates | A good fit for this one-way stream |
 | OpenAI SDK (`openai`) | backend (`server/ai/providers/openaiProvider.js`) | **The only supported provider**, via the Responses API + Structured Outputs, for every pipeline LLM operation | `gpt-5-mini` was verified at implementation time to be available to this project's account, to support Structured Outputs, and to work correctly with the installed SDK — see `docs/decisions/ADR-0004-single-openai-provider.md` for the real-account probe. Groq and Gemini were real, tested integrations from an earlier phase, removed after neither could reliably complete a full run on its free tier | Bundles its own Zod-to-JSON-Schema helper (`openai/helpers/zod`), so this project no longer needs a standalone conversion package |
 | Vitest | testing | Test runner | Native fit for Vite projects | Phase 2B-1 adds shared-limit, validation, accessibility-semantic, and route coverage; no test uses the real OpenAI provider. |
-| Playwright | testing configuration | Intended browser testing | Good for full user-flow verification | Configured; Phase 2B-1 retains deterministic React semantic tests and a manual accessibility-oriented checklist. Axe was not added because browser-scanner setup is outside the verified dependency/runtime path for this focused change. |
+| Playwright | *(removed, Phase 2B-2 correction pass)* | N/A | N/A | `@playwright/test`, `playwright.config.ts`, and `playwright-fixture.ts` were removed: the config and fixture imported a nonexistent package (`lovable-agent-playwright-config`, absent from `package.json` and `package-lock.json`), no npm script or test file used them, and no substantive browser test was ever present. Accessibility verification uses Vitest/Testing Library semantic tests plus the manual checklist (`docs/testing/ACCESSIBILITY_CHECKLIST.md`) — that was already the real coverage; the Playwright configuration never added anything beyond an unused, broken stub. |
 | Zod | dependency | Schema validation | Common TypeScript validation library | **Live**: every production LLM operation is validated against a Zod schema (`server/ai/schemas/`) before any deterministic calculation runs — the OpenAI adapter validates twice (once via the SDK's own helper, once explicitly, defense in depth). No longer "installed but unused" in any sense |
 
 ## Data and infrastructure technologies not present
@@ -44,7 +44,10 @@ A package being listed in `package.json` does not mean it is part of the active 
 Examples:
 
 - Zod is installed, but current runtime validation is manual.
-- Playwright is configured, but no substantive browser tests are present.
+- Playwright *was* configured but never had a substantive browser test —
+  its config and fixture imported a package that was never actually
+  installed, and it was removed entirely in the Phase 2B-2 correction pass
+  rather than fixed, since nothing depended on it.
 
 **Resolved in Phase 2B-2:** TanStack Query was initialized (`QueryClientProvider`
 in `App.tsx`) but no active code ever called `useQuery`/`useMutation` — live

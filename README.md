@@ -10,8 +10,15 @@
 > findings from 9 to 4 — all deferred findings need a major-version
 > migration and are documented in
 > [`docs/security/DEPENDENCY_AUDIT.md`](./docs/security/DEPENDENCY_AUDIT.md).
-> No scoring, prompt, or provider behavior changed. Phases 2A and 2B-1 are
-> already merged to `main`.
+> A narrow correction pass in the same phase removed remaining residual
+> template debt (`src/lib/utils.ts`, `components.json`, `src/App.css`, a
+> broken Playwright stub), renamed the generated package identity to
+> `scenariorank-ai`, rewrote the public demo
+> ([`public/demo.html`](./public/demo.html)) to describe the current
+> OpenAI/gpt-5-mini pipeline instead of the retired award-build
+> architecture, and corrected a documentation error about the Vite
+> remediation path. No scoring, prompt, or provider behavior changed.
+> Phases 2A and 2B-1 are already merged to `main`.
 
 ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 
@@ -84,7 +91,7 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 | Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
 | Package manager | npm only (`package-lock.json`) | The stale `bun.lock`/`bun.lockb` lockfiles were removed in Phase 2B-2 — see [ADR-0007](./docs/decisions/ADR-0007-npm-only-lockfile.md) |
-| Automated testing | 193 backend + 93 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, focused accessible component rendering, and the Phase 2B-2 cleanup-reintroduction guard |
+| Automated testing | 201 backend + 93 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, focused accessible component rendering, and the Phase 2B-2 cleanup-reintroduction guard |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 

@@ -68,9 +68,25 @@ package manager (deleted `bun.lock`/`bun.lockb`, see
 reduced `npm audit` findings from 9 to 4 via safe in-range fixes only (no
 `--force`, no major bumps, full classification in
 [`security/DEPENDENCY_AUDIT.md`](security/DEPENDENCY_AUDIT.md)); and added a
-reintroduction guard (`npm run check:unused-template`). Final verification
-passed 286 tests (93 frontend + 193 backend). See "Phase 2B-2" below for full
-detail. Phase 3 remains unstarted.
+reintroduction guard (`npm run check:unused-template`). **A narrow
+correction pass on the same branch and draft PR** then removed the
+remaining residual template debt the first pass had left in place
+(`src/lib/utils.ts`, `components.json`, `src/App.css`,
+`playwright.config.ts`/`playwright-fixture.ts`/`@playwright/test`, and the
+unused `tailwindcss-animate` plugin with its accordion keyframes); renamed
+the generated root package identity `vite_react_shadcn_ts` to
+`scenariorank-ai`; rewrote the publicly reachable `public/demo.html` to
+describe the current OpenAI/gpt-5-mini, up-to-four-logical-stage pipeline
+instead of the retired award-build architecture it still described
+(Anthropic Claude, a seven-agent pipeline, "Bias Review"); and corrected a
+documentation error that claimed the `vite`/`esbuild` audit findings
+require `vite@8.2.0` — the real minimum patched release is `vite@6.4.3`,
+verified against the GHSA advisories directly and via a real isolated
+install. `npm audit` remains at 4 findings (none of the additionally
+removed packages were part of the vulnerable dependency graph). Final
+verification after both passes: 294 tests (93 frontend + 201 backend). See
+"Phase 2B-2" and "Phase 2B-2 correction pass" below for full detail. Phase
+3 remains unstarted.
 
 ## Project objective
 
@@ -1006,6 +1022,10 @@ Full detail: [`V2_ROADMAP.md`](V2_ROADMAP.md).
   (https://github.com/abdo2006-dev/ScenarioRank-AI/pull/5) targeting
   `main` — **not merged**. It will be squash-merged and deleted, like every
   prior phase branch, once the owner reviews and approves it.
+- A narrow correction pass (residual template cleanup, public-demo
+  correction, dependency-audit fact correction) was completed on this same
+  branch, updating the same draft PR #5 — no new branch was created, per
+  explicit instruction.
 - Prefer one active implementation branch at a time.
 
 ## Learning checkpoints
@@ -1252,6 +1272,150 @@ behavior changed; no real OpenAI calls were made.
    strings and no `openai`/backend SDK code. No active import references a
    deleted component. No real OpenAI calls were made. Phase 3 was not
    started.
+
+### Phase 2B-2 correction pass — verified template/dependency cleanup and audit remediation planning (completed, same draft PR, not yet merged)
+
+A follow-up review of the merged Phase 2B-2 work found it incomplete in
+scope and wrong in one documented fact. This narrow correction addresses
+both, on the same branch and the same draft PR #5 — no new branch, and no
+Phase 3 work.
+
+1. **Residual dead files deleted (5 more), each proven unused first.**
+   `src/lib/utils.ts` (the shadcn `cn()` helper) — grep across all active
+   source, tests, server code, shared contracts, scripts, and the static
+   demo found zero remaining importers, now that every component that used
+   to import it was deleted in the original Phase 2B-2 pass. `src/App.css`
+   — unused Vite-starter CSS (`.logo`, `.card`, `.read-the-docs`), zero
+   importers in `src/main.tsx` or `src/App.tsx`. `components.json` — stale
+   shadcn CLI configuration pointing at `@/components/ui` and
+   `@/lib/utils`, neither of which exist anymore; confirmed no script, CI
+   workflow, or documented process reads it. `playwright.config.ts` and
+   `playwright-fixture.ts` — both imported
+   `lovable-agent-playwright-config`, a package never present in
+   `package.json` or `package-lock.json` (a permanently broken reference);
+   no npm script or test ever invoked either file.
+2. **4 more now-unused dependencies removed:** `clsx` and `tailwind-merge`
+   (their sole remaining importer, `src/lib/utils.ts`, was just deleted),
+   `@playwright/test` (its only two consumers were the broken Playwright
+   files just deleted), and `tailwindcss-animate` (grep found no active
+   class using `animate-in`/`animate-out`/`fade-in-0`/`zoom-in-`/
+   `slide-in-from`/etc. anywhere in `src/`; its only actual users were the
+   `accordion-down`/`accordion-up` keyframes, themselves already unused
+   since the Radix accordion component was deleted in the original pass).
+   `animate-pulse` and `motion-reduce:animate-none` — both core Tailwind
+   utilities needing no plugin — were left untouched and re-verified
+   working (`src/features/decision/components/PipelineProgress.tsx`,
+   `accessibilityStatus.test.tsx`). Verified with `npm install` — the
+   resulting tree contains exactly the expected 25 top-level packages (7
+   dependencies + 18 devDependencies).
+3. **Root package identity corrected.** `package.json`'s `name` field
+   changed from the generated-template value `vite_react_shadcn_ts` to
+   `scenariorank-ai`, updated through `npm install` (not a manual lockfile
+   edit) so `package-lock.json`'s root `name`/`packages[""].name` match.
+   `npm run check:unused-template` now fails if the old name reappears.
+4. **Public static demo (`public/demo.html`) corrected.** This file is
+   publicly reachable by direct URL and is a fully self-contained static
+   HTML page with zero imports into `src/` — the original Phase 2B-2
+   import-graph trace explicitly noted it has no such references, which
+   made its own *content* invisible to that trace. It still described the
+   retired BMW-award-build architecture: Anthropic Claude as the active
+   provider, a "seven-stage agent pipeline" with a "Role Agent," "Scenario
+   Agent," "Candidate Scoring Agent," "Bias Review," and "Decision Agent."
+   Rewritten to describe the current architecture accurately: OpenAI
+   `gpt-5-mini`; one combined context-analysis request producing nested
+   `role_analysis`/`scenario_analysis` outputs; one batched candidate-
+   scoring request (not one request per candidate); deterministic metric
+   calculation, confidence & evidence review, and outcome modeling;
+   optional batched pairing analysis; a decision-generation stage that
+   only narrates an already-fixed, already-computed ranking; explicit "3
+   logical stages without pairing, 4 with pairing" language; and a note
+   that `providerAttemptCount` is tracked separately from
+   `logicalProviderStageCount`. No claim of empirical fairness, calibrated
+   confidence, or production readiness was added — the opposite: an
+   explicit disclaimer was added to the "Why it matters" section. The
+   page's visual style, layout, and pipeline-diagram node count were
+   preserved; only labels, terminology, and illustrative code/copy
+   changed. Verified: `grep -i` for "Claude", "Bias Agent", "Bias Review",
+   "Role Agent", "Scenario Agent", "Candidate Scoring Agent", "Decision
+   Agent", "seven-stage", and "Anthropic" across the rewritten file returns
+   no matches.
+5. **Dependency-audit fact corrected.**
+   `docs/security/DEPENDENCY_AUDIT.md` previously stated the `vite`/
+   `esbuild` findings require `vite@8.2.0`. That was `npm audit`'s own
+   automated `fixAvailable` field taken at face value — it reports the
+   newest version satisfying every dependency's combined semver range in
+   one resolver pass against the current, unpinned `package.json` ranges,
+   not the minimum patched version. Verified directly against the cited
+   GHSA advisories (`GHSA-fx2h-pf6j-xcff`, `GHSA-4w7w-66w2-5vf9`,
+   `GHSA-v6wh-96g9-6wx3`, `GHSA-67mh-4wv8-2f99`) and via a real isolated
+   install (a scratch copy of `package.json` with `vite` bumped to
+   `6.4.3`, then `npm install` and `npm ls`): the real minimum common
+   patched release is `vite@6.4.3` — one major version up, not two — and
+   it resolves `esbuild` to `0.25.12` (above the `0.25.0` patched
+   threshold) via `vite@6.4.3`'s own declared `esbuild: "^0.25.0"`
+   dependency, not an assumption. `@vitejs/plugin-react-swc@3.11.0` and
+   `vitest@3.2.7` (the exact pinned versions) both already declare
+   peer-dependency ranges accepting `vite@6` with no version change of
+   their own; the isolated trial install resolved with no peer warnings
+   and dropped that isolated environment's audit count from 4 to 2 (only
+   `react-router`/`react-router-dom` remained). **This correction pass
+   does not apply that bump** — it corrects the documented facts and the
+   exact remediation path, and explicitly keeps the (now smaller and
+   better-understood) Vite migration as a separate, reviewed follow-up,
+   consistent with the instruction not to mix a build-tool version bump
+   into a cleanup-and-documentation correction. See "Migration decision"
+   in `docs/security/DEPENDENCY_AUDIT.md`.
+6. **`npm audit` recalculated: still 4 findings** (0 critical, 0 low, 3
+   moderate, 1 high) after `npm install` resynced the lockfile for the 4
+   newly removed dependencies — none of `clsx`, `tailwind-merge`,
+   `tailwindcss-animate`, or `@playwright/test` were part of the
+   vulnerable dependency graph, so the count is unchanged by this pass.
+   Same 2 remaining deferred major migrations as before (`vite` 5→6,
+   corrected; `react-router-dom` 6→7), same reasoning, both still deferred.
+7. **Cleanup guard strengthened.**
+   `scripts/check-unused-template.mjs` now also fails if: any of the 5
+   newly deleted files reappear; any of the 4 newly removed dependency
+   names reappear in `package.json`; `package.json`'s `name` reverts to
+   `vite_react_shadcn_ts`; or `public/demo.html` contains any of 8 stale
+   architecture terms ("Claude", "Bias Agent", "Bias Review", "Role
+   Agent", "Scenario Agent", "Candidate Scoring Agent", "Decision Agent",
+   "seven-stage agent pipeline"), case-insensitively. Historical
+   documentation (this file, `KNOWN_LIMITATIONS.md`) is free to keep
+   naming the retired terms for context — only the active public demo is
+   checked. `npm run check:unused-template` now reports: 9 dead paths, 2
+   unsupported lockfiles, 4 removed root-provider imports, 49 removed
+   dependency names, the generated package name, and 8 stale public-demo
+   terms, all confirmed absent.
+8. **Tests.** `scripts/check-unused-template.test.js` grew from 2 to 10
+   tests: one per newly deleted file (parameterized), one for a removed
+   dependency reappearing (`clsx`), one for the package-name reversion, and
+   one for a stale public-demo term reappearing (`Claude`) — each mutates
+   only a temporary decoy or a real tracked file that is restored via
+   `afterEach`, never left mutated. `src/App.test.tsx` (unchanged this
+   pass) and `accessibilityStatus.test.tsx` (unchanged) were re-run to
+   confirm the route rendering and the running-stage
+   `animate-pulse`/`motion-reduce:animate-none` behavior are both still
+   intact after removing `tailwindcss-animate`. Final counts: **93
+   frontend tests (unchanged) and 201 backend tests (was 193: +10 in
+   `scripts/check-unused-template.test.js`, −2 for the file's prior test
+   count) — 294 total.**
+9. **Full verification:** `npm ci`, `npm run lint`, `npm run lint:server`,
+   `npm run typecheck`, `npm run check:decision-readability`,
+   `npm run check:unused-template`, `npm test` (frontend + server),
+   `npm run build`, `node --check server.mjs`, `npm audit`, `npm ls`, and
+   `git diff --check` all pass. The frontend suite reports one benign
+   `Unhandled Rejection` warning (`window is not defined`, from
+   `useDecisionEvaluation.ts`'s health-check effect resolving after test
+   teardown) — this is a pre-existing timing quirk in code this pass did
+   not touch, the run still exits `0`, and all 93 frontend tests report
+   passed; it is noted here for honesty, not silently hidden. Secret scan
+   of the tracked diff and the rebuilt production bundle
+   (`dist/assets/*.js`) found no API-key-shaped strings and no
+   `openai`/backend SDK source — the only "openai" match in the bundle is
+   the legitimate UI string `"OpenAI call"`/`"OpenAI calls"` in the
+   run-metadata footer. `.env.local` remains untracked and ignored. No
+   active import references a deleted file. No real OpenAI calls were
+   made. Phase 3 was not started.
 
 ### Merge record
 

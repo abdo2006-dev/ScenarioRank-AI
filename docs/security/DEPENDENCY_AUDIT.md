@@ -9,17 +9,33 @@ exactly why each was deferred and what would resolve it. A lower finding
 count is not, by itself, a claim that the application is secure — see
 "What this audit does not claim" at the end.
 
+**Correction (2026-08-01, Phase 2B-2 narrow correction pass):** this
+document originally stated the `vite`/`esbuild` findings require `vite`
+`8.2.0`. That was incorrect — it was `npm audit`'s own `fixAvailable`
+summary field taken at face value, not verified against the actual
+advisories. The corrected facts are below ("`vite` — high" and
+"`esbuild` — moderate"). The same correction pass also removed four more
+now-unused dependencies (`clsx`, `tailwind-merge`, `tailwindcss-animate`,
+`@playwright/test`) via `npm install`; re-running `npm audit` afterward
+still reports the same 4 findings (0 critical, 0 low, 3 moderate, 1 high) —
+none of those four removed packages were part of the vulnerable dependency
+graph, so the count is unchanged by this pass. No remediation was applied
+in this correction beyond the existing `brace-expansion` fix already
+recorded below; the corrected `vite` migration path is still deferred as a
+separate follow-up (see "Migration decision" below).
+
 ## Summary
 
 | | Count | Severity breakdown |
 |---|---|---|
 | Initial findings (start of Phase 2B-2, matches Phase 2B-1's recorded state) | 9 | 0 critical, 0 low, 3 moderate, 6 high |
 | After removing ~45 unused template dependencies (`npm install`, no audit-specific action) | 5 | 0 critical, 0 low, 3 moderate, 2 high |
-| After `npm audit fix` (no `--force`, no major bumps) | **4** | 0 critical, 0 low, **3 moderate, 1 high** |
+| After `npm audit fix` (no `--force`, no major bumps) | 4 | 0 critical, 0 low, 3 moderate, 1 high |
+| After correction-pass cleanup (`clsx`, `tailwind-merge`, `tailwindcss-animate`, `@playwright/test` removed via `npm install`) | **4** | 0 critical, 0 low, **3 moderate, 1 high** |
 
 Net: **5 findings resolved**, **4 remain**, all deliberately deferred (see
 below). No `--force` flag was used at any point; no major-version dependency
-migration was performed as part of this audit.
+migration was performed as part of this audit or its correction pass.
 
 ## How the count dropped from 9 to 5 before any audit-specific action
 
@@ -56,10 +72,10 @@ change.
 | Environment | **Development only.** `vite` is a build/dev-server tool — it runs `npm run dev` and orchestrates `npm run build`; it is never imported by application code and ships nothing into `dist/` (confirmed: `dist/assets/*.js` contains no `vite` source, only the compiled app). |
 | Exploit preconditions | The `server.fs.deny` bypass and NTLMv2 disclosure both require the Vite **dev server** to be reachable by an untrusted party on the same network (the NTLMv2 issue is Windows-only besides). This project's dev server binds locally during development; it is never deployed. The optimized-deps path traversal has the same dev-server-only precondition. |
 | Is the vulnerable feature used? | The dev server is used locally by the maintainer, never exposed to untrusted networks. No production exposure. |
-| Patched version | `8.2.0` |
-| Remediation type | **Major** (`5.x` → `8.x`, two major versions) |
-| Risk of upgrading now | High for this focused phase: Vite 6/7/8 changed the plugin API and minimum Node version, and this project's `@vitejs/plugin-react-swc`, `vitest`, and `tailwindcss` integration would all need a compatibility pass and a full rebuild/test cycle. Mixing a Vite major migration into a dependency-*deletion* phase would violate this phase's own scope boundary (`docs/V2_ROADMAP.md`). |
-| Chosen action | **Deferred.** Documented here as a distinct, separately-scoped follow-up (see "Future remediation path" below). Not mixed into Phase 2B-2. |
+| Patched version | **`6.4.3`** — the minimum common patched release across all three cited advisories ([GHSA-fx2h-pf6j-xcff](https://github.com/advisories/GHSA-fx2h-pf6j-xcff), [GHSA-4w7w-66w2-5vf9](https://github.com/advisories/GHSA-4w7w-66w2-5vf9), [GHSA-v6wh-96g9-6wx3](https://github.com/advisories/GHSA-v6wh-96g9-6wx3)), verified against the official GHSA advisory ranges directly, not assumed. *(Corrected: this document previously said `8.2.0`. That was `npm audit`'s own `fixAvailable` field, which reports the newest version that satisfies every dependency's combined semver range in one resolver pass against the **current, unpinned** `package.json` range — it is not the minimum patched version, and `8.2.0` is not required by any of these three advisories.)* |
+| Remediation type | **Major** — but a single major-version step (`5.x` → `6.x`), not two (`5.x` → `8.x` as previously stated) |
+| Risk of upgrading now | Lower than previously documented, but still a real devDependency major bump requiring its own verification pass: `@vitejs/plugin-react-swc@3.11.0` already declares `peerDependencies: { vite: "^4 \|\| ^5 \|\| ^6 \|\| ^7 \|\| ^8" }` and `vitest@3.2.7` already declares `peerDependencies: { vite: "^5.0.0 \|\| ^6.0.0 \|\| ^7.0.0-0" }`, so both already support `vite@6` without their own version bump. Mixing this into a dependency-*deletion and documentation-correction* phase would still violate this phase's own scope boundary (`docs/V2_ROADMAP.md`, "do not mix a broad Vite/Vitest/plugin migration into this cleanup correction merely to reduce the audit number"). |
+| Chosen action | **Deferred**, correctly documented as a small follow-up now that the real scope is known — see "Migration decision" below. Not applied in this correction. |
 
 ### 2. `esbuild` — moderate
 
@@ -71,10 +87,10 @@ change.
 | Environment | **Development only** — same dev-server-only precondition as the `vite` findings above; `esbuild`'s output is bundled into `dist/` but the *vulnerability* is in its dev-server request handling, not its bundling output. |
 | Exploit preconditions | A malicious website open in the same browser as a developer running `npm run dev`, reachable at the dev server's origin. Not applicable to the built static site. |
 | Is the vulnerable feature used? | Dev server only, local machine, not exposed to untrusted networks. |
-| Patched version | Resolved by the same `vite@8.2.0` bump (`esbuild` is a transitive pin controlled by `vite`'s own dependency range). |
-| Remediation type | Major (tied to the `vite` major bump above) |
+| Patched version | **`0.25.0`.** Whether the `vite@6.4.3` bump above actually resolves `esbuild` to `0.25.0+` was verified from an installed dependency tree, not assumed: `npm view vite@6.4.3 dependencies` declares `esbuild: "^0.25.0"` directly, and a real isolated install (`npm install vite@6.4.3` against a copy of this project's `package.json`, in a scratch directory, followed by `npm ls vite esbuild`) resolved `esbuild` to `0.25.12` — comfortably above the patched threshold, with no other findings introduced. *(Corrected: this document previously said the fix required `vite@8.2.0`.)* |
+| Remediation type | Major (tied to the corrected `vite` `5.x`→`6.x` bump above, not `8.x`) |
 | Risk of upgrading now | Same as `vite` above — same change, same deferral. |
-| Chosen action | **Deferred**, bundled with the `vite` major-version follow-up. |
+| Chosen action | **Deferred**, bundled with the corrected `vite` follow-up below. |
 
 ### 3. `react-router` — moderate
 
@@ -119,15 +135,40 @@ Confirmed by inspecting the actual production bundle (`npm run build`,
 `dist/assets/*.js`): the built output contains the compiled application and
 `react-router-dom`'s runtime, not `vite` or `esbuild` source.
 
+## Migration decision (this correction pass)
+
+This correction pass does **not** authorize or apply a Vite major migration.
+It only corrects the documented facts above. The exact compatible
+remediation options, in order:
+
+1. **`vite@6.4.3`, no plugin/Vitest bump required.** Verified this pass:
+   `@vitejs/plugin-react-swc@3.11.0` and `vitest@3.2.7` (the exact versions
+   already pinned in `package.json`) both already declare peer-dependency
+   ranges that accept `vite@6` without themselves needing a version change.
+   An isolated trial install resolved cleanly with no peer-dependency
+   warnings and dropped the isolated environment's audit count from 4 to 2
+   (only `react-router`/`react-router-dom` remained). This is the
+   recommended path for the eventual follow-up.
+2. A newer supported Vite line (7 or 8) — not needed, since option 1 alone
+   satisfies every currently open Vite/esbuild advisory.
+3. A direct `esbuild` override — not needed, since `vite@6.4.3` already
+   pulls a patched `esbuild` transitively.
+
+Even though option 1 is smaller and safer than this document previously
+implied, it is still **retained as a separate, reviewed follow-up** rather
+than applied here: this correction's own scope is documentation accuracy
+and residual-template cleanup, not a build-tool version bump, and applying
+it would require its own full `npm run dev`/`npm run build` manual
+re-verification pass that is out of scope for a "narrow correction."
+
 ## Why each remaining finding was deferred, and the exact future remediation path
 
-1. **`vite`/`esbuild` (dev-tooling major bump, `5.x` → `8.x`).** Follow-up:
-   a dedicated Vite major-version migration phase — bump `vite`, verify
-   `@vitejs/plugin-react-swc` and `vitest` compatibility (both are
-   Vite-plugin-ecosystem packages that may need matching major bumps), run
-   the full build/typecheck/test suite, and manually re-verify `npm run dev`
-   and `npm run build` before merging. Should not be combined with any other
-   dependency change so a regression is easy to bisect.
+1. **`vite`/`esbuild` (dev-tooling major bump, `5.x` → `6.x` — corrected
+   from the previously documented `5.x` → `8.x`).** Follow-up: bump `vite`
+   to `6.4.3` in `package.json`, run `npm install` to resync the lockfile,
+   run the full build/typecheck/test suite, and manually re-verify
+   `npm run dev` and `npm run build` before merging. Should not be combined
+   with any other dependency change so a regression is easy to bisect.
 2. **`react-router`/`react-router-dom` (major migration, `6.x` → `7.x`+).**
    Follow-up: a dedicated React Router migration phase — read the v6→v7
    upgrade guide, adopt the new data-router APIs if required, re-verify both

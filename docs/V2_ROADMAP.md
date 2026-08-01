@@ -265,14 +265,23 @@ under `src/components/ui/` (55 files) and three dead helper files, simplified
 removed 45 now-unused npm dependencies, standardized on npm as the sole
 package manager, reduced `npm audit` findings from 9 to 4 with safe in-range
 fixes only, and added a reintroduction guard
-(`npm run check:unused-template`). Full detail:
-`docs/PROJECT_STATUS.md` ("Phase 2B-2") and
+(`npm run check:unused-template`). A narrow correction pass in the same
+phase then removed the residual `src/lib/utils.ts`/`components.json`/
+`src/App.css`/Playwright-stub template debt the first pass had left behind,
+renamed the generated root package identity to `scenariorank-ai`, rewrote
+the public static demo (`public/demo.html`) to describe the current
+OpenAI/gpt-5-mini pipeline instead of the retired award-build architecture,
+and corrected a documentation error about the Vite/esbuild remediation path
+(see below). Full detail: `docs/PROJECT_STATUS.md` ("Phase 2B-2") and
 `docs/security/DEPENDENCY_AUDIT.md`. This was not Phase 3 reliability or
 model-evaluation work, and changed no scoring, prompt, or provider behavior.
 
 The Phase 2A correction round completed component boundaries, API-client and
 workflow-hook tests, safe SSE/scenario transport errors, and public numeric
 contract bounds. Phase 3 remains future work. Two dependency major-version
-migrations (`vite` 5→8, `react-router-dom` 6→7) were deliberately deferred
-out of Phase 2B-2 — see `docs/security/DEPENDENCY_AUDIT.md` for why and the
-exact remediation path; either can be scheduled independently of Phase 3.
+migrations were deliberately deferred out of Phase 2B-2 — `react-router-dom`
+(`6.x`→`7.x`) and `vite` (`5.x`→`6.x`, corrected during the Phase 2B-2
+narrow correction pass from an earlier, incorrect `5.x`→`8.x` claim; the
+real minimum patched Vite release is `6.4.3`, one major version up, not
+two) — see `docs/security/DEPENDENCY_AUDIT.md` for why and the exact
+remediation path; either can be scheduled independently of Phase 3.

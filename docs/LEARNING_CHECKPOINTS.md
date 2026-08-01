@@ -11,9 +11,9 @@ These questions are not documentation decoration. The maintainer should answer t
    and a component being *used*?
 3. Why was `TooltipProvider` removed — what did the "Model conf." text
    actually turn out to be when checked, and why did that matter?
-4. Why does `src/lib/utils.ts` (and `clsx`/`tailwind-merge`) still exist in
-   the tree even though nothing calls `cn()` anymore? What would have to be
-   true for a future phase to delete it safely?
+4. `src/lib/utils.ts` (and `clsx`/`tailwind-merge`) was initially left in the
+   tree even though nothing called `cn()` — why, and what changed in the
+   Phase 2B-2 correction pass that made it safe to actually delete?
 5. Why was `lovable-tagger` removed from `vite.config.ts` even though it was
    a real, working import (not a dead file) — what made it "unused" in a way
    that matters for this project specifically?
@@ -26,8 +26,31 @@ These questions are not documentation decoration. The maintainer should answer t
    What would have to change in the app for that judgment to become wrong?
 8. What does `npm run check:unused-template` actually check, and what are
    the four categories of regression it's designed to catch?
-9. Why were `vite` 5→8 and `react-router-dom` 6→7 documented as deferred
-   follow-ups instead of just being done in this same phase?
+9. Why were `vite` (corrected to `5→6`, not the originally documented `5→8`)
+   and `react-router-dom` `6→7` documented as deferred follow-ups instead of
+   just being done in this same phase?
+
+## Phase 2B-2 correction pass understanding
+
+1. The original Phase 2B-2 pass deleted an entire generated component
+   directory but left `src/lib/utils.ts`, `components.json`, `src/App.css`,
+   and the Playwright stub in place. Why — what was the actual scope
+   boundary that caused each to be skipped the first time?
+2. `docs/security/DEPENDENCY_AUDIT.md` originally said the `vite`/`esbuild`
+   findings require `vite@8.2.0`. Where did that number actually come from,
+   and why was it wrong? What two independent checks proved the real
+   minimum patched release is `6.4.3`?
+3. Why does correcting the Vite migration path to a *smaller, safer* bump
+   (`5.x`→`6.x` instead of `5.x`→`8.x`) still not mean this phase applied
+   it? What's the argument for deferring it anyway?
+4. `public/demo.html` is publicly reachable and was never covered by the
+   original Phase 2B-2 import-graph trace (it's a static file, not part of
+   the React app). Why did that make it invisible to the first pass, and
+   what makes a static HTML file's *content* a correctness problem the same
+   way a dead import is?
+5. Why does `scripts/check-unused-template.mjs` scan `public/demo.html` for
+   specific stale terms instead of just diffing the whole file against a
+   known-good copy?
 
 ## Phase 2B-1 understanding
 

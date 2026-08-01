@@ -21,15 +21,42 @@ The repository carried a large generated shadcn/Radix component set
 mounted but never invoked, and three lockfiles for two package managers. All
 were removed with each deletion proven by an exhaustive import-graph search,
 not assumed — see `docs/PROJECT_STATUS.md` ("Phase 2B-2") and
-`docs/security/DEPENDENCY_AUDIT.md`. `src/lib/utils.ts` (and the `clsx`/
-`tailwind-merge` dependencies it alone still uses) is now itself unreachable
-but was deliberately left in place — it fell outside this phase's explicitly
-scoped deletion directories — and is recorded as a deferred future-cleanup
-candidate. `npm audit` findings dropped from 9 to 4; the 4 remaining findings
-all require a major-version dependency migration (`vite` 5→8,
-`react-router-dom` 6→7) and are deliberately deferred as separate follow-ups,
-not silently left unaddressed — full classification in
-`docs/security/DEPENDENCY_AUDIT.md`. Phase 3 remains unstarted.
+`docs/security/DEPENDENCY_AUDIT.md`. `npm audit` findings dropped from 9 to
+4; the 4 remaining findings all require a major-version dependency migration
+and are deliberately deferred as separate follow-ups, not silently left
+unaddressed — full classification in `docs/security/DEPENDENCY_AUDIT.md`.
+Phase 3 remains unstarted.
+
+### Phase 2B-2 correction pass — RESOLVED (residual template debt, stale public demo, audit fact error)
+
+A follow-up review found the cleanup above was incomplete and one of its
+own claims was wrong. Fixed in the same phase's correction pass:
+`src/lib/utils.ts` (and the `clsx`/`tailwind-merge` dependencies it alone
+used) — deliberately left in place by the original pass because it fell
+outside the explicitly scoped deletion directories — was confirmed to have
+zero importers anywhere and deleted, along with `components.json` (stale
+shadcn configuration pointing at the deleted component tree),
+`src/App.css` (unused Vite starter CSS), and `playwright.config.ts` /
+`playwright-fixture.ts` / `@playwright/test` (a broken, never-used
+Playwright stub whose config imported a package that was never actually
+installed). `tailwindcss-animate` and its unused accordion keyframes were
+also removed — no active class used them; `animate-pulse` and
+`motion-reduce:animate-none` are core Tailwind utilities and needed no
+plugin. The generated root package name (`vite_react_shadcn_ts`) was
+renamed to `scenariorank-ai`. `public/demo.html`, the publicly reachable
+static demo, still described the retired award-build architecture
+(Anthropic Claude, a seven-agent pipeline, "Bias Review") — it was rewritten
+to describe the current OpenAI/gpt-5-mini, up-to-four-logical-stage
+pipeline. Separately, this document and `docs/security/DEPENDENCY_AUDIT.md`
+previously stated the `vite`/`esbuild` findings require `vite` `8.2.0`
+(two major versions up) — that was `npm audit`'s own automated summary
+taken at face value, not verified against the actual advisories. Corrected:
+the real minimum patched release is `vite@6.4.3` (one major version up),
+verified against the GHSA advisories directly and via a real isolated
+install (`npm ls` showed `esbuild` resolving to `0.25.12`, above the
+patched `0.25.0` threshold). The corrected, smaller migration is still
+deferred as a separate follow-up rather than applied in this pass — see
+"Migration decision" in `docs/security/DEPENDENCY_AUDIT.md`.
 
 ## Priority 0 — correctness and integrity
 
