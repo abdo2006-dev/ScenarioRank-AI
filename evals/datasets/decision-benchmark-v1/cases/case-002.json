@@ -1,0 +1,111 @@
+{
+  "case_id": "case-002",
+  "schema_version": "1.0.0",
+  "title": "Balanced close call between three defensible candidates",
+  "description": "Three fictional candidates with different but comparably strong profiles. No single winner is objectively correct, so every candidate is listed as an allowed winner and the case tests whether the output acknowledges how close the decision is.",
+  "tags": [
+    "basic-ranking",
+    "close-call"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Head of Customer Operations",
+      "description": "Leads a 120-person contact and fulfilment operation through a service-model change. Success is measured on resolution time, cost per contact, and staff retention across the change."
+    },
+    "scenarios": [
+      "Rolling out a new service model across a 120-person customer operation while protecting resolution times and staff retention."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "harlan-vex",
+        "name": "Harlan Vex",
+        "description": "Deep operational background in contact-centre management at a fictional utility, with the strongest technical grounding of the three but the least experience of leading a change programme."
+      },
+      {
+        "id": "imani-solvay",
+        "name": "Imani Solvay",
+        "description": "Led two service-model changes at an invented insurer, strongest on stakeholder handling and change leadership, with less hands-on operational depth than her peers."
+      },
+      {
+        "id": "jules-mirren",
+        "name": "Jules Mirren",
+        "description": "Consistently solid across operations, change, and stakeholder work at a fictional travel business, without a standout strength in any one of them."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "harlan-vex",
+      "imani-solvay",
+      "jules-mirren"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Rolling out a new service model across a 120-person customer operation while protecting resolution times and staff retention."
+    ],
+    "allowed_winner_ids": [
+      "harlan-vex",
+      "imani-solvay",
+      "jules-mirren"
+    ],
+    "forbidden_winner_ids": [],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": []
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": null,
+  "variant_kind": null,
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "harlan-vex": {
+        "default": 7,
+        "criteria": {
+          "domain_expertise": 8,
+          "operational_execution": 8,
+          "transformation_leadership": 6
+        },
+        "confidence": 0.72,
+        "evidence_quality": "specific"
+      },
+      "imani-solvay": {
+        "default": 7,
+        "criteria": {
+          "stakeholder_management": 8,
+          "transformation_leadership": 8,
+          "operational_execution": 6
+        },
+        "confidence": 0.72,
+        "evidence_quality": "specific"
+      },
+      "jules-mirren": {
+        "default": 7,
+        "confidence": 0.72,
+        "evidence_quality": "specific"
+      }
+    }
+  },
+  "notes": "This case exists to stop the benchmark rewarding false confidence. Any of the three winning is acceptable; what is not acceptable is presenting the choice as clear-cut. Note a real gap this case exposed: ScenarioRank has no near-tie uncertainty signal at all. The deterministic confidence-and-evidence review keys only on reported confidence and evidence length, so a decision separated by noise is never flagged for human review. That is why this case is not tagged \"uncertainty\" — see docs/evaluation/BENCHMARK_V1.md, \"Known limitations\"."
+}

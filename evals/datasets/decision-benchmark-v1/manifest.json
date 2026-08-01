@@ -1,0 +1,49 @@
+{
+  "benchmark_id": "decision-benchmark-v1",
+  "benchmark_version": "1.0.0",
+  "schema_version": "1.0.0",
+  "metadata_revision": 0,
+  "created_at": "2026-08-02T00:00:00.000Z",
+  "description": "The first ScenarioRank development benchmark: 16 fully synthetic decision cases covering basic ranking, multi-scenario behaviour, evidence quality, robustness to input permutation, and pairing. It exists to make regressions visible before any prompt, model, or scoring change is attempted. It is a development benchmark, not a validation of the product.",
+  "case_count": 16,
+  "case_ids": [
+    "case-001",
+    "case-002",
+    "case-003",
+    "case-004",
+    "case-005",
+    "case-006",
+    "case-007",
+    "case-008",
+    "case-009",
+    "case-010",
+    "case-011",
+    "case-012",
+    "case-013",
+    "case-014",
+    "case-015",
+    "case-016"
+  ],
+  "rubric_version": "1.0.0",
+  "supported_modes": ["fixtures", "live"],
+  "required_pipeline_version": "v2-phase-2d",
+  "tag_catalog": [
+    "basic-ranking",
+    "multi-scenario",
+    "close-call",
+    "missing-evidence",
+    "conflicting-evidence",
+    "permutation",
+    "duplicate-name",
+    "pairing",
+    "uncertainty"
+  ],
+  "data_policy": "synthetic-only",
+  "scope_disclaimer": "This is a development benchmark. It is not scientifically validated, not representative of real hiring decisions, not evidence of fairness or demographic neutrality, not a legal-compliance test, not a calibrated-confidence benchmark, and not a production service-level objective. Every candidate, company, and record in it is invented.",
+  "versioning_policy": {
+    "case_ids_immutable": true,
+    "meaning_change_requires_new_version": true,
+    "cosmetic_change_increments_metadata_revision": true,
+    "reports_record_benchmark_version_and_commit": true
+  }
+}

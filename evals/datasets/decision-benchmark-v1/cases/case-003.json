@@ -1,0 +1,133 @@
+{
+  "case_id": "case-003",
+  "schema_version": "1.0.0",
+  "title": "Candidates with different but individually valid strengths",
+  "description": "Four fictional candidates, each genuinely strong in a different area. Two of those areas are central to the stated scenario and two are not, so the case constrains the winner set without pretending a single answer is correct.",
+  "tags": [
+    "basic-ranking"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Programme Director, Payments Platform",
+      "description": "Accountable for delivering a replacement payments platform across four business units, including regulator engagement, vendor management, and the migration cutover itself."
+    },
+    "scenarios": [
+      "Delivering a regulated payments platform migration across four business units under a fixed regulatory deadline."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "kestrel-adeyemi",
+        "name": "Kestrel Adeyemi",
+        "description": "Strongest on regulated delivery and cutover execution, having run two fictional core-banking migrations to fixed regulatory dates."
+      },
+      {
+        "id": "linnea-vasquez",
+        "name": "Linnea Vasquez",
+        "description": "Strongest on regulator and executive stakeholder handling, having led supervisory engagement for an invented payments provider through two remediation programmes."
+      },
+      {
+        "id": "mikhail-orin",
+        "name": "Mikhail Orin",
+        "description": "Strongest on greenfield product innovation and developer-platform design at a fictional fintech, with limited exposure to regulated migration work."
+      },
+      {
+        "id": "noor-halvorsen",
+        "name": "Noor Halvorsen",
+        "description": "Strongest on long-horizon organisational scaling at an invented marketplace business, with no payments or regulated-delivery background."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "kestrel-adeyemi",
+      "linnea-vasquez",
+      "mikhail-orin",
+      "noor-halvorsen"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Delivering a regulated payments platform migration across four business units under a fixed regulatory deadline."
+    ],
+    "allowed_winner_ids": [
+      "kestrel-adeyemi",
+      "linnea-vasquez"
+    ],
+    "forbidden_winner_ids": [
+      "mikhail-orin",
+      "noor-halvorsen"
+    ],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": []
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": null,
+  "variant_kind": null,
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "kestrel-adeyemi": {
+        "default": 6,
+        "criteria": {
+          "domain_expertise": 9,
+          "operational_execution": 9,
+          "crisis_management": 8
+        },
+        "confidence": 0.83,
+        "evidence_quality": "specific"
+      },
+      "linnea-vasquez": {
+        "default": 6,
+        "criteria": {
+          "stakeholder_management": 9,
+          "transformation_leadership": 8,
+          "domain_expertise": 8
+        },
+        "confidence": 0.83,
+        "evidence_quality": "specific"
+      },
+      "mikhail-orin": {
+        "default": 5,
+        "criteria": {
+          "innovation_digital": 9,
+          "strategic_scalability": 7,
+          "domain_expertise": 3
+        },
+        "confidence": 0.8,
+        "evidence_quality": "specific"
+      },
+      "noor-halvorsen": {
+        "default": 5,
+        "criteria": {
+          "strategic_scalability": 9,
+          "transformation_leadership": 6,
+          "domain_expertise": 3
+        },
+        "confidence": 0.8,
+        "evidence_quality": "specific"
+      }
+    }
+  },
+  "notes": "The two forbidden winners are genuinely strong people whose strengths are simply not what this scenario needs. A system that ranks raw strength rather than scenario fit will fail this case."
+}

@@ -1,0 +1,112 @@
+{
+  "case_id": "case-007",
+  "schema_version": "1.0.0",
+  "title": "Strong, specific, verifiable evidence for every candidate",
+  "description": "Every fictional candidate description carries concrete, dated, measurable claims. This is the benchmark's control case for evidence grounding: there is no excuse for an unsupported claim here.",
+  "tags": [
+    "basic-ranking"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Plant Operations Manager",
+      "description": "Runs a single fictional production site end to end, accountable for uptime, safety, and the site's ability to absorb unplanned disruption without missing customer commitments."
+    },
+    "scenarios": [
+      "Restoring plant uptime and disruption resilience after a year of unplanned downtime and one major site incident."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "dagny-holloway",
+        "name": "Dagny Holloway",
+        "description": "Cut unplanned downtime at a fictional bottling plant from 9.4% to 3.1% over fourteen months by rebuilding the preventive-maintenance schedule and retraining two shift teams. Ran the plant through a four-day flood recovery in 2021 with no missed customer order."
+      },
+      {
+        "id": "esteban-rourke",
+        "name": "Esteban Rourke",
+        "description": "Managed a fictional packaging line for six years, holding output within 2% of plan every quarter, and led the site's move to a new maintenance planning system with documented before-and-after metrics."
+      },
+      {
+        "id": "farrah-lindgren",
+        "name": "Farrah Lindgren",
+        "description": "Ran maintenance planning at an invented beverage site for three years, delivering a 12% reduction in emergency call-outs, with no experience of leading a site through a major disruption."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "dagny-holloway",
+      "esteban-rourke",
+      "farrah-lindgren"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Restoring plant uptime and disruption resilience after a year of unplanned downtime and one major site incident."
+    ],
+    "allowed_winner_ids": [
+      "dagny-holloway"
+    ],
+    "forbidden_winner_ids": [
+      "farrah-lindgren"
+    ],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": []
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": null,
+  "variant_kind": null,
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "dagny-holloway": {
+        "default": 8,
+        "criteria": {
+          "operational_execution": 9,
+          "crisis_management": 9,
+          "domain_expertise": 9
+        },
+        "confidence": 0.9,
+        "evidence_quality": "specific"
+      },
+      "esteban-rourke": {
+        "default": 7,
+        "criteria": {
+          "operational_execution": 8,
+          "domain_expertise": 7
+        },
+        "confidence": 0.88,
+        "evidence_quality": "specific"
+      },
+      "farrah-lindgren": {
+        "default": 6,
+        "criteria": {
+          "crisis_management": 4
+        },
+        "confidence": 0.86,
+        "evidence_quality": "specific"
+      }
+    }
+  },
+  "notes": "Serves as the original for the two wording/irrelevant-text variants, case-013 and case-014."
+}

@@ -1,0 +1,115 @@
+{
+  "case_id": "case-008",
+  "schema_version": "1.0.0",
+  "title": "Vague, unsupported claims with no verifiable detail",
+  "description": "Every fictional candidate description is confident but empty: no dates, no numbers, no named outcomes. The deterministic confidence-and-evidence review must flag this, and the explanation must not manufacture specificity that the inputs never contained.",
+  "tags": [
+    "missing-evidence",
+    "uncertainty"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Director of Commercial Strategy",
+      "description": "Sets commercial direction for a fictional B2B services group, with accountability for pricing, portfolio mix, and the group's largest client relationships."
+    },
+    "scenarios": [
+      "Rebuilding a commercial strategy after two years of margin erosion across the portfolio."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "galen-morrow",
+        "name": "Galen Morrow",
+        "description": "A results-driven commercial leader with a track record of transformational impact and a passion for excellence. Known for strategic thinking and driving change at pace."
+      },
+      {
+        "id": "hester-quill",
+        "name": "Hester Quill",
+        "description": "A visionary strategist who consistently exceeds expectations and brings world-class commercial judgement to complex situations."
+      },
+      {
+        "id": "ivo-strand",
+        "name": "Ivo Strand",
+        "description": "An accomplished senior leader with deep experience and a strong reputation for delivering outstanding commercial outcomes."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "galen-morrow",
+      "hester-quill",
+      "ivo-strand"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Rebuilding a commercial strategy after two years of margin erosion across the portfolio."
+    ],
+    "allowed_winner_ids": null,
+    "forbidden_winner_ids": [],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": [
+      "galen-morrow",
+      "hester-quill",
+      "ivo-strand"
+    ]
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": null,
+  "variant_kind": null,
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "galen-morrow": {
+        "default": 6,
+        "confidence": 0.5,
+        "evidence_quality": "vague"
+      },
+      "hester-quill": {
+        "default": 6,
+        "confidence": 0.48,
+        "evidence_quality": "vague"
+      },
+      "ivo-strand": {
+        "default": 5,
+        "confidence": 0.48,
+        "evidence_quality": "vague"
+      }
+    }
+  },
+  "known_defects": [
+    {
+      "id": "SR-P3A-001",
+      "grader_id": "contract-validity",
+      "summary": "computeRiskAdjustedScore can return a negative value for a weak candidate, but the public completed-response contract bounds risk_adjusted_score to 0-100, so server/http/routes.js rejects its own response and returns a generic 500 after the model has already been paid for.",
+      "reference": "docs/architecture/KNOWN_LIMITATIONS.md (P0.7) and docs/evaluation/BENCHMARK_V1.md"
+    },
+    {
+      "id": "SR-P3A-001",
+      "grader_id": "score-integrity",
+      "summary": "computeRiskAdjustedScore can return a negative value for a weak candidate, but the public completed-response contract bounds risk_adjusted_score to 0-100, so server/http/routes.js rejects its own response and returns a generic 500 after the model has already been paid for.",
+      "reference": "docs/architecture/KNOWN_LIMITATIONS.md (P0.7) and docs/evaluation/BENCHMARK_V1.md"
+    }
+  ],
+  "notes": "No winner claim is made at all: with evidence this thin, asserting that one of these candidates should win would be exactly the overclaiming this benchmark is meant to detect. What is checked is that every candidate is flagged for human review."
+}

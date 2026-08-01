@@ -1,0 +1,148 @@
+{
+  "case_id": "case-006",
+  "schema_version": "1.0.0",
+  "title": "A candidate strong in one scenario and weak in another",
+  "description": "Three fictional candidates over two scenarios, where one candidate's evidence supports one context strongly and the other barely at all. Scores differ per scenario, mirroring the fact that the production scoring prompt sees the scenario text.",
+  "tags": [
+    "multi-scenario"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Director of Manufacturing Quality",
+      "description": "Owns quality across two fictional plants: one running a mature, tightly regulated line, and one commissioning an entirely new process."
+    },
+    "scenarios": [
+      "Holding quality and audit readiness on a mature, tightly regulated production line.",
+      "Commissioning an unproven new production process with no established quality baseline."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "aurelio-fenn",
+        "name": "Aurelio Fenn",
+        "description": "Twelve years of regulated quality management on mature lines at a fictional medical-device maker, with an unbroken audit record. Has never commissioned a new process."
+      },
+      {
+        "id": "brielle-oyelaran",
+        "name": "Brielle Oyelaran",
+        "description": "Commissioned two new production processes at an invented speciality-chemicals firm, comfortable establishing a baseline from nothing; less experience of long-run regulated stability."
+      },
+      {
+        "id": "caspian-drew",
+        "name": "Caspian Drew",
+        "description": "Quality engineer moving into leadership at a fictional components supplier; limited depth in either mature-line stewardship or new-process commissioning."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "aurelio-fenn",
+      "brielle-oyelaran",
+      "caspian-drew"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Holding quality and audit readiness on a mature, tightly regulated production line.",
+      "Commissioning an unproven new production process with no established quality baseline."
+    ],
+    "allowed_winner_ids": [
+      "aurelio-fenn",
+      "brielle-oyelaran"
+    ],
+    "forbidden_winner_ids": [
+      "caspian-drew"
+    ],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": []
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": null,
+  "variant_kind": null,
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "aurelio-fenn": {
+        "default": 8,
+        "criteria": {
+          "domain_expertise": 9,
+          "operational_execution": 9,
+          "innovation_digital": 4
+        },
+        "confidence": 0.85,
+        "evidence_quality": "specific"
+      },
+      "brielle-oyelaran": {
+        "default": 6,
+        "criteria": {
+          "innovation_digital": 8,
+          "transformation_leadership": 7
+        },
+        "confidence": 0.83,
+        "evidence_quality": "specific"
+      },
+      "caspian-drew": {
+        "default": 5,
+        "confidence": 0.8,
+        "evidence_quality": "specific"
+      }
+    },
+    "scenario_overrides": {
+      "1": {
+        "aurelio-fenn": {
+          "default": 4,
+          "criteria": {
+            "domain_expertise": 4,
+            "operational_execution": 5,
+            "innovation_digital": 3
+          },
+          "confidence": 0.7
+        },
+        "brielle-oyelaran": {
+          "default": 8,
+          "criteria": {
+            "innovation_digital": 9,
+            "transformation_leadership": 8,
+            "domain_expertise": 8
+          },
+          "confidence": 0.85
+        }
+      }
+    }
+  },
+  "known_defects": [
+    {
+      "id": "SR-P3A-001",
+      "grader_id": "contract-validity",
+      "summary": "computeRiskAdjustedScore can return a negative value for a weak candidate, but the public completed-response contract bounds risk_adjusted_score to 0-100, so server/http/routes.js rejects its own response and returns a generic 500 after the model has already been paid for.",
+      "reference": "docs/architecture/KNOWN_LIMITATIONS.md (P0.7) and docs/evaluation/BENCHMARK_V1.md"
+    },
+    {
+      "id": "SR-P3A-001",
+      "grader_id": "score-integrity",
+      "summary": "computeRiskAdjustedScore can return a negative value for a weak candidate, but the public completed-response contract bounds risk_adjusted_score to 0-100, so server/http/routes.js rejects its own response and returns a generic 500 after the model has already been paid for.",
+      "reference": "docs/architecture/KNOWN_LIMITATIONS.md (P0.7) and docs/evaluation/BENCHMARK_V1.md"
+    }
+  ],
+  "notes": "Unlike case-004, scenario sensitivity here comes from the candidate scores themselves rather than the weights, so the two mechanisms are covered separately."
+}

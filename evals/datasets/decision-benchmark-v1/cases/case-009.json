@@ -1,0 +1,101 @@
+{
+  "case_id": "case-009",
+  "schema_version": "1.0.0",
+  "title": "Internally conflicting evidence within candidate descriptions",
+  "description": "Each fictional description contains claims that contradict each other. The output should surface the contradiction rather than silently picking whichever half supports a confident conclusion.",
+  "tags": [
+    "conflicting-evidence",
+    "uncertainty"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Head of Engineering",
+      "description": "Leads a fictional 60-person engineering function through a reliability programme, accountable for delivery pace, system stability, and engineer retention at the same time."
+    },
+    "scenarios": [
+      "Improving system reliability without slowing delivery, in a team that has lost a third of its engineers in a year."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "jonas-albrecht",
+        "name": "Jonas Albrecht",
+        "description": "Described as having rebuilt a platform team's reliability practice, and elsewhere in the same profile as having had reliability owned entirely by a separate SRE group he did not manage. Retention is reported both as a personal strength and as the reason his previous team was restructured."
+      },
+      {
+        "id": "kalinda-obi",
+        "name": "Kalinda Obi",
+        "description": "Credited with shipping a major replatform on schedule, while the same profile states the replatform was descoped twice and finished a quarter late. Reported as both hands-on technically and as having left engineering practice five years ago."
+      },
+      {
+        "id": "lorcan-pryce",
+        "name": "Lorcan Pryce",
+        "description": "Described as a calm, stabilising presence, and separately as having been brought in twice specifically to force pace against team objections. No dates or measurable outcomes are given for either characterisation."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "jonas-albrecht",
+      "kalinda-obi",
+      "lorcan-pryce"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Improving system reliability without slowing delivery, in a team that has lost a third of its engineers in a year."
+    ],
+    "allowed_winner_ids": null,
+    "forbidden_winner_ids": [],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": [
+      "jonas-albrecht",
+      "kalinda-obi",
+      "lorcan-pryce"
+    ]
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": null,
+  "variant_kind": null,
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "jonas-albrecht": {
+        "default": 6,
+        "confidence": 0.55,
+        "evidence_quality": "conflicting"
+      },
+      "kalinda-obi": {
+        "default": 6,
+        "confidence": 0.54,
+        "evidence_quality": "conflicting"
+      },
+      "lorcan-pryce": {
+        "default": 5,
+        "confidence": 0.52,
+        "evidence_quality": "conflicting"
+      }
+    }
+  },
+  "notes": "Conflicting evidence differs from missing evidence: the evidence strings here are long and detailed, so the weak-evidence length heuristic will not fire. Low reported confidence is what should drive the human-review recommendation."
+}

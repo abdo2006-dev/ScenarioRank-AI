@@ -1,0 +1,170 @@
+{
+  "rubric_version": "1.0.0",
+  "schema_version": "1.0.0",
+  "description": "Qualitative review dimensions for ScenarioRank decision explanations. These dimensions are scored by a human reviewer, never automatically. Where a deterministic grader covers part of a dimension, it covers a conservative subset only and is named explicitly.",
+  "interpretation_warning": "These scores are structured human opinion, not objective measurements. They are not calibrated, not inter-rater validated, and not evidence that ScenarioRank is fair, unbiased, or production-ready. A single reviewer's scores describe one reviewer's judgment of one run.",
+  "allowed_non_scores": ["not_applicable", "cannot_determine"],
+  "dimensions": [
+    {
+      "id": "evidence_grounding",
+      "label": "Evidence grounding",
+      "what_is_judged": "Whether each claim about a candidate can be traced back to something actually present in that candidate's supplied description, rather than invented, assumed, or imported from outside the case.",
+      "scale": { "min": 0, "max": 4 },
+      "anchors": {
+        "0": "Claims about candidates are largely invented; the text describes attributes that appear nowhere in the inputs.",
+        "1": "Several substantive claims have no basis in the supplied descriptions.",
+        "2": "Mostly grounded, but at least one meaningful claim is unsupported or overstated relative to the evidence.",
+        "3": "Every substantive claim traces to supplied evidence; minor phrasing is looser than the evidence strictly supports.",
+        "4": "Every claim traces to supplied evidence, and the strength of each claim matches the strength of the evidence behind it."
+      },
+      "failure_examples": [
+        "Attributing years of experience, a former employer, or a certification that the description never mentions.",
+        "Describing a candidate as a proven crisis leader when the description only says they are calm under pressure."
+      ],
+      "human_review_required": true,
+      "deterministic_automation_possible": false,
+      "deterministic_grader_id": null
+    },
+    {
+      "id": "scenario_relevance",
+      "label": "Relevance to role and scenarios",
+      "what_is_judged": "Whether the explanation actually engages with the specific role and the specific scenario supplied, rather than producing generic executive-hiring prose that would read identically for any role or scenario.",
+      "scale": { "min": 0, "max": 4 },
+      "anchors": {
+        "0": "The explanation is entirely generic; nothing ties it to this role or this scenario.",
+        "1": "The scenario is mentioned but never affects the reasoning.",
+        "2": "The scenario influences part of the reasoning but is ignored where it should matter most.",
+        "3": "The role and scenario shape the reasoning throughout, with a minor generic passage.",
+        "4": "Every substantive judgment is visibly conditioned on this role and this scenario."
+      },
+      "failure_examples": [
+        "Recommendation text that would be unchanged if the scenario were replaced with an unrelated one.",
+        "Discussing crisis leadership at length in a scenario that is explicitly about steady-state scaling."
+      ],
+      "human_review_required": true,
+      "deterministic_automation_possible": true,
+      "deterministic_grader_id": "scenario-coverage"
+    },
+    {
+      "id": "tradeoff_clarity",
+      "label": "Quality of trade-off explanation",
+      "what_is_judged": "Whether the explanation states what is genuinely given up by choosing the recommended candidate, in concrete terms a decision-maker could act on, rather than listing costless positives.",
+      "scale": { "min": 0, "max": 4 },
+      "anchors": {
+        "0": "No trade-off is acknowledged; the recommendation is presented as costless.",
+        "1": "A trade-off is named but is vacuous or is actually another benefit in disguise.",
+        "2": "A real trade-off is named but not explained well enough to act on.",
+        "3": "Real trade-offs are named and explained, with the runner-up comparison mostly clear.",
+        "4": "Real trade-offs are named, quantified against the runner-up where possible, and clearly attributed to specific evidence."
+      },
+      "failure_examples": [
+        "Listing 'may be too thorough' as the sole trade-off.",
+        "Recommending a candidate over a close runner-up without saying what the runner-up would have brought."
+      ],
+      "human_review_required": true,
+      "deterministic_automation_possible": false,
+      "deterministic_grader_id": null
+    },
+    {
+      "id": "clarity",
+      "label": "Clarity",
+      "what_is_judged": "Whether a non-specialist decision-maker can read the output once and correctly state who was recommended, on what basis, and with what reservations.",
+      "scale": { "min": 0, "max": 4 },
+      "anchors": {
+        "0": "The output is confusing or self-contradictory; the recommendation is hard to identify.",
+        "1": "The recommendation is identifiable but the reasoning is muddled or padded with jargon.",
+        "2": "Understandable with effort; structure or wording obscures the reasoning in places.",
+        "3": "Clear and readable; a reader would get the recommendation and reasoning right on one pass.",
+        "4": "Clear, concise, well-structured, and free of filler; every sentence carries decision-relevant content."
+      },
+      "failure_examples": [
+        "Executive summary and detailed explanation that emphasise different reasons for the same choice.",
+        "Heavy use of unexplained internal terminology such as raw criterion keys."
+      ],
+      "human_review_required": true,
+      "deterministic_automation_possible": false,
+      "deterministic_grader_id": null
+    },
+    {
+      "id": "uncertainty_handling",
+      "label": "Uncertainty handling",
+      "what_is_judged": "Whether the output acknowledges thin, missing, or conflicting evidence where it genuinely exists, and refrains from manufacturing confidence the evidence does not support.",
+      "scale": { "min": 0, "max": 4 },
+      "anchors": {
+        "0": "Presents a confident conclusion despite obviously missing or conflicting evidence.",
+        "1": "Uncertainty is mentioned only in boilerplate that does not reflect this case's actual gaps.",
+        "2": "Some real gaps are acknowledged; others that clearly matter are not.",
+        "3": "The material evidence gaps are acknowledged and their effect on the recommendation is stated.",
+        "4": "Gaps are acknowledged, their effect on the recommendation is stated, and what additional evidence would resolve them is identified."
+      },
+      "failure_examples": [
+        "A confident single recommendation in a case where two candidates are separated by noise.",
+        "Describing model confidence as a probability that the recommendation is correct."
+      ],
+      "human_review_required": true,
+      "deterministic_automation_possible": true,
+      "deterministic_grader_id": "uncertainty-acknowledgement"
+    },
+    {
+      "id": "recommendation_consistency",
+      "label": "Recommendation consistency",
+      "what_is_judged": "Whether the narrative text agrees with the structured result: the candidate the prose recommends is the candidate the deterministic ranking selected, and no section implies a different choice.",
+      "scale": { "min": 0, "max": 4 },
+      "anchors": {
+        "0": "The prose recommends a different candidate than the structured result.",
+        "1": "A section of the prose clearly implies a different candidate should be chosen.",
+        "2": "The prose is consistent but hedges enough that the recommendation is ambiguous.",
+        "3": "The prose consistently supports the structured recommendation.",
+        "4": "Every section — summary, winner reason, trade-offs, alternative — consistently supports the structured recommendation and correctly identifies the runner-up."
+      },
+      "failure_examples": [
+        "Executive summary naming the runner-up as the recommendation.",
+        "A trade-off section arguing the alternative is the safer choice without acknowledging the recommendation stands."
+      ],
+      "human_review_required": true,
+      "deterministic_automation_possible": true,
+      "deterministic_grader_id": "unsupported-claims"
+    },
+    {
+      "id": "pairing_usefulness",
+      "label": "Pairing explanation quality",
+      "what_is_judged": "When pairing is enabled, whether the pair explanation says something genuinely about the combination — complementarity, overlap, friction — rather than restating each individual's strengths side by side.",
+      "scale": { "min": 0, "max": 4 },
+      "anchors": {
+        "0": "The pair explanation is wrong about who is in the pair, or pairing is claimed when unavailable.",
+        "1": "The explanation simply concatenates two individual summaries.",
+        "2": "Some combination-level reasoning, but overlap or friction is ignored.",
+        "3": "Real combination-level reasoning covering both complementarity and overlap.",
+        "4": "Combination-level reasoning that also explains why this pair beats the obvious alternative pairing."
+      },
+      "failure_examples": [
+        "Naming a pair whose display names do not match its candidate IDs.",
+        "Recommending the two highest-ranked individuals as a pair with no reasoning about how they work together."
+      ],
+      "human_review_required": true,
+      "deterministic_automation_possible": true,
+      "deterministic_grader_id": "pairing-integrity"
+    },
+    {
+      "id": "unsupported_claim_avoidance",
+      "label": "Unsupported-claim avoidance",
+      "what_is_judged": "Whether the output avoids claims the system cannot support: measured fairness, demographic neutrality, calibrated confidence, observed cross-scenario performance, or statistical stability from a single run.",
+      "scale": { "min": 0, "max": 4 },
+      "anchors": {
+        "0": "Makes an explicit fairness, bias-freedom, or calibration claim.",
+        "1": "Strongly implies measured properties the system never measured.",
+        "2": "Contains at least one overstated claim about what was measured.",
+        "3": "No unsupported measurement claims; some confident phrasing sits close to the line.",
+        "4": "Claims are precisely scoped to what was actually computed, and unmeasured concepts are named as unmeasured."
+      },
+      "failure_examples": [
+        "Describing the result as an objective or bias-free assessment.",
+        "Reporting cross-scenario consistency as observed when the field is 'not_measured'.",
+        "Calling model confidence a calibrated probability."
+      ],
+      "human_review_required": true,
+      "deterministic_automation_possible": true,
+      "deterministic_grader_id": "unsupported-claims"
+    }
+  ]
+}
