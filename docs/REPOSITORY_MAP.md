@@ -44,6 +44,7 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 - `.gitignore`
 - `scripts/check-decision-source-readability.mjs` (`npm run check:decision-readability`)
 - `scripts/check-unused-template.mjs` (`npm run check:unused-template` — reintroduction guard for the paths, lockfiles, dependency names, root-provider imports, generated package name, and stale public-demo terminology this phase confirmed dead or incorrect)
+- `scripts/check-toolchain.mjs` (`npm run check:toolchain` — Phase 2C guard; fails if the locked `vite` version regresses below its patched floor or moves to an undocumented major line, if the locked `esbuild` version regresses below its patched floor, or if `package-lock.json` root metadata disagrees with `package.json`)
 
 `playwright.config.ts`, `playwright-fixture.ts`, and `components.json` were
 removed in the Phase 2B-2 correction pass — see below.

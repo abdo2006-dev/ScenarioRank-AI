@@ -60,10 +60,17 @@ export function useDecisionEvaluation() {
   const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     void getHealth().then((health) => {
+      if (cancelled) return;
       setAiEnabled(health?.ai_enabled ?? false);
       if (health) setMaxCandidates(health.limits.max_candidates);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

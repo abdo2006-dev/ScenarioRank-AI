@@ -60,6 +60,38 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("useDecisionEvaluation health teardown", () => {
+  it("does not act on a late health response after unmount (regression: teardown unhandled rejection)", async () => {
+    const pendingHealth = deferred<ReturnType<typeof health>>();
+    mockedApi.getHealth.mockReturnValue(pendingHealth.promise);
+    const { unmount } = renderHook(() => useDecisionEvaluation());
+
+    unmount();
+
+    const realWindow = globalThis.window;
+    // Simulates the destroyed-jsdom-environment state a slow health
+    // response can outlive between Vitest test files; the effect's own
+    // cleanup guard — not `window` happening to still exist — is what
+    // must prevent this from throwing.
+    // @ts-expect-error -- deliberately simulating a torn-down test environment
+    delete globalThis.window;
+
+    let caught: unknown = null;
+    try {
+      await act(async () => {
+        pendingHealth.resolve(health());
+        await pendingHealth.promise;
+      });
+    } catch (error) {
+      caught = error;
+    } finally {
+      globalThis.window = realWindow;
+    }
+
+    expect(caught).toBeNull();
+  });
+});
+
 describe("useDecisionEvaluation health", () => {
   it("sets AI enabled from the initial health request", async () => {
     mockedApi.getHealth.mockResolvedValue(health());

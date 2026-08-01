@@ -93,13 +93,20 @@ removed packages were part of the vulnerable dependency graph). Final
 verification after both passes and again post-merge: 294 tests (93 frontend
 + 201 backend), package name `scenariorank-ai`, npm as the sole supported
 package manager, 25 top-level dependencies, build output
-`dist/assets/index-*.js` 268.64 kB / `dist/assets/index-*.css` 18.52 kB. The
-next small toolchain/security migration is `vite` `5.x` → `6.4.3+` (which
-also resolves the `esbuild` finding); `react-router`/`react-router-dom`
-`6.x` → `7.x` remains a separate, deferred migration. Both require their own
-short architecture/dependency review before being planned, and neither has
-been started. See "Phase 2B-2" and "Phase 2B-2 correction pass" below for
-full detail. Phase 3 remains unstarted.
+`dist/assets/index-*.js` 268.64 kB / `dist/assets/index-*.css` 18.52 kB.
+**Phase 2C (draft, not yet merged, branch `v2/phase-2c-vite6-security`)**
+applies the `vite` `5.x` → `6.4.3` migration this phase identified: `vite`
+`5.4.21` → `6.4.3` (the minimum patched release), which also resolved the
+transitive `esbuild` finding (`0.21.5` → `0.25.12`) with no plugin or
+Vitest version change required. `npm audit` dropped from 4 findings to 2;
+`react-router`/`react-router-dom` `6.x` → `7.x` remains a separate,
+deferred migration, not started, with its own scoped follow-up recorded
+in `docs/security/DEPENDENCY_AUDIT.md`. Phase 2C also fixed a pre-existing
+frontend test-teardown defect (an uncancelled health-check effect causing
+an unhandled-rejection warning) with a regression test, and added a
+dependency-free `npm run check:toolchain` guard. Final verification: 302
+tests (94 frontend + 208 backend), no unhandled-rejection warning. See
+"Phase 2C" below for full detail. Phase 3 remains unstarted.
 
 ## Project objective
 
@@ -1464,3 +1471,159 @@ temporary `v2/phase-2b2-dependency-cleanup` branch was deleted locally and
 on the remote. `main` is again the sole active V2 line.
 The preserved `archive/bmw-award-original` branch and `bmw-award-original` tag
 remain intact.
+
+## Phase 2C — Vite 6 security and toolchain migration (draft, not merged)
+
+**Branch:** `v2/phase-2c-vite6-security`. Draft PR targeting `main`, not
+merged. Phase 3 was not started. React Router was not migrated. No real
+OpenAI call was made.
+
+Phase 2B-2's correction pass had already identified the exact remediation
+path for the deferred `vite`/`esbuild` advisories (`vite@6.4.3`, no
+plugin/Vitest bump required — see "Migration decision" in
+`docs/security/DEPENDENCY_AUDIT.md`) but deliberately deferred applying
+it, since that phase's scope was documentation accuracy and template
+cleanup. Phase 2C applies that migration as its own focused,
+independently reviewable follow-up, plus a pre-existing test-harness
+defect this phase's baseline verification surfaced.
+
+1. **Baseline established before any change.** `npm ci`, `npm run lint`,
+   `npm run lint:server`, `npm run typecheck`,
+   `npm run check:decision-readability`, `npm run check:unused-template`,
+   `npm test`, `npm run build`, `node --check server.mjs`, and `npm audit`
+   all passed cleanly against unmodified `main` (commit `cbcc49c`,
+   equal to `origin/main`, clean working tree). Recorded baseline: `vite
+   5.4.21` (installed; `^5.4.19` declared), `esbuild 0.21.5` (transitive,
+   vulnerable), `@vitejs/plugin-react-swc 3.11.0`, `vitest 3.2.7`, Node
+   `v22.23.1`, 294 tests (93 frontend + 201 backend), 4 audit findings (0
+   critical, 0 low, 3 moderate, 1 high), build output
+   `dist/assets/index-*.js` 268.64 kB / `dist/assets/index-*.css`
+   18.52 kB.
+2. **Teardown unhandled-rejection warning diagnosed and fixed.** The
+   warning `docs/PROJECT_STATUS.md` already flagged as a known, unfixed
+   timing quirk in the Phase 2B-2 correction-pass record above ("a
+   pre-existing timing quirk in code this pass did not touch") was
+   reproduced deterministically (3/3 runs) with the narrowest command that
+   triggers it: `npm run test:frontend` running the full suite, or more
+   precisely any run that includes `src/App.test.tsx` (which renders the
+   real, unmocked `<App />` tree) alongside other frontend test files.
+   Root cause: `useDecisionEvaluation.ts`'s health-check `useEffect` fired
+   an uncancelled `getHealth()` fetch on mount with no cleanup; in
+   `App.test.tsx`, the request targets an unreachable backend, the
+   component unmounts before the fetch settles, and the response resolves
+   *after* Vitest has torn down that test file's jsdom environment —
+   calling `setAiEnabled` at that point throws `ReferenceError: window is
+   not defined` as an unhandled rejection. Fixed with a standard
+   cancelled-flag guard in the effect's cleanup function (no behavior
+   change — the health response was already being applied only once, on
+   the still-mounted case). A regression test
+   (`src/features/decision/hooks/useDecisionEvaluation.test.tsx`, "does
+   not act on a late health response after unmount") reproduces the exact
+   failure condition directly — unmount, then delete `globalThis.window`
+   before resolving a pending health response — and was verified to
+   actually catch the regression: reverting the fix reproduces the
+   identical stack trace (`getCurrentEventPriority` →
+   `requestUpdateLane` → `setAiEnabled` → `ReferenceError: window is not
+   defined`) that the original bug report described. Verified clean
+   across 5 repeated `npm run test:frontend` runs after the fix. This
+   fix and its test predate the Vite version bump (independently
+   verified against the still-unmodified `vite@5.4.21` baseline before
+   any dependency change) and remain clean after it.
+3. **Vite 6 migration researched against authoritative sources**, not
+   assumed from `npm audit`'s own `fixAvailable` summary: the official
+   Vite 5→6 migration guide (`resolve.conditions` defaults, Sass modern
+   API, `postcss-load-config` v6, JSON stringify default, SSR CSS/
+   `mainFields` changes, glob-engine swap from `fast-glob` to
+   `tinyglobby`) and the GHSA advisories directly. None of the listed
+   breaking changes apply to this repository: `vite.config.ts` does not
+   override `resolve.conditions`, the project does not use Sass, library
+   mode, or SSR build output, `postcss.config.js` is plain JS (not TS),
+   and no custom glob patterns appear in the Vite config. Compatibility
+   was verified live against the npm registry, not assumed:
+   `@vitejs/plugin-react-swc@3.11.0`'s published peer range (`vite: "^4
+   || ^5 || ^6 || ^7"`) and `vitest@3.2.7`'s published dependency range
+   on `vite` (`"^5.0.0 || ^6.0.0 || ^7.0.0-0"`) both already accept Vite
+   6 without a version change.
+4. **The smallest supported migration was performed.** `npm install
+   vite@^6.4.3 --save-dev` (npm alone updated `package.json` and
+   `package-lock.json`; the lockfile was never hand-edited). Result:
+   `vite@6.4.3` (exactly one resolved version, deduped everywhere per
+   `npm ls vite esbuild @vitejs/plugin-react-swc vitest`), `esbuild`
+   resolved transitively to `0.25.12` (above the `0.25.0` patched floor —
+   `vite@6.4.3`'s own manifest declares `esbuild: "^0.25.0"`),
+   `@vitejs/plugin-react-swc` and `vitest` unchanged at their existing
+   pinned versions. No dependency override was used or needed. The
+   `package-lock.json` diff is limited to `vite` and its own transitive
+   `esbuild`/`fdir`/`picomatch` — no unrelated dependency changed.
+5. **No configuration changes were required.** `vite.config.ts`,
+   `vitest.config.ts`, `vitest.server.config.ts`, and the `tsconfig*`
+   files are unchanged — confirming the migration-guide review above: none
+   of Vite 6's breaking changes apply to this repository's actual
+   configuration. No experimental Vite Environment API was introduced, no
+   migration to Rolldown was performed.
+6. **`npm run check:toolchain` guard added**
+   (`scripts/check-toolchain.mjs`), a dependency-free Node script
+   inspecting only `package.json`/`package-lock.json` (no network calls)
+   that fails with a clear message if: the locked `vite` version drops
+   below the approved patched floor (`6.4.3`); `vite` moves to an
+   undocumented major line (this script's own `APPROVED_VITE_MAJOR`/
+   `MINIMUM_VITE_VERSION` constants must be deliberately updated as part
+   of any future major migration — that edit *is* the documented
+   decision this guard requires); the locked `esbuild` version drops
+   below its own patched floor (`0.25.0`); a nested `vite` copy in the
+   lockfile diverges from the top-level resolved version; or
+   `package-lock.json`'s root name/version metadata disagrees with
+   `package.json`. 7 regression tests
+   (`scripts/check-toolchain.test.js`) spawn the real script against the
+   real repository tree, temporarily mutating the tracked
+   `package.json`/`package-lock.json` to prove each failure mode and
+   restoring the original content afterward (the same pattern already
+   used by `scripts/check-unused-template.test.js`).
+7. **Manual dev/build/preview verification**, no real OpenAI call: the
+   Vite 6 dev server started cleanly (`VITE v6.4.3 ready in ~200ms`), the
+   landing route and the `/this-route-does-not-exist` 404 catch-all both
+   rendered correctly with no console errors beyond the app's own
+   intentional 404 log line, `/health` returned its unchanged documented
+   shape, submitting the evaluation form with an empty role title
+   produced the existing client-side validation banner and per-field
+   error with **no new network request** (confirmed via the browser's
+   network log — only the earlier `/health` call was present), HMR
+   applied and then correctly reverted an uncommitted, harmless landing-
+   page string edit without a full page reload, `npm run build` succeeded
+   (`dist/assets/index-*.js` 270.31 kB / `dist/assets/index-*.css`
+   18.51 kB — materially unchanged from the pre-migration baseline),
+   `npm run preview` served the built app correctly including direct
+   navigation to `/demo.html` (self-contained, describes the current
+   architecture) and the same 404 catch-all behavior, and a scan of the
+   rebuilt `dist/assets/*.js` found no API-key-shaped string and no
+   `openai` backend SDK source (the only `openai`-adjacent bundle content
+   is ordinary UI copy). No `/api/decision` or `/api/decision/stream`
+   request was ever made during this verification, and the backend
+   process log confirms no such request was received.
+8. **Audit result: 4 findings → 2 findings.** All three `vite` advisories
+   (GHSA-fx2h-pf6j-xcff, GHSA-4w7w-66w2-5vf9, GHSA-v6wh-96g9-6wx3) and the
+   `esbuild` advisory (GHSA-67mh-4wv8-2f99) are resolved. The 2 remaining
+   findings are `react-router`/`react-router-dom` (both moderate,
+   production-exposed, requiring the separately deferred `6.x`→`7.x`
+   major migration this phase explicitly does not perform) — unchanged
+   from Phase 2B-2's classification. `npm audit fix --force` was not run.
+   Full detail: `docs/security/DEPENDENCY_AUDIT.md` ("Phase 2C update").
+9. **Final verification.** `npm ci`, `npm run lint`, `npm run lint:server`,
+   `npm run typecheck`, `npm run check:decision-readability`,
+   `npm run check:unused-template`, `npm run check:toolchain`, `npm test`
+   (frontend + server), `npm run build`, `node --check server.mjs`,
+   `npm audit`, `npm ls`, and `git diff --check` all pass. **Final test
+   totals: 302 tests (94 frontend + 208 backend)** — was 294 (93 + 201):
+   +1 frontend (the teardown regression test) and +7 backend (the
+   toolchain guard regression tests). The frontend suite reports **no
+   unhandled-rejection warning** — the exact defect this phase's item 2
+   fixed. `.env.local` remains untracked and ignored; a secret scan of
+   the tracked diff and the rebuilt production bundle found no
+   API-key-shaped strings. No real OpenAI call occurred at any point in
+   this phase. Phase 3 was not started. React Router was not migrated.
+10. **Recommended next milestone:** the `react-router`/`react-router-dom`
+    `6.x`→`7.x` migration `docs/security/DEPENDENCY_AUDIT.md` already
+    scoped as its own follow-up (upgrade guide review, both routes
+    re-verified, accessibility checklist re-checked since routing changes
+    can affect focus management) — independent of Phase 3 and of this
+    phase's toolchain work, schedulable whenever the owner chooses.
