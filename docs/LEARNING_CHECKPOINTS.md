@@ -201,3 +201,90 @@ The maintainer should be able to explain the current system in approximately two
    composition roots small?
 10. Which successful-pairing invariants are public transport guarantees, and
     which complete-coverage guarantee remains internal to the pipeline?
+
+## Phase 3A understanding (evaluation harness and synthetic benchmark)
+
+You understand Phase 3A if you can answer these without reopening the code.
+
+**Why did evaluation come before prompt optimisation?** Because without a
+measurement, "this prompt is better" is an opinion. Optimising first produces
+improvements nobody can demonstrate and regressions nobody sees until a user
+finds them. It also matters specifically here: ScenarioRank's central claim is
+that LLMs interpret evidence while deterministic code computes the ranking —
+and that claim is exactly what most of the graders check. Those checks had to
+exist before anyone started changing the parts that could quietly break them.
+
+**Why build the harness locally instead of using the hosted OpenAI Evals API?**
+Four reasons, in order of weight: a hosted service sees prompts and completions
+but cannot see whether `mapPairResultsByIdentity` rejected a reversed duplicate,
+which is most of what is worth checking; it must run offline and free, because
+an evaluation that costs money will not be run; the harness is itself code that
+can be wrong, so it needs its own tests; and binding evaluation to one vendor
+would reintroduce, at the evaluation layer, the coupling the provider contract
+removed. See ADR-0009.
+
+**What is the difference between a deterministic expectation and a rubric
+dimension?** A deterministic expectation is objectively true or false about a
+response — does every candidate appear exactly once, does the reported winner
+hold the highest deterministic score, was every expected pair evaluated. A
+rubric dimension is human judgment — is this claim grounded, is the trade-off
+real. Phase 3A automates the first and refuses to automate the second, because
+an LLM judging an LLM would produce numbers nobody could defend.
+
+**Why do some cases list several allowed winners, and some none at all?**
+Because pretending a single answer is correct would be dishonest for a case
+that is genuinely close. `case-002` allows all three candidates; `case-008` and
+`case-009` make no winner claim at all, because the evidence is too thin or too
+contradictory to justify one — and what is checked instead is that every
+candidate gets flagged for human review.
+
+**What does a passing fixture run actually prove?** That the orchestration runs
+end to end, the deterministic scoring and ranking behave as specified, batch
+identity validation rejects what it should, stage and attempt accounting are
+coherent, and the graders work. It proves **nothing** about prompt quality,
+model behaviour, real-world accuracy, or fairness. The fake provider is
+scripted.
+
+**Why does the artifact schema deliberately not enforce the public response
+contract?** Because the `contract-validity` grader exists to detect a response
+that violates that contract. If the artifact schema enforced it too, the
+harness would crash while recording the very defect it exists to find.
+Validation happens in exactly one place — the grader — which reports the
+violation instead of destroying the evidence. This was learned the hard way:
+the first fixture run crashed for precisely this reason.
+
+**What is `SR-P3A-001` and why was it not fixed?** `computeRiskAdjustedScore`
+can return a negative value for a weak candidate, but the public contract
+bounds `risk_adjusted_score` to 0-100 and `server/http/routes.js` validates its
+own response before sending — so a run with a weak enough candidate returns a
+generic 500 *after* the OpenAI calls have been paid for. It was found by the
+first fixture run. It was not fixed because Phase 3A was explicitly forbidden
+from changing scoring or contracts, and because either candidate fix moves the
+baseline the harness was built to measure from. It is tracked as a known defect
+that raises a required failure if it ever stops reproducing.
+
+**Why do known defects not fail the run, and why is that safe?** Because one
+real finding leaving the baseline permanently red trains everyone to ignore it.
+It is safe only because of the inverse check: if a grader listed as a known
+defect stops failing anywhere in its case, a **required** failure fires
+demanding the record be removed. A known-defect record cannot outlive the
+defect it describes.
+
+**Why can a comparison never say "improved" because a run got cheaper?**
+Because cost is not correctness. Only required-grader invariants move the
+verdict; cost, token, and duration deltas are reported raw and marked
+`significance: "not_assessed"`, because two runs cannot support a significance
+claim. An output change with no invariant change is `inconclusive`, not
+`unchanged` — the honest answer is that the benchmark cannot tell you which
+output is better.
+
+**Why does live mode refuse a model with no recorded pricing?** Because a
+budget that cannot be computed cannot be enforced, and guessing a price would
+defeat the purpose of having a budget at all.
+
+### Proof exercise
+
+Run `npm run eval:fixtures -- --case case-015 --profile missing-pair --no-write`
+and explain, without looking, why it exits nonzero, which grader fires, and why
+the pipeline reported `"unavailable"` rather than a best pair chosen from the
+five pairs it did receive.

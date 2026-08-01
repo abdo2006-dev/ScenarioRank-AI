@@ -324,3 +324,56 @@ different candidates may share a name. Each completed pair reference is checked
 against `candidate_evaluations` for both ID existence and ordered name/ID
 agreement. Pairing-enabled SSE and JSON route integrations exercise this final
 transport check.
+
+## Evaluation harness (Phase 3A)
+
+`evals/` measures the pipeline described above. It is a sibling of the
+application, not a part of it: no HTTP route, frontend component, or build step
+references it, and it runs only through its four CLI commands
+(`eval:validate`, `eval:fixtures`, `eval:live`, `eval:compare`).
+
+```text
+evals/cli ──> evals/runners ──> server/pipeline/runPipeline.js  (real, unchanged)
+                   │                     │
+                   │                     └─> server/domain/scoring.js
+                   │                         server/ai/schemas/
+                   ├──> evals/graders ──────> server/domain/scoring.js (recomputation)
+                   │                         shared/contracts/decisionApi.js
+                   └──> evals/reporters ───> .eval-runs/<run-id>/   (git-ignored)
+```
+
+The dependency arrow only ever points that way. Production imports nothing from
+`evals/`, and `evals/repositoryProtection.test.js` enforces it.
+
+### What it adds to the architecture
+
+- **A versioned benchmark** (`decision-benchmark-v1`): 16 fully synthetic
+  cases, 21 scenario executions, with an immutable ID and an enforced
+  versioning policy.
+- **11 deterministic graders** checking contract validity, candidate coverage,
+  scenario coverage, ranking consistency, score integrity, pairing integrity,
+  pipeline accounting, `not_measured` honesty, winner expectations, unsupported
+  claims, and uncertainty acknowledgement.
+- **An offline execution mode** that runs the real pipeline with scripted fake
+  providers — no network, no API key, no cost, deterministic decision content.
+- **A gated live mode** that has never been executed.
+- **A four-verdict comparison** (`improved`/`regressed`/`unchanged`/
+  `inconclusive`) in which only deterministic invariants can move the verdict.
+
+### What it changed in the application
+
+Nothing. Phase 3A altered no prompt, model, structured-output schema, scoring
+formula, ranking rule, pairing behaviour, HTTP contract, or frontend component.
+The pipeline stages, run metadata, and communication model documented above are
+unchanged.
+
+The one architecturally interesting consequence is a **defect the harness found
+in the existing system**: `computeRiskAdjustedScore` can return a negative
+value while `completedPipelineResponseSchema` bounds `risk_adjusted_score` to
+0-100, so `server/http/routes.js` rejects its own response for a sufficiently
+weak candidate. Recorded as `SR-P3A-001` /
+`docs/architecture/KNOWN_LIMITATIONS.md` P0.7, deliberately unfixed in this
+phase, and tracked by the benchmark's known-defect mechanism.
+
+Detail: `docs/evaluation/EVALUATION_ARCHITECTURE.md` and
+`docs/decisions/ADR-0009-local-first-evaluation-harness.md`.

@@ -117,6 +117,42 @@ out of scope for this phase. Full detail:
 
 ~~The pairing stage's *outer* fallback — returning a generic default pair when every pair call in a run fails — means a result can look complete when the underlying evaluation didn't succeed for any pair.~~ The pairing stage's `?? default`-style fallbacks for individual metric fields were removed in Phase 1B (the production schema now requires all six pairing metrics, so a response missing one is rejected and retried rather than defaulted). Post-review correction (Phase 1D): the remaining *outer* fallback — a fabricated "Default pair" with invented scores (`pair_score: 7.0`, `scenario_coverage: 0.75`, etc.) — was removed entirely. When every pair evaluation in a run fails, `pairing_result` is now `{ "status": "unavailable", "reason": "All pair evaluations failed.", "best_pair": null, "top_pairs": [] }` instead of an invented pair, and the frontend's pairing tab shows a plain "Pairing Unavailable" message rather than a fake recommendation. Regression tests (`server/pipeline/runPipeline.test.js`, "pairing failure modes never fabricate a pair") cover full success, partial pair failure, and all-pairs-failed, and assert none of the old fabricated values appear anywhere in the response. **Post-review correction (ADR-0004):** pairing was later redesigned from one provider request per pair to a single batch request for every relevant pair; the same honesty guarantee carries over and was later tightened further: a duplicate, unrequested, *or merely-missing* pair in the batch is now rejected (one corrective retry, then the stage fails), because a successful pairing result must cover every expected pair — a subset is never classified as a successful "best pair" analysis. Only a batch that still fails to cover every expected pair after the retry falls back to the honest `{"status":"unavailable","reason":"Complete pair analysis was unavailable.","best_pair":null,"top_pairs":[]}` shape (reason text updated from the earlier "All pair evaluations failed.").
 
+### P0.7 Negative `risk_adjusted_score` violates the public response contract — OPEN (found by the Phase 3A evaluation harness)
+
+**Defect ID `SR-P3A-001`.** Found by the first fixture run ever executed
+against `decision-benchmark-v1`.
+
+`computeRiskAdjustedScore` (`server/domain/scoring.js`) can legitimately return
+a negative value for a sufficiently weak candidate — its risk penalties are
+subtracted from the weighted fit score with no lower clamp. But
+`completedPipelineResponseSchema` (`shared/contracts/decisionApi.js`) bounds
+`risk_adjusted_score` to `0-100`, and `server/http/routes.js` (the
+`/api/decision` handler) calls `completedPipelineResponseSchema.parse(result)`
+before responding.
+
+The consequence is user-visible and expensive: an evaluation containing a
+sufficiently weak candidate throws inside the route handler and the user
+receives a generic `500 Pipeline failed. Please try again.` — **after** every
+OpenAI call for that run has already been made and paid for. The SSE path
+performs the same validation.
+
+Observed values across the benchmark: `-30` (case-001, case-011), `-11.94`
+(case-006, second scenario), `-0.4` (case-008). A candidate scoring 3/10 across
+the board is enough to trigger it.
+
+**Deliberately not fixed in Phase 3A.** That phase was explicitly scoped to
+building measurement infrastructure and forbidden from changing scoring,
+ranking, or public contracts. Fixing it means choosing between clamping the
+score (changes scoring output) and widening the contract (changes the public
+API) — and either choice moves the baseline the harness was built to measure
+*from*. This is the first thing Phase 3B should decide.
+
+The benchmark records it as a documented known defect on the four cases that
+reproduce it. Known-defect failures do not gate the evaluation exit status, but
+a case-level check raises a **required** failure if the defect ever stops
+reproducing, so the fix cannot land silently and the record cannot outlive the
+defect. See `docs/evaluation/BENCHMARK_V1.md`.
+
 ### P0.6 Candidate scoring depends on very limited evidence
 
 Still open — unchanged. Short user-written descriptions are treated as sufficient evidence for detailed leadership judgments. The source, completeness, and reliability of those descriptions are unknown.
@@ -163,9 +199,25 @@ HTTP/SSE data. The browser imports those schemas and derives types with
 
 ~~Request validation, SSE event ordering, timeouts, and error propagation are untested.~~ `server/http/routes.test.js` (8 tests) exercises the real Express app on an ephemeral port: SSE stage ordering through to `complete`, error events for invalid input and for a failing pipeline stage (asserted to resolve within 5s — no hang), AI-unavailable handling, `/health` secret-safety, and both `/api/decision` success and 503 paths.
 
-### P2.3 No model evaluation dataset
+### P2.3 No model evaluation dataset — SUBSTANTIALLY RESOLVED (Phase 3A), with real remaining gaps
 
-Still open — unchanged. There are no golden examples, expected score ranges, consistency checks, prompt regression tests, or human-labeled benchmarks. Deferred to Phase 3 (`docs/V2_ROADMAP.md`).
+~~There are no golden examples, expected score ranges, consistency checks, prompt regression tests, or human-labeled benchmarks.~~ Phase 3A added `evals/` — a local-first, offline-capable evaluation harness and `decision-benchmark-v1`, a versioned benchmark of **16 fully synthetic cases** (21 scenario executions) covering basic ranking, multi-scenario behaviour, evidence quality, input-permutation robustness, and pairing. 11 deterministic graders check contract validity, candidate coverage, scenario coverage, ranking consistency, score integrity (by recomputing every recomputable deterministic value from `server/domain/scoring.js`), pairing integrity, pipeline accounting, `not_measured` honesty, winner expectations, unsupported claims, and uncertainty acknowledgement. `npm run eval:fixtures` runs the real pipeline offline with fake providers at zero cost. See `docs/evaluation/` and `docs/decisions/ADR-0009-local-first-evaluation-harness.md`.
+
+Deliberately **not** resolved, and stated plainly rather than implied:
+
+- **No golden-output snapshots**, by choice — snapshots of model text fail on any wording change, which trains people to re-bless them without reading (ADR-0009, "Alternatives considered").
+- **No human labels yet.** The 8-dimension anchored rubric and the review template exist; no human review has been performed, so every qualitative dimension is currently unscored.
+- **A fixture run says nothing about prompt quality.** It exercises orchestration and deterministic computation with a scripted provider. Prompt-regression measurement needs live runs, which Phase 3A gated but never executed.
+- **Run-to-run variance is unmeasured.** The baseline uses one repetition, and the harness reports `not assessed` rather than a meaningless 100%.
+- **16 synthetic cases written by the system's own author** encode that author's expectations. This is a development benchmark, not evidence of fairness, calibration, or real-world accuracy.
+
+Full limitation list: `docs/evaluation/BENCHMARK_V1.md`, "Known limitations of this benchmark".
+
+### P2.5 No near-tie uncertainty signal — OPEN (surfaced by Phase 3A)
+
+The deterministic confidence-and-evidence review (`confidenceEvidenceReview` in `server/pipeline/runPipeline.js`) keys only on model-reported confidence and evidence-string length. It has no notion of *ranking margin*, so a decision separated by noise — two candidates within a fraction of a point — is never flagged for human review, while a clear-cut decision with slightly terse evidence is.
+
+Surfaced while building `case-002` (a deliberate close call between three well-evidenced, confidently-scored candidates): the case cannot honestly carry the `uncertainty` tag, because the pipeline has no mechanism that would fire. A Phase 3B candidate.
 
 ### P2.4 No reproducibility controls — RESOLVED (Phase 1B)
 
@@ -232,3 +284,47 @@ maintainability cleanup; Phase 3 evaluation/reliability work has not begun.
 
 This cleanup does not add persistence, rate limiting, calibration, evaluation
 datasets, or production-readiness guarantees.
+
+## Phase 3A evaluation harness — draft, not merged
+
+Phase 3A added the measurement infrastructure described in `docs/evaluation/`
+and `docs/decisions/ADR-0009-local-first-evaluation-harness.md`. It changed no
+prompt, model, structured-output schema, scoring formula, ranking rule, pairing
+behaviour, or public contract, and no coding agent made a real OpenAI call at
+any point.
+
+What the harness itself does **not** do, stated so a green run is not misread:
+
+1. **It does not validate the product.** `decision-benchmark-v1` is a
+   development benchmark. It is not scientifically validated, not
+   representative of real hiring decisions, not evidence of fairness or
+   demographic neutrality, not a legal-compliance test, not a
+   calibrated-confidence benchmark, and not a production service-level
+   objective.
+2. **A fixture run proves the machinery, not the model.** The fake provider is
+   scripted. A passing run means orchestration, deterministic computation, and
+   the graders behave as specified.
+3. **Wording and irrelevant-text variants cannot fail offline.** The fixture
+   scores by candidate ID and never reads description text, so `case-013` and
+   `case-014` are guaranteed to match their originals. They validate the
+   linkage and comparison machinery only.
+4. **The unsupported-claim checks are conservative phrase matching**, scoped to
+   model-authored narrative fields. They catch a short list of specific
+   overclaims; they cannot judge whether an argument is sound. The
+   narrative-contradiction check is name-based and is deliberately skipped —
+   with the reason reported — when the winner's display name is shared by
+   another candidate.
+5. **`weighted_fit_score` cannot be recomputed** from the public response,
+   because normalised criterion weights are not exposed. Everything derived
+   from it is recomputed.
+6. **Exact ties are resolved by submission order.** The production ranking is a
+   stable sort over the submitted candidate array, so a candidate-order
+   permutation could legitimately change the winner on an exact tie. The
+   benchmark avoids exact ties rather than encoding that behaviour as a
+   guarantee.
+7. **No adversarial, prompt-injection, or malformed-input cases**, and no
+   cross-scenario resilience measurement (the pipeline reports `not_measured`
+   and the harness checks that it keeps saying so).
+8. **Live mode has never been executed.** Its gating, budget arithmetic, and
+   refusal paths are covered by tests that inject values; no automated test in
+   this repository calls OpenAI.

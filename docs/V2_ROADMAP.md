@@ -353,3 +353,65 @@ versions, dev/build/preview verification, and the complete verification
 record: `docs/PROJECT_STATUS.md` ("Phase 2D") and
 `docs/security/DEPENDENCY_AUDIT.md` ("Phase 2D update"). Phase 3 was not
 started; React Router 8 was not introduced; no real OpenAI call was made.
+
+### Phase 3A — evaluation harness and synthetic benchmark (draft, not merged)
+
+**Goal:** build the measurement infrastructure needed to evaluate
+ScenarioRank's AI pipeline *before* changing prompts, models,
+structured-output schemas, deterministic scoring, ranking, or pairing — and
+nothing else. No prompt optimisation, no model switching, no temperature
+experiments, no LLM-as-judge grading, no hosted-Evals integration, no
+dashboards, no persistence, no Phase 3B.
+
+Added `evals/`: a local-first, offline-capable evaluation harness, and
+`decision-benchmark-v1`, a versioned benchmark of **16 fully synthetic cases**
+(21 scenario executions) covering basic ranking, multi-scenario behaviour,
+evidence quality, input-permutation robustness, and pairing — with an immutable
+benchmark ID, an enforced versioning policy, and a closed tag vocabulary.
+
+- **11 deterministic graders**: contract validity, candidate coverage, scenario
+  coverage, ranking consistency, score integrity (recomputing every recomputable
+  deterministic value from `server/domain/scoring.js`), pairing integrity,
+  pipeline accounting, `not_measured` honesty, winner expectations, unsupported
+  claims, and uncertainty acknowledgement.
+- **An 8-dimension anchored human-review rubric** (0-4, with `not_applicable`
+  and `cannot_determine` never coerced into numbers). No LLM-as-judge grading.
+- **Offline fixture mode** (`npm run eval:fixtures`): runs the real pipeline
+  with scripted fake providers — no network, no API key, no cost, deterministic
+  decision content, CI-suitable, nonzero exit on a required failure.
+- **Gated live mode** (`npm run eval:live`): requires `--live`, an API key, an
+  explicit positive budget, and a deliberate case selection; refuses CI by
+  default; refuses an unpriced model; displays and enforces a worst-case cost
+  estimate. **Never executed** — no real OpenAI call was made at any point.
+- **Comparison** (`npm run eval:compare`): `improved`/`regressed`/`unchanged`/
+  `inconclusive`, where only deterministic invariants move the verdict and
+  numeric deltas are explicitly marked `not_assessed` for significance.
+- **Permutation and stability support**, with run-to-run stability reported as
+  `not assessed` below two repetitions rather than a meaningless 100%.
+
+Architecture and reasoning:
+`docs/decisions/ADR-0009-local-first-evaluation-harness.md` and
+`docs/evaluation/` (architecture, benchmark, human-review guide, runbook).
+
+**No production behaviour changed.** No prompt, model, schema, scoring formula,
+ranking rule, pairing behaviour, HTTP contract, or frontend component was
+touched. Verification: 629 tests (103 frontend + 217 backend + 309 evaluation),
+with the frontend and backend counts unchanged from `main`.
+
+**The harness found a real defect on its first run** and deliberately did not
+fix it: `SR-P3A-001` — `computeRiskAdjustedScore` can return a negative value
+while the public contract bounds `risk_adjusted_score` to 0-100, so
+`server/http/routes.js` rejects its own response and returns a generic 500
+*after* the OpenAI calls have been paid for. Recorded in
+`docs/architecture/KNOWN_LIMITATIONS.md` (P0.7) and tracked by the benchmark's
+known-defect mechanism, which raises a required failure if it stops
+reproducing. Deciding the fix is the first Phase 3B question, because either
+candidate fix moves the baseline the harness measures from.
+
+### Phase 3B — not started
+
+Deliberately unstarted. The recommended next milestone is to decide and apply
+the `SR-P3A-001` fix (clamp the score, or widen the contract), re-baseline the
+benchmark, and only then begin prompt and model work with before/after
+comparison. Remaining Phase 3 items from the original plan — structured error
+classes and cancellation, and CI wiring — also belong here.
