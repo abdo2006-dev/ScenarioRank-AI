@@ -116,26 +116,35 @@ pre-existing test file (both mutate the same tracked
 server/script test files sequentially). Final verification: 302 tests (94
 frontend + 208 backend), no unhandled-rejection warning. See "Phase 2C"
 below for full detail. No coding agent made a real OpenAI call at any
-point in Phase 2C. **Phase 2D (draft PR, not merged, branch
-`v2/phase-2d-react-router7-security`)** applies the React Router `6`→`7`
-migration Phase 2C recommended as the next action: `react-router-dom
-6.30.4`/`react-router 6.30.4` → `react-router 7.18.2` (package strategy
-Option A — `react-router-dom` removed entirely, both active imports
-migrated to `"react-router"`, which officially exports the app's
-Declarative Mode APIs — `BrowserRouter`, `Routes`, `Route`,
-`useLocation` — directly in v7). `npm audit` findings dropped from 2 to 1;
-the one remaining finding, `GHSA-qwww-vcr4-c8h2` (RSC Mode CSRF Bypass),
-only affects the unstable RSC APIs this Declarative-Mode-only app does not
-use, and is deliberately not chased to React Router 8 (out of scope) — see
+point in Phase 2C. **Phase 2D is complete and merged.** PR #7 was
+squash-merged into `main` at `2026-08-01T21:27:43Z` as
+`994e01b8d58139c165a1e79084f7bd5d253ee0a5`
+(`chore: complete ScenarioRank V2 Phase 2D`); its temporary
+`v2/phase-2d-react-router7-security` branch was deleted locally and
+remotely. `main` is again the sole active V2 line. It applied the React
+Router `6`→`7` migration Phase 2C recommended as the next action:
+`react-router-dom 6.30.4`/`react-router 6.30.4` → `react-router 7.18.2`
+(package strategy Option A — `react-router-dom` removed entirely, both
+active imports migrated to `"react-router"`, which officially exports
+the app's Declarative Mode APIs — `BrowserRouter`, `Routes`, `Route`,
+`useLocation` — directly in v7; Declarative Mode remains the chosen
+routing mode and router behavior is otherwise unchanged). `npm audit`
+findings dropped from 2 to 1; the one remaining finding,
+`GHSA-qwww-vcr4-c8h2` (RSC Mode CSRF Bypass), only affects the unstable
+RSC APIs this Declarative-Mode-only app does not use, and was
+deliberately not chased to React Router 8 (React Router 8 was
+deliberately deferred, out of scope) — see
 [`decisions/ADR-0008-react-router-7-migration.md`](decisions/ADR-0008-react-router-7-migration.md)
 and `docs/security/DEPENDENCY_AUDIT.md` ("Phase 2D update"). A new
 dependency-free `scripts/check-router-toolchain.mjs` guard was added to
-`npm run check:toolchain` alongside the Phase 2C Vite guard. Final
-verification: 320 tests (103 frontend + 217 backend). No scoring, prompt,
-ranking, pairing, HTTP contract, validation, accessibility, frontend
-design, or backend architecture changed; no real OpenAI call was made at
-any point in Phase 2D; Phase 3 remains unstarted. See "Phase 2D" below for
-full detail.
+`npm run check:toolchain` alongside the Phase 2C Vite guard; `vite`
+remains `6.4.3` and `esbuild` remains `0.25.12`, unchanged by this phase.
+Final verification: 320 tests (103 frontend + 217 backend). No scoring,
+prompt, ranking, pairing, HTTP contract, validation, accessibility,
+frontend design, or backend architecture changed; no coding agent made a
+real OpenAI call at any point in Phase 2D; Phase 3 remains unstarted. The
+recommended next action is Phase 3A evaluation infrastructure planning.
+See "Phase 2D" below for full detail.
 
 ## Project objective
 
@@ -1676,12 +1685,23 @@ defect this phase's baseline verification surfaced.
     can affect focus management) — independent of Phase 3 and of this
     phase's toolchain work, schedulable whenever the owner chooses.
 
-## Phase 2D — React Router 7 security migration — draft, not merged
+## Phase 2D — React Router 7 security migration — completed, merged via PR #7 (squash commit `994e01b`)
 
 **Branch:** `v2/phase-2d-react-router7-security`, created from `main` at
 commit `22a6acd8ca11b463aa56ae9478aba2a08b9d26ce` (equal to `origin/main`,
-clean working tree). Draft PR targets `main`. Phase 3 was not started. No
-real OpenAI call was made at any point, by any coding agent.
+clean working tree). PR #7 was squash-merged into `main` at
+`2026-08-01T21:27:43Z` as `994e01b8d58139c165a1e79084f7bd5d253ee0a5`
+(`chore: complete ScenarioRank V2 Phase 2D`); the temporary branch was
+deleted both locally and on the remote. `react-router@7.18.2` is now the
+sole router package on `main`; `react-router-dom` is removed. Declarative
+Mode remains the chosen routing mode and router behavior is unchanged.
+`vite` remains `6.4.3` and `esbuild` remains `0.25.12`, unaffected by
+this phase. One `npm audit` finding remains
+(`GHSA-qwww-vcr4-c8h2`), affecting only experimental React Router RSC
+APIs that ScenarioRank does not use; React Router 8 was deliberately
+deferred. Phase 3 was not started. No coding agent made a real OpenAI
+call at any point. The next action is Phase 3A evaluation infrastructure
+planning.
 
 Phase 2C recommended this exact next action: apply the
 `react-router`/`react-router-dom` `6.x`→`7.x` migration
