@@ -116,8 +116,26 @@ pre-existing test file (both mutate the same tracked
 server/script test files sequentially). Final verification: 302 tests (94
 frontend + 208 backend), no unhandled-rejection warning. See "Phase 2C"
 below for full detail. No coding agent made a real OpenAI call at any
-point in Phase 2C. Phase 3 remains unstarted; the recommended next action
-is a short, independent React Router `6`→`7` migration review.
+point in Phase 2C. **Phase 2D (draft PR, not merged, branch
+`v2/phase-2d-react-router7-security`)** applies the React Router `6`→`7`
+migration Phase 2C recommended as the next action: `react-router-dom
+6.30.4`/`react-router 6.30.4` → `react-router 7.18.2` (package strategy
+Option A — `react-router-dom` removed entirely, both active imports
+migrated to `"react-router"`, which officially exports the app's
+Declarative Mode APIs — `BrowserRouter`, `Routes`, `Route`,
+`useLocation` — directly in v7). `npm audit` findings dropped from 2 to 1;
+the one remaining finding, `GHSA-qwww-vcr4-c8h2` (RSC Mode CSRF Bypass),
+only affects the unstable RSC APIs this Declarative-Mode-only app does not
+use, and is deliberately not chased to React Router 8 (out of scope) — see
+[`decisions/ADR-0008-react-router-7-migration.md`](decisions/ADR-0008-react-router-7-migration.md)
+and `docs/security/DEPENDENCY_AUDIT.md` ("Phase 2D update"). A new
+dependency-free `scripts/check-router-toolchain.mjs` guard was added to
+`npm run check:toolchain` alongside the Phase 2C Vite guard. Final
+verification: 320 tests (103 frontend + 217 backend). No scoring, prompt,
+ranking, pairing, HTTP contract, validation, accessibility, frontend
+design, or backend architecture changed; no real OpenAI call was made at
+any point in Phase 2D; Phase 3 remains unstarted. See "Phase 2D" below for
+full detail.
 
 ## Project objective
 
@@ -1657,3 +1675,179 @@ defect this phase's baseline verification surfaced.
     re-verified, accessibility checklist re-checked since routing changes
     can affect focus management) — independent of Phase 3 and of this
     phase's toolchain work, schedulable whenever the owner chooses.
+
+## Phase 2D — React Router 7 security migration — draft, not merged
+
+**Branch:** `v2/phase-2d-react-router7-security`, created from `main` at
+commit `22a6acd8ca11b463aa56ae9478aba2a08b9d26ce` (equal to `origin/main`,
+clean working tree). Draft PR targets `main`. Phase 3 was not started. No
+real OpenAI call was made at any point, by any coding agent.
+
+Phase 2C recommended this exact next action: apply the
+`react-router`/`react-router-dom` `6.x`→`7.x` migration
+`docs/security/DEPENDENCY_AUDIT.md` had already scoped as its own,
+independently reviewable follow-up.
+
+1. **Baseline established before any change.** `npm ci`, `npm run lint`,
+   `npm run lint:server`, `npm run typecheck`,
+   `npm run check:decision-readability`, `npm run check:unused-template`,
+   `npm run check:toolchain`, `npm test`, `npm run build`,
+   `node --check server.mjs`, and `npm audit` all passed cleanly against
+   unmodified `main` (commit `22a6acd`, equal to `origin/main`). Recorded
+   baseline: Node `v22.23.1`, npm `10.9.8`, React `18.3.1`/React DOM
+   `18.3.1`, `react-router-dom 6.30.4` (direct) /
+   `react-router 6.30.4` (transitive, sole resolved version), 302 tests
+   (94 frontend + 208 backend), 2 audit findings (0 critical, 0 low, 2
+   moderate, 0 high — both `react-router`/`react-router-dom`), build
+   output `dist/assets/index-*.js` 270.31 kB / `dist/assets/index-*.css`
+   18.51 kB. The pre-existing React Router future-flag console warnings
+   (`v7_startTransition`, `v7_relativeSplatPath`) were observed during
+   `npm run test:frontend` at baseline, confirming both flags were still
+   relevant to this app's Declarative Mode usage before the migration.
+2. **Migration requirements reviewed against authoritative sources**, not
+   assumed from training data: the official React Router upgrade guide
+   (`reactrouter.com/upgrading/v7`), the future-flags reference
+   (`reactrouter.com/6.30.4/upgrading/future`), the live npm registry
+   (`npm view react-router versions`/`dist-tags`/`peerDependencies`/
+   `engines`, `npm view react-router-dom@7.18.2 dependencies`), and the
+   GitHub Security Advisories for every open finding. This app's active
+   router usage is confirmed, by repo-wide search, to be **Declarative
+   Mode only**: `BrowserRouter`, `Routes`, `Route` (`src/App.tsx`), and
+   `useLocation` (`src/pages/NotFound.tsx`) — no `Link`, `NavLink`,
+   `Navigate`, `useNavigate`, `useParams`, `useSearchParams`, `redirect`,
+   `generatePath`, `<Form>`, `createBrowserRouter`, `RouterProvider`,
+   loaders, actions, or fetchers appear anywhere in active source.
+   Applicable v7 changes: `v7_startTransition` (now default; no code
+   change needed — this app renders no `React.lazy`/Suspense boundary
+   inside a component body) and `v7_relativeSplatPath` (now default; a
+   no-op here since the app's only splat route, the catch-all `*`, has no
+   child routes or relative links beneath it — "no relative navigation
+   from splat routes is relied upon," confirmed by inspection). Node 20+
+   and React/React DOM 18+ are both already satisfied
+   (Node `22.23.1`, React `18.3.1`). Non-applicable: package
+   consolidation nuances around Framework/Data Mode
+   (`v7_fetcherPersist`, `v7_normalizeFormMethod`, `v7_partialHydration`,
+   `v7_skipActionErrorRevalidation` are all Data-Mode-only — this app has
+   no data router), form-method normalization (no `<Form>` usage),
+   optional splat-route behavior (only one splat route exists, with no
+   optional-segment ambiguity), and route/navigation TypeScript type
+   changes tied to `createBrowserRouter`/loaders (not used).
+3. **Package strategy: Option A, chosen deliberately.** Verified live that
+   `react-router@7.18.2` officially exports every Declarative Mode API
+   this app uses directly from `"react-router"`, and that
+   `react-router-dom@7.18.2` is a thin re-export of
+   `react-router@7.18.2` kept only for compatibility. `npm install
+   react-router@7.18.2` then `npm uninstall react-router-dom` (npm alone
+   updated `package.json`/`package-lock.json`; the lockfile was never
+   hand-edited). `src/App.tsx` and `src/pages/NotFound.tsx` now import
+   `BrowserRouter`/`Route`/`Routes`/`useLocation` from `"react-router"`.
+   `npm ls react-router react-router-dom` confirms exactly one resolved
+   router package (`react-router@7.18.2`), no React Router 6 package, no
+   duplicate router major, and no invalid/extraneous/unmet peer
+   dependencies. Full package-strategy reasoning, including why Option B
+   was rejected:
+   [`decisions/ADR-0008-react-router-7-migration.md`](decisions/ADR-0008-react-router-7-migration.md).
+4. **v7 behavior changes verified explicitly**, not assumed: `npm run
+   test:frontend` after the migration shows the two future-flag console
+   warnings from step 1 are now **gone** (v7 made both flags' behavior the
+   default — no explicit `future={{ ... }}` prop was ever added or is
+   needed), all 94 pre-existing frontend tests still pass unchanged, and
+   the evaluation form (`EvaluationForm.tsx`) remains a native `<form>`
+   with no React Router import of any kind — confirmed not accidentally
+   converted to route-aware `<Form>`.
+5. **10 focused route regression tests added**
+   (`src/App.routerV7.test.tsx`, 9 tests, plus the pre-existing
+   `src/App.test.tsx`'s 2 tests continuing to pass unchanged) proving: `/`
+   renders the ScenarioRank application; an unknown top-level route and a
+   nested unknown route (`/this/route/is/deeply/nested/and/unknown`) both
+   render `NotFound`; `BrowserRouter` initializes with no React Router
+   future-flag warning; a route change (simulated via `popstate`, wrapped
+   in `act()`) produces no unhandled rejection and no React `act()`
+   warning; active router imports come only from `"react-router"`, never
+   `"react-router-dom"`; no `createBrowserRouter`/`RouterProvider`/
+   loader/action data-mode API is used; no v6-only future flag remains;
+   and the evaluation form is not routed through React Router's `<Form>`.
+   No React Router 6 dependency remaining in the lockfile is covered by
+   the toolchain guard's own regression tests (item 6).
+6. **Router toolchain guard added**
+   (`scripts/check-router-toolchain.mjs`, wired into
+   `npm run check:toolchain` alongside the Phase 2C Vite guard — one
+   coherent dependency-policy command, two independently owned guards
+   with no overlapping checks). A dependency-free Node script inspecting
+   only `package.json`/`package-lock.json`/active source files (no
+   network calls) that fails with a clear message if: the installed
+   `react-router` major isn't exactly 7; the version drops below
+   `7.13.0`; the major reaches 8; a `react-router-dom` package or import
+   remains anywhere (package.json, lockfile, or active source outside
+   test files); a duplicate/incompatible `react-router` major exists
+   anywhere in the dependency graph; `package.json`'s declared
+   `react-router` range disagrees with `package-lock.json`'s root
+   dependency entry or no longer targets the approved major; or the
+   React/React DOM/Node baseline regresses below react-router@7's own
+   peer/engine requirements. 9 regression tests
+   (`scripts/check-router-toolchain.test.js`) spawn the real script
+   against the real repository tree, proving it rejects React Router 6,
+   React Router 8, a duplicate React Router 6 package or nested major, an
+   inconsistent active-source import of the removed package, and a
+   package.json/package-lock.json root dependency mismatch — the same
+   mutate-and-restore pattern already used by
+   `scripts/check-toolchain.test.js`.
+7. **Manual dev/build/preview verification**, no real OpenAI call: the
+   Vite dev server (port 8080) started cleanly and rendered `/` with no
+   console errors; direct navigation to an unknown top-level route
+   (`/this-does-not-exist`) and a nested unknown route (`/foo/bar/baz`)
+   both rendered `NotFound` correctly (confirmed via
+   `window.location.pathname`), with only the app's own intentional 404
+   `console.error` line in the console; browser back navigation
+   correctly returned to the prior history entry; HMR applied a
+   temporary, harmless edit to `NotFound.tsx` in place (`[vite] hot
+   updated: /src/pages/NotFound.tsx`, no full reload, route unchanged)
+   and the edit was then reverted; `npm run build` succeeded
+   (`dist/assets/index-*.js` 291.50 kB / `dist/assets/index-*.css`
+   18.51 kB — the JS bundle grew by ~21 kB, consistent with
+   `react-router@7`'s larger core versus `react-router-dom@6.30.4`, not a
+   regression); `npm run preview` (port 4173) served the built app
+   correctly, including `/` rendering, direct navigation to
+   `/demo.html` (still self-contained and reachable), and an unknown
+   route (`/unknown-route-check`) — confirmed via the network log that
+   `vite preview`'s own dev-convenience SPA fallback returned `200 OK`
+   for that path and the client router then rendered `NotFound`. This
+   confirms `vite preview`'s fallback behavior specifically; the
+   repository still defines no production deployment topology
+   (`docs/architecture/CURRENT_ARCHITECTURE.md`), so this is not a claim
+   about any specific real production host's SPA-fallback configuration.
+   No `/api/decision` or `/api/decision/stream` request was made during
+   this verification (the backend process was not started).
+8. **Audit result: 2 findings → 1 finding.** The three `6.x`-line
+   advisories (`GHSA-wrjc-x8rr-h8h6`, `GHSA-337j-9hxr-rhxg`,
+   `GHSA-jjmj-jmhj-qwj2`) are resolved by moving to `react-router@7.18.2`.
+   One new finding, `GHSA-qwww-vcr4-c8h2` ("RSC Mode CSRF Bypass"), high
+   severity, surfaced — no `7.x` patch exists (fixed only in `8.3.0`), and
+   it does not apply to this app (its own advisory text: "only affects
+   your application if you are using the unstable RSC APIs," which this
+   Declarative-Mode-only app does not use). Deliberately **not** chased
+   to React Router 8 — out of scope for this phase. `npm audit fix
+   --force` was not run. Full detail:
+   `docs/security/DEPENDENCY_AUDIT.md` ("Phase 2D update") and
+   [`decisions/ADR-0008-react-router-7-migration.md`](decisions/ADR-0008-react-router-7-migration.md).
+9. **Final verification.** `npm ci`, `npm run lint`, `npm run lint:server`,
+   `npm run typecheck`, `npm run check:decision-readability`,
+   `npm run check:unused-template`, `npm run check:toolchain`, `npm test`
+   (frontend + server), `npm run build`, `node --check server.mjs`,
+   `npm audit`, `npm ls`, and `git diff --check` all pass. **Final test
+   totals: 320 tests (103 frontend + 217 backend)** — was 302 (94 + 208):
+   +9 frontend (`src/App.routerV7.test.tsx`) and +9 backend
+   (`scripts/check-router-toolchain.test.js`). `.env.local` remains
+   untracked and ignored; a secret scan of the tracked diff and the
+   rebuilt production bundle found no API-key-shaped string and no
+   `openai` backend SDK source. No real OpenAI call occurred at any point
+   in this phase. Phase 3 was not started. React Router 8 was not
+   introduced.
+10. **Recommended next milestone:** Phase 3 — real multi-scenario
+    robustness and AI evaluation infrastructure (`docs/V2_ROADMAP.md`).
+    No further dependency-security follow-up is currently required by
+    `npm audit`'s production-exposed findings; the one remaining finding
+    (`GHSA-qwww-vcr4-c8h2`) is assessed as not applicable to this app's
+    actual usage and should be revisited only if this app adopts RSC,
+    Framework Mode, or Data Mode, or when a deliberate React Router 8
+    migration is separately scoped.

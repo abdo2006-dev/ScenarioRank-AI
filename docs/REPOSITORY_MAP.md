@@ -45,6 +45,7 @@ This map is based on the active import path beginning at `src/main.tsx` and a st
 - `scripts/check-decision-source-readability.mjs` (`npm run check:decision-readability`)
 - `scripts/check-unused-template.mjs` (`npm run check:unused-template` — reintroduction guard for the paths, lockfiles, dependency names, root-provider imports, generated package name, and stale public-demo terminology this phase confirmed dead or incorrect)
 - `scripts/check-toolchain.mjs` (`npm run check:toolchain` — Phase 2C guard; fails if the locked `vite` version regresses below its patched floor or moves to an undocumented major line, if the locked `esbuild` version regresses below its patched floor, or if `package-lock.json` root metadata disagrees with `package.json`)
+- `scripts/check-router-toolchain.mjs` (also run by `npm run check:toolchain` — Phase 2D guard; fails if the locked `react-router` version regresses to `6.x`, reaches `8.x`, or drops below `7.13.0`, if a `react-router-dom` package or active-source import remains, if a duplicate/incompatible `react-router` major exists in the dependency graph, if `package.json`/`package-lock.json` root `react-router` metadata disagree, or if the React/React DOM/Node baseline regresses below `react-router@7`'s own peer/engine requirements)
 
 `playwright.config.ts`, `playwright-fixture.ts`, and `components.json` were
 removed in the Phase 2B-2 correction pass — see below.

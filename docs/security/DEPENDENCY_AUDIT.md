@@ -9,6 +9,86 @@ exactly why each was deferred and what would resolve it. A lower finding
 count is not, by itself, a claim that the application is secure — see
 "What this audit does not claim" at the end.
 
+## Phase 2D update (2026-08-02) — React Router 7 security migration applied
+
+**Branch:** `v2/phase-2d-react-router7-security` (draft PR, not merged)
+
+Phase 2C deferred the `react-router`/`react-router-dom` `6.x` → `7.x`
+migration this table already identified ("4. `react-router-dom`" below).
+Phase 2D applies it as its own focused, reviewed follow-up — see
+[`decisions/ADR-0008-react-router-7-migration.md`](../decisions/ADR-0008-react-router-7-migration.md)
+for the full package-strategy reasoning.
+
+| | react-router | react-router-dom | Total findings |
+|---|---|---|---|
+| Before (start of Phase 2D, matches "Phase 2C update" above) | `6.30.4` (transitive, via `react-router-dom`) | `6.30.4` installed (`^6.30.1` in `package.json`) | 2 (0 critical, 0 low, 2 moderate, 0 high) |
+| After (`npm install react-router@7.18.2`, `npm uninstall react-router-dom`) | `7.18.2` installed (`^7.18.2` in `package.json`), sole router package | removed entirely | **1** (0 critical, 0 low, 0 moderate, **1 high**) |
+
+**Package strategy: Option A — direct `react-router` import, `react-router-dom`
+removed.** Confirmed live before choosing it: `react-router@7.18.2`
+officially exports `BrowserRouter`/`Routes`/`Route`/`useLocation` (every
+Declarative Mode API this app actually uses) from `"react-router"` itself,
+and `react-router-dom@7.18.2` is nothing more than a re-export of
+`react-router@7.18.2` (`npm view react-router-dom@7.18.2 dependencies` →
+`{"react-router":"7.18.2"}`), kept only for compatibility. `src/App.tsx`
+and `src/pages/NotFound.tsx` now import `BrowserRouter`/`Route`/`Routes`/
+`useLocation` from `"react-router"`; `react-router-dom` was uninstalled and
+has zero remaining importers, verified by
+`scripts/check-router-toolchain.mjs`.
+
+**Advisories resolved:** the three findings tied to the `6.x` line —
+[GHSA-wrjc-x8rr-h8h6](https://github.com/advisories/GHSA-wrjc-x8rr-h8h6)
+(open redirect via backslash in `<Link>`/`useNavigate`),
+[GHSA-337j-9hxr-rhxg](https://github.com/advisories/GHSA-337j-9hxr-rhxg)
+(arbitrary constructor injection in SSR hydration's `deserializeErrors()`),
+and [GHSA-jjmj-jmhj-qwj2](https://github.com/advisories/GHSA-jjmj-jmhj-qwj2)
+(open redirect leading to XSS, `react-router-dom`-specific) — are all
+resolved by moving to `7.18.2` (all three advisories' vulnerable ranges end
+below `7.18.0`).
+
+**One new finding surfaced by the upgrade, deliberately not chased to React
+Router 8:**
+[GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
+("React Router: RSC Mode CSRF Bypass Allows Action Execution Before 400
+Response"), high severity, affected range `>=7.12.0 <8.3.0`, **no patched
+`7.x` release exists** — `npm view react-router versions` goes directly
+from `7.18.2` to `8.0.0-pre.0`; `npm audit`'s own `fixAvailable` field
+confirms the only fix is `react-router@8.3.0`, a breaking major bump. **Not
+applicable to this app**: the advisory's own text states it "only affects
+your application if you are using the unstable RSC APIs," and this app is
+Declarative Mode only — no RSC, no Framework Mode, no Data Mode, no
+loaders/actions/fetchers anywhere in active source (confirmed by a
+repo-wide search before and after this migration; also enforced going
+forward by `scripts/check-router-toolchain.mjs`). This is recorded as an
+assessed, deferred, **not-applicable** finding — not silently dismissed and
+not used as a reason to adopt React Router 8, which is explicitly out of
+scope for this phase. Full reasoning:
+[`decisions/ADR-0008-react-router-7-migration.md`](../decisions/ADR-0008-react-router-7-migration.md).
+
+**Compatibility, verified live (not assumed from documentation):**
+`react-router@7.18.2` declares `peerDependencies: { react: ">=18",
+"react-dom": ">=18" }` and `engines: { node: ">=20.0.0" }` — this repo runs
+React/React DOM `18.3.1` and Node `22.23.1`, both already compatible with
+no version bump. `npm ls react-router react-router-dom` after the
+migration shows exactly one router package (`react-router@7.18.2`) with no
+invalid, extraneous, or unmet peer dependencies.
+
+**Dev/production exposure:** `react-router` remains the only
+production-exposed finding in this project (shipped in the browser
+bundle, imported by `src/App.tsx`/`src/pages/NotFound.tsx`) — unchanged
+from the "Production versus development exposure" table below, except the
+package identity is now `react-router` alone rather than
+`react-router`+`react-router-dom`.
+
+**Commands used for this update:** `npm view react-router dist-tags`,
+`npm view react-router versions`, `npm view react-router@7.18.2
+peerDependencies`, `npm view react-router@7.18.2 engines`, `npm view
+react-router-dom@7.18.2 dependencies`, `npm install react-router@7.18.2`,
+`npm uninstall react-router-dom`, `npm ls react-router react-router-dom`,
+`npm audit` / `npm audit --json`, plus the full lint/typecheck/guard/test/
+build/dev/preview verification pass recorded in `docs/PROJECT_STATUS.md`
+("Phase 2D").
+
 ## Phase 2C update (2026-08-01) — Vite 6 migration applied
 
 **Branch:** `v2/phase-2c-vite6-security` (draft PR, not merged)
@@ -175,6 +255,12 @@ change.
 | Risk of upgrading now | React Router 7 changes the router API surface (data routers, `RouterProvider`, changed type exports) — a real migration requiring its own review and test pass, explicitly listed as out of scope for this phase (task instructions: "React Router major migration unless separately required and explicitly justified"). |
 | Chosen action | **Deferred** — not mixed into this dependency-cleanup phase. |
 
+**Superseded by Phase 2D:** this row describes the state before the Phase
+2D migration (`docs/security/DEPENDENCY_AUDIT.md`, "Phase 2D update"). The
+app's Declarative Mode usage did not need the data-router APIs mentioned in
+"Risk of upgrading now" above — left as-is for the historical record of the
+original classification.
+
 ### 4. `react-router-dom` — moderate
 
 | Field | Value |
@@ -189,6 +275,10 @@ change.
 | Remediation type | **Major** |
 | Risk of upgrading now | Same as `react-router` above. |
 | Chosen action | **Deferred**, tracked as the same follow-up as `react-router`. |
+
+**Superseded by Phase 2D:** `react-router-dom` was removed entirely (not
+upgraded in place) — see "Phase 2D update" above and
+[`decisions/ADR-0008-react-router-7-migration.md`](../decisions/ADR-0008-react-router-7-migration.md).
 
 ## Production versus development exposure — at a glance
 
@@ -237,20 +327,21 @@ re-verification pass that is out of scope for a "narrow correction."
    run the full build/typecheck/test suite, and manually re-verify
    `npm run dev` and `npm run build` before merging. Should not be combined
    with any other dependency change so a regression is easy to bisect.
-2. **`react-router`/`react-router-dom` (major migration, `6.x` → `7.x`+).**
-   Follow-up: a dedicated React Router migration phase — read the v6→v7
-   upgrade guide, adopt the new data-router APIs if required, re-verify both
-   routes (`/` and the catch-all), re-run `src/App.test.tsx` and
-   `src/pages/Index.test.tsx`, and re-check the accessibility checklist
-   (`docs/testing/ACCESSIBILITY_CHECKLIST.md`) since routing changes can
-   affect focus management. This app's exposure is already low (two static
-   routes, no dynamic navigation targets) — the point of doing this later is
-   defense in depth and staying current, not closing an active, exploitable
-   hole in this specific app today.
+2. **`react-router`/`react-router-dom` (major migration, `6.x` → `7.x`+) —
+   RESOLVED in Phase 2D.** Applied as its own dedicated React Router
+   migration: `react-router@7.18.2` (Declarative Mode, no data-router APIs
+   needed), both routes re-verified (`/` and the catch-all, plus nested
+   unknown paths), `src/App.test.tsx`/`src/pages/Index.test.tsx` still pass
+   unchanged, and the accessibility checklist
+   (`docs/testing/ACCESSIBILITY_CHECKLIST.md`) was not affected since no
+   focus-management behavior changed. See "Phase 2D update" above and
+   [`decisions/ADR-0008-react-router-7-migration.md`](../decisions/ADR-0008-react-router-7-migration.md)
+   for the one new finding this upgrade surfaced (`GHSA-qwww-vcr4-c8h2`,
+   not applicable to this app, deliberately not chased to React Router 8).
 
-Both follow-ups are independent of each other and of Phase 3; either can be
-scheduled whenever the owner chooses, without blocking Phase 3 model
-evaluation work.
+Both follow-ups were independent of each other and of Phase 3; the Vite
+follow-up was completed in Phase 2C and the React Router follow-up in
+Phase 2D, neither blocking Phase 3 model evaluation work.
 
 ## What this audit does not claim
 
@@ -262,11 +353,12 @@ evaluation work.
   package versions. It is not a penetration test, a SAST/DAST scan, or a
   license-compliance review.
 - The "exploit preconditions not met today" reasoning for `react-router`/
-  `react-router-dom` describes this app's *current* route structure. If a
-  future phase adds a dynamic route target built from user input (a
-  redirect parameter, a deep link built from request data), that reasoning
-  no longer holds and the major-version migration should be prioritized
-  immediately rather than deferred.
+  `react-router-dom`'s original `6.x`-line findings, and for
+  `GHSA-qwww-vcr4-c8h2`'s "no RSC APIs used" reasoning (Phase 2D), both
+  describe this app's *current* usage. If a future phase adds a dynamic
+  route target built from user input, RSC, Framework Mode, or Data Mode,
+  that reasoning no longer holds and the relevant remediation should be
+  prioritized immediately rather than deferred.
 
 ## Verification this round
 
@@ -274,4 +366,7 @@ evaluation work.
 `npm run check:decision-readability`, `npm run check:unused-template`,
 `npm test` (frontend + server), `npm run build`, `node --check server.mjs`,
 and `npm audit` all pass with the dependency set and lockfile described
-above — see `docs/PROJECT_STATUS.md` for the exact recorded results.
+above — see `docs/PROJECT_STATUS.md` for the exact recorded results (each
+phase's own "Verification" record is dated and versioned there; this
+document is updated in place per dependency, not re-verified line by line
+here).

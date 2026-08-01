@@ -23,6 +23,19 @@ server-owned runtime cap and can be lower than the technical ceiling.
 points, dev-server behavior, production output structure, or Vitest
 environments. See `docs/security/DEPENDENCY_AUDIT.md`.
 
+**Phase 2D** (draft, not merged) migrated client-side routing from
+`react-router-dom@6.30.4` to `react-router@7.18.2` — a deliberately
+selected patched migration target compatible with the current Vite 6
+baseline, not the newest published React Router major (React Router 8 was
+not adopted this phase). `src/App.tsx` and `src/pages/NotFound.tsx` import
+`BrowserRouter`/`Routes`/`Route`/`useLocation` directly from
+`"react-router"`; `react-router-dom` was removed entirely rather than kept
+as a compatibility layer. The app remains Declarative Mode only — no
+`createBrowserRouter`, `RouterProvider`, loaders, actions, fetchers, or
+route modules were introduced. See
+`docs/decisions/ADR-0008-react-router-7-migration.md` and
+`docs/security/DEPENDENCY_AUDIT.md` ("Phase 2D update").
+
 ## Component diagram
 
 ```mermaid
