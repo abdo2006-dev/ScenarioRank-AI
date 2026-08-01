@@ -64,7 +64,9 @@ deferred as a separate follow-up rather than applied in this pass — see
 Phase 2B-2 correction pass deferred, the `vite`/`esbuild` pair is now
 resolved: `vite` `5.4.21` → `6.4.3` (the minimum patched release),
 transitively resolving `esbuild` to `0.25.12`. `react-router`/
-`react-router-dom` remain open — see `docs/security/DEPENDENCY_AUDIT.md`
+`react-router-dom` remained open at the end of Phase 2C — resolved in
+Phase 2D, see "Phase 2D React Router 7 security migration" above and
+`docs/security/DEPENDENCY_AUDIT.md`
 ("Phase 2C update") for the full before/after classification. This phase
 also fixed a pre-existing frontend test-teardown defect: an uncancelled
 health-check effect in `useDecisionEvaluation.ts` could apply a late
@@ -75,6 +77,23 @@ surfaced as an `Unhandled Rejection: window is not defined` warning
 2B-2 correction-pass verification record). Fixed with a cancelled-flag
 effect-cleanup guard; no user-visible behavior changed. Full detail:
 `docs/PROJECT_STATUS.md` ("Phase 2C").
+
+## Phase 2D React Router 7 security migration — draft, not merged
+
+**Branch `v2/phase-2d-react-router7-security`.** The `react-router`/
+`react-router-dom` finding Phase 2C left open is resolved:
+`react-router-dom` `6.30.4` → `react-router` `7.18.2` (package strategy
+Option A — `react-router-dom` removed entirely, both active imports
+migrated to `"react-router"`). The three `6.x`-line advisories
+(`GHSA-wrjc-x8rr-h8h6`, `GHSA-337j-9hxr-rhxg`, `GHSA-jjmj-jmhj-qwj2`) are
+resolved; one new finding, `GHSA-qwww-vcr4-c8h2` (RSC Mode CSRF Bypass,
+high severity, no `7.x` patch exists), surfaced but is assessed as
+not applicable — it only affects the unstable RSC APIs, and this app is
+Declarative Mode only (`BrowserRouter`/`Routes`/`Route`/`useLocation`, no
+data routers, no RSC). Deliberately not chased to React Router 8, which is
+out of scope for this phase. Full detail:
+`docs/PROJECT_STATUS.md` ("Phase 2D") and
+`docs/security/DEPENDENCY_AUDIT.md` ("Phase 2D update").
 
 ## Priority 0 — correctness and integrity
 

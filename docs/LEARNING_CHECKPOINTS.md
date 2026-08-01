@@ -148,6 +148,41 @@ The maintainer should be able to explain the current system in approximately two
 6. Why does `npm run check:toolchain` read `package-lock.json` directly
    instead of running `npm ls --json` or a real semver library?
 
+## Phase 2D understanding (React Router 7 security migration)
+
+1. Why was package strategy "Option A" (direct `react-router` import,
+   `react-router-dom` removed) chosen over "Option B" (upgrade
+   `react-router-dom` in place, keep both packages)? What live registry
+   check confirmed Option A was actually viable for this app's specific
+   router usage, rather than assumed from documentation
+   (`docs/decisions/ADR-0008-react-router-7-migration.md`)?
+2. `npm audit` reports 1 remaining finding after this migration
+   (`GHSA-qwww-vcr4-c8h2`), not 0. Why was React Router 8 not installed to
+   reach zero? What specific text in that advisory proves it does not
+   apply to this app's actual usage?
+3. `v7_startTransition` and `v7_relativeSplatPath` were both real v6
+   future flags. Why did neither require a code change or an explicit
+   `future={{ ... }}` prop during this migration — what's different about
+   how this app uses `BrowserRouter`/`Routes`/`Route` compared to an app
+   that would need one?
+4. `v7_fetcherPersist`, `v7_normalizeFormMethod`, `v7_partialHydration`,
+   and `v7_skipActionErrorRevalidation` are all real v7 future flags this
+   document does not mention applying. Why not — what do all four have in
+   common, and what would have to be true of this app for them to matter?
+5. Why does `scripts/check-router-toolchain.mjs` exclude `.test.ts`/
+   `.test.tsx`/`.test.js` files from its active-source import scan for
+   `react-router-dom`? What would happen to the guard's own regression
+   tests if it didn't?
+6. Show the exact code where `src/App.tsx` and `src/pages/NotFound.tsx`
+   import router APIs. Why do neither file need to import from
+   `"react-router/dom"` the way a React Router 8 app would?
+7. Why does `EvaluationForm.tsx` remaining a native `<form>` (not React
+   Router's `<Form>`) matter for this migration specifically — what would
+   have broken, or silently changed behavior, if it had been converted?
+8. The production JS bundle grew by roughly 21 kB after this migration.
+   Why is that not itself evidence of a problem, and what would have made
+   it one?
+
 ## Phase 2A understanding
 
 1. Why are provider output schemas in `server/ai/schemas/` distinct from public transport schemas in `shared/contracts/`?

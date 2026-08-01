@@ -2,35 +2,30 @@
 
 **Scenario-aware decision support for comparing leadership candidates under different business conditions.**
 
-> **Project status:** Phase 2B-2 is complete and merged to `main` (PR #5,
-> squash commit `2bc721c2cb0bb08e64076ef1805c57d6c206f256`). It removed
-> unused generated template components and dependencies, simplified
-> `App.tsx` to only the root providers something active actually uses,
-> standardized on npm as the sole package manager, and reduced `npm audit`
-> findings from 9 to 4 — all deferred findings need a major-version
-> migration and are documented in
-> [`docs/security/DEPENDENCY_AUDIT.md`](./docs/security/DEPENDENCY_AUDIT.md).
-> A narrow correction pass in the same phase removed remaining residual
-> template debt (`src/lib/utils.ts`, `components.json`, `src/App.css`, a
-> broken Playwright stub), renamed the generated package identity to
-> `scenariorank-ai`, rewrote the public demo
-> ([`public/demo.html`](./public/demo.html)) to describe the current
-> OpenAI/gpt-5-mini pipeline instead of the retired award-build
-> architecture, and corrected a documentation error about the Vite
-> remediation path. **Phase 2C (draft, not yet merged, branch
-> `v2/phase-2c-vite6-security`)** applies the deferred `vite` migration
-> this correction pass identified: `vite` `5.4.21` → `6.4.3`, the minimum
-> patched release for the dev-server advisories, which also pulls a
-> patched `esbuild` (`0.21.5` → `0.25.12`) transitively — no plugin or
-> Vitest version change was required. `npm audit` findings dropped from 4
-> to 2 (the remaining 2 are the separately-deferred
-> `react-router`/`react-router-dom` major migration). No scoring, prompt,
-> or provider behavior changed, React Router was not touched, and Phase 3
-> has not started — see
-> [`docs/security/DEPENDENCY_AUDIT.md`](./docs/security/DEPENDENCY_AUDIT.md)
-> ("Phase 2C update") and
-> [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md) for full detail.
-> Phases 2A, 2B-1, and 2B-2 are merged to `main`.
+> **Project status:** Phase 2C is complete and merged to `main` (PR #6,
+> squash commit `a07edc4b968d8d3ce71b22fc22d11e58cdc66025`). It migrated
+> the frontend build tool from `vite@5.4.21` to `vite@6.4.3` — the minimum
+> patched release for the dev-server advisories, which also pulled a
+> patched `esbuild` (`0.21.5` → `0.25.12`) transitively, no plugin or
+> Vitest version change required — and dropped `npm audit` findings from 4
+> to 2. Phases 2A, 2B-1, and 2B-2 are also merged to `main`; see
+> [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md) for the full
+> history of every phase. **Phase 2D (draft, not yet merged, branch
+> `v2/phase-2d-react-router7-security`)** applies the React Router
+> migration Phase 2C left as the recommended next action:
+> `react-router-dom` `6.30.4` → `react-router` `7.18.2` (Declarative Mode
+> only — `BrowserRouter`/`Routes`/`Route`/`useLocation`), with
+> `react-router-dom` removed entirely rather than kept as a compatibility
+> layer, since `react-router@7` officially exports every API this app
+> uses directly. `npm audit` findings dropped from 2 to 1; the one
+> remaining finding only affects React Router's unstable RSC APIs, which
+> this Declarative-Mode-only app does not use, and was deliberately not
+> fixed by adopting React Router 8 (out of scope for this phase) — see
+> [`docs/decisions/ADR-0008-react-router-7-migration.md`](./docs/decisions/ADR-0008-react-router-7-migration.md)
+> and [`docs/security/DEPENDENCY_AUDIT.md`](./docs/security/DEPENDENCY_AUDIT.md)
+> ("Phase 2D update"). No scoring, prompt, provider, ranking, pairing,
+> HTTP contract, validation, accessibility, or route-content behavior
+> changed; no real OpenAI call was made; Phase 3 has not started.
 
 ScenarioRank AI received **Best Implementation** in a BMW-related competition. The original award-winning snapshot is preserved separately as the [`bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/bmw-award-original) tag and [`archive/bmw-award-original`](https://github.com/abdo2006-dev/ScenarioRank-AI/tree/archive/bmw-award-original) branch.
 
@@ -96,14 +91,14 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 
 | Layer | Current technology | Current role |
 |---|---|---|
-| Frontend | React 18, TypeScript, Vite `6.4.3` | Single-page interface and results rendering, self-contained presentation primitives (`src/features/decision/components/ui.tsx`) — the generated shadcn/Radix component library was removed in Phase 2B-2 as unreachable template code |
+| Frontend | React 18, TypeScript, Vite `6.4.3`, React Router `7.18.2` | Single-page interface and results rendering, self-contained presentation primitives (`src/features/decision/components/ui.tsx`) — the generated shadcn/Radix component library was removed in Phase 2B-2 as unreachable template code |
 | Backend | Node.js, Express, ESM | API routes, orchestration, formulas, model calls |
 | AI provider | OpenAI (`gpt-5-mini`) via a provider-neutral contract, Responses API + Structured Outputs | Role/scenario interpretation, batch candidate scoring, explanations, batch pair estimates |
 | Streaming | Server-Sent Events | Sends pipeline stage updates and final results |
 | Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
 | Package manager | npm only (`package-lock.json`) | The stale `bun.lock`/`bun.lockb` lockfiles were removed in Phase 2B-2 — see [ADR-0007](./docs/decisions/ADR-0007-npm-only-lockfile.md) |
-| Automated testing | 208 backend + 94 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, focused accessible component rendering, the Phase 2B-2 cleanup-reintroduction guard, and the Phase 2C toolchain guard (`npm run check:toolchain`) |
+| Automated testing | 217 backend + 103 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, focused accessible component rendering, React Router 7 route regression coverage, the Phase 2B-2 cleanup-reintroduction guard, and the combined Phase 2C/2D `npm run check:toolchain` guard (Vite + React Router policy) |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
@@ -125,7 +120,7 @@ See [`docs/architecture/KNOWN_LIMITATIONS.md`](./docs/architecture/KNOWN_LIMITAT
 
 ### Prerequisites
 
-- Node.js 18 or newer
+- Node.js 20 or newer (React Router `7.18.2` requires Node `>=20`)
 - An OpenAI API key for live AI evaluation
 
 ### Setup
@@ -180,7 +175,8 @@ Never commit `.env` or API keys.
 - [ADR-0005: shared HTTP contracts](./docs/decisions/ADR-0005-shared-http-contracts.md)
 - [ADR-0006: retain Node and Express](./docs/decisions/ADR-0006-retain-node-express.md)
 - [ADR-0007: npm-only lockfile](./docs/decisions/ADR-0007-npm-only-lockfile.md)
-- [Dependency audit (Phase 2B-2; updated Phase 2C)](./docs/security/DEPENDENCY_AUDIT.md)
+- [ADR-0008: React Router 7 migration](./docs/decisions/ADR-0008-react-router-7-migration.md)
+- [Dependency audit (Phase 2B-2; updated Phase 2C, Phase 2D)](./docs/security/DEPENDENCY_AUDIT.md)
 - [Accessibility checklist](./docs/testing/ACCESSIBILITY_CHECKLIST.md)
 
 ## Branch model

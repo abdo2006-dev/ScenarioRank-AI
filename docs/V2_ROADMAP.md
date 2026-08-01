@@ -318,3 +318,38 @@ patched floor. Full detail, exact before/after versions, and the complete
 verification record: `docs/PROJECT_STATUS.md` ("Phase 2C") and
 `docs/security/DEPENDENCY_AUDIT.md` ("Phase 2C update"). Phase 3 was not
 started; React Router was not migrated; no real OpenAI call was made.
+
+### Phase 2D — React Router 7 security migration (draft, not merged)
+
+**Goal:** apply the React Router `6`→`7` migration Phase 2C recommended as
+the next action — the last production-exposed `npm audit` findings — and
+nothing else: no React Router 8, no Vite 7/8, no Framework Mode, no Data
+Mode, no route loaders/actions, no SSR, no Phase 3 work.
+
+`react-router-dom` `6.30.4` (direct) / `react-router` `6.30.4`
+(transitive) → `react-router` `7.18.2` (the newest published `7.x`
+release), using package strategy **Option A**: `react-router-dom` was
+removed entirely rather than kept installed, since `react-router@7`
+officially exports every Declarative Mode API this app actually uses
+(`BrowserRouter`, `Routes`, `Route`, `useLocation`) directly, and
+`react-router-dom@7` is confirmed to be nothing more than a thin re-export
+of `react-router@7` — see
+`docs/decisions/ADR-0008-react-router-7-migration.md`. This app's router
+usage was already Declarative-Mode-only with no data-router APIs, so the
+migration required no route restructuring, no new future-flag
+configuration (`v7_startTransition`/`v7_relativeSplatPath` are simply
+default behavior now, both confirmed to be no-ops for this app's actual
+route structure), and no change to the evaluation form (still a native
+`<form>`, never React Router's route-aware `<Form>`). `npm audit` findings
+dropped from 2 to 1; the one remaining finding
+(`GHSA-qwww-vcr4-c8h2`, RSC Mode CSRF Bypass) only affects the unstable
+RSC APIs this app does not use, and is deliberately not chased to React
+Router 8, which is out of scope for this phase. A new dependency-free
+guard, `scripts/check-router-toolchain.mjs`, was wired into
+`npm run check:toolchain` alongside the Phase 2C Vite guard, and 9 focused
+route-behavior regression tests
+(`src/App.routerV7.test.tsx`) were added. Full detail, exact before/after
+versions, dev/build/preview verification, and the complete verification
+record: `docs/PROJECT_STATUS.md` ("Phase 2D") and
+`docs/security/DEPENDENCY_AUDIT.md` ("Phase 2D update"). Phase 3 was not
+started; React Router 8 was not introduced; no real OpenAI call was made.
