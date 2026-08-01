@@ -8,15 +8,13 @@
 | TypeScript | frontend | Type annotations for UI state and responses | Improves editor support and catches some shape errors | Useful, but types are duplicated and runtime validation is absent |
 | Vite | frontend tooling | Development server and production build | Simple, fast setup for React | Appropriate for this project |
 | Tailwind CSS | frontend styling | Utility-based visual styling | Fast iteration without writing many CSS files | Keep if the team can maintain consistent components |
-| Radix UI / shadcn-style files | UI component library | Toasts, tooltip provider, and generated primitives | Accessible primitives and rapid UI generation | Many generated components are not used by the active page |
-| React Router | app shell | Root route and catch-all page | Standard client routing | Currently more infrastructure than the one-page app needs, but harmless |
-| TanStack Query | app shell | Query client provider | Usually manages server state, caching, retries | Provider exists, but active requests use manual `fetch`; not meaningfully used yet |
+| React Router | app shell | Root route and catch-all page | Standard client routing | Currently more infrastructure than the one-page app needs, but harmless. `npm audit` flags a moderate open-redirect/XSS advisory with no patched `6.x` release — deferred as a separate major-version (`6`→`7`) follow-up; this app's two static routes have no dynamic navigation target, so the vulnerable feature isn't exercised today (`docs/security/DEPENDENCY_AUDIT.md`) |
 | Node.js | backend runtime | Hosts Express and executes formulas | Same language family as frontend; fast hackathon iteration | Suitable, though V2 may deliberately evaluate Python/FastAPI for educational value |
 | Express 5 | backend framework | HTTP routes and middleware | Minimal learning/setup overhead | Routes, orchestration, prompts, and formulas should be separated |
 | Server-Sent Events | backend/frontend | Pipeline progress streaming | Simpler than WebSockets for one-way progress updates | A good fit for this one-way stream |
 | OpenAI SDK (`openai`) | backend (`server/ai/providers/openaiProvider.js`) | **The only supported provider**, via the Responses API + Structured Outputs, for every pipeline LLM operation | `gpt-5-mini` was verified at implementation time to be available to this project's account, to support Structured Outputs, and to work correctly with the installed SDK — see `docs/decisions/ADR-0004-single-openai-provider.md` for the real-account probe. Groq and Gemini were real, tested integrations from an earlier phase, removed after neither could reliably complete a full run on its free tier | Bundles its own Zod-to-JSON-Schema helper (`openai/helpers/zod`), so this project no longer needs a standalone conversion package |
 | Vitest | testing | Test runner | Native fit for Vite projects | Phase 2B-1 adds shared-limit, validation, accessibility-semantic, and route coverage; no test uses the real OpenAI provider. |
-| Playwright | testing configuration | Intended browser testing | Good for full user-flow verification | Configured; Phase 2B-1 retains deterministic React semantic tests and a manual accessibility-oriented checklist. Axe was not added because browser-scanner setup is outside the verified dependency/runtime path for this focused change. |
+| Playwright | *(removed, Phase 2B-2 correction pass)* | N/A | N/A | `@playwright/test`, `playwright.config.ts`, and `playwright-fixture.ts` were removed: the config and fixture imported a nonexistent package (`lovable-agent-playwright-config`, absent from `package.json` and `package-lock.json`), no npm script or test file used them, and no substantive browser test was ever present. Accessibility verification uses Vitest/Testing Library semantic tests plus the manual checklist (`docs/testing/ACCESSIBILITY_CHECKLIST.md`) — that was already the real coverage; the Playwright configuration never added anything beyond an unused, broken stub. |
 | Zod | dependency | Schema validation | Common TypeScript validation library | **Live**: every production LLM operation is validated against a Zod schema (`server/ai/schemas/`) before any deterministic calculation runs — the OpenAI adapter validates twice (once via the SDK's own helper, once explicitly, defense in depth). No longer "installed but unused" in any sense |
 
 ## Data and infrastructure technologies not present
@@ -45,11 +43,24 @@ A package being listed in `package.json` does not mean it is part of the active 
 
 Examples:
 
-- TanStack Query is initialized, but live API requests use manual `fetch` calls.
 - Zod is installed, but current runtime validation is manual.
-- Playwright is configured, but no substantive browser tests are present.
-- many Radix/shadcn component files exist, but the active page renders mostly self-contained components.
-- a static dataset and older component set exist, but the active route does not import them.
+- Playwright *was* configured but never had a substantive browser test —
+  its config and fixture imported a package that was never actually
+  installed, and it was removed entirely in the Phase 2B-2 correction pass
+  rather than fixed, since nothing depended on it.
+
+**Resolved in Phase 2B-2:** TanStack Query was initialized (`QueryClientProvider`
+in `App.tsx`) but no active code ever called `useQuery`/`useMutation` — live
+requests use manual `fetch` calls through `src/features/decision/api/`. The
+generated Radix/shadcn component library (55 files under the former
+`src/components/ui/`) existed but the active page rendered only its own
+small, self-contained primitives (`src/features/decision/components/ui.tsx`).
+Both the unused provider and the unused component set — plus 45 dependencies
+that only those files imported — were verified unreachable by an exhaustive
+import-graph search and removed; see `docs/PROJECT_STATUS.md` ("Phase 2B-2")
+and `docs/security/DEPENDENCY_AUDIT.md`. This is the exact scenario Phase 0
+warned about: "why unused dependencies and generated components can mislead
+a recruiter about the real architecture" (`docs/LEARNING_CHECKPOINTS.md`).
 
 For recruiter-facing documentation, describe technologies according to their actual role, not according to the dependency list.
 

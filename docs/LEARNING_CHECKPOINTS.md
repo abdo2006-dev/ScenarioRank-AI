@@ -2,6 +2,56 @@
 
 These questions are not documentation decoration. The maintainer should answer them verbally and, where appropriate, point to the relevant code.
 
+## Phase 2B-2 understanding
+
+1. How was "this file is unreachable" actually *proven* rather than assumed —
+   what exact search was run, and from which entrypoints?
+2. Why were `Toaster` and `Sonner` both removed even though `App.tsx` mounted
+   both of them? What is the difference between a component being *mounted*
+   and a component being *used*?
+3. Why was `TooltipProvider` removed — what did the "Model conf." text
+   actually turn out to be when checked, and why did that matter?
+4. `src/lib/utils.ts` (and `clsx`/`tailwind-merge`) was initially left in the
+   tree even though nothing called `cn()` — why, and what changed in the
+   Phase 2B-2 correction pass that made it safe to actually delete?
+5. Why was `lovable-tagger` removed from `vite.config.ts` even though it was
+   a real, working import (not a dead file) — what made it "unused" in a way
+   that matters for this project specifically?
+6. Why does `npm audit fix` (no `--force`) only fix `brace-expansion` and not
+   `react-router-dom`, even though npm's own report says a fix is
+   "available" for both? Show the exact advisory range that explains it
+   (`docs/security/DEPENDENCY_AUDIT.md`).
+7. Why is `react-router-dom`'s open-redirect/XSS advisory judged low-risk
+   *for this specific app today*, without the vulnerability being fixed?
+   What would have to change in the app for that judgment to become wrong?
+8. What does `npm run check:unused-template` actually check, and what are
+   the four categories of regression it's designed to catch?
+9. Why were `vite` (corrected to `5→6`, not the originally documented `5→8`)
+   and `react-router-dom` `6→7` documented as deferred follow-ups instead of
+   just being done in this same phase?
+
+## Phase 2B-2 correction pass understanding
+
+1. The original Phase 2B-2 pass deleted an entire generated component
+   directory but left `src/lib/utils.ts`, `components.json`, `src/App.css`,
+   and the Playwright stub in place. Why — what was the actual scope
+   boundary that caused each to be skipped the first time?
+2. `docs/security/DEPENDENCY_AUDIT.md` originally said the `vite`/`esbuild`
+   findings require `vite@8.2.0`. Where did that number actually come from,
+   and why was it wrong? What two independent checks proved the real
+   minimum patched release is `6.4.3`?
+3. Why does correcting the Vite migration path to a *smaller, safer* bump
+   (`5.x`→`6.x` instead of `5.x`→`8.x`) still not mean this phase applied
+   it? What's the argument for deferring it anyway?
+4. `public/demo.html` is publicly reachable and was never covered by the
+   original Phase 2B-2 import-graph trace (it's a static file, not part of
+   the React app). Why did that make it invisible to the first pass, and
+   what makes a static HTML file's *content* a correctness problem the same
+   way a dead import is?
+5. Why does `scripts/check-unused-template.mjs` scan `public/demo.html` for
+   specific stale terms instead of just diffing the whole file against a
+   known-good copy?
+
 ## Phase 2B-1 understanding
 
 1. Why are technical candidate ceilings in shared contracts while `AI_MAX_CANDIDATES` is resolved by the server?
