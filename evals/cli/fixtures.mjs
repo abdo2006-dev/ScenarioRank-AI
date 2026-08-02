@@ -7,7 +7,7 @@
  * Suitable for CI, and the command a change to prompts, scoring, or ranking
  * should be measured against — before and after.
  */
-import { parseArgs, single, many, integerOption, showHelp, failWith } from "./args.js";
+import { parseArgs, assertAllowedArgs, single, many, integerOption, showHelp, failWith } from "./args.js";
 import { loadBenchmark, DEFAULT_BENCHMARK_ID } from "../datasets/loadBenchmark.js";
 import { createEvalFakeProvider } from "../fixtures/fakeProviderProfiles.js";
 import { runBenchmark } from "../runners/runBenchmark.js";
@@ -44,7 +44,9 @@ Exit status:
 `;
 
 async function main() {
-  const { flags, values } = parseArgs(process.argv.slice(2));
+  const parsed = parseArgs(process.argv.slice(2));
+  const { flags, values } = parsed;
+  assertAllowedArgs(parsed, { flags: ["help", "no-write"], values: ["benchmark", "case", "repetitions", "profile"], singleValues: ["benchmark", "repetitions", "profile"] });
   if (flags.help) showHelp(HELP);
 
   const benchmarkId = single(values, "benchmark") ?? DEFAULT_BENCHMARK_ID;

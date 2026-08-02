@@ -123,6 +123,7 @@ export function explanationFingerprint(response) {
  *   provider instance the caller resolved once.
  * @param {string} options.model model label recorded in run metadata
  * @param {number} [options.repetitions]
+ * @param {(context: { benchmarkCase: object, scenarioIndex: number, repetition: number }) => boolean} [options.beforeExecution]
  * @param {(execution: object) => void} [options.onExecution] called after each
  *   execution, so a live runner can enforce its budget between executions.
  * @returns {Promise<object>} a case result matching `caseResultSchema`
@@ -132,6 +133,7 @@ export async function runCase({
   createProvider,
   model,
   repetitions = 1,
+  beforeExecution,
   onExecution,
 }) {
   const executions = [];
@@ -141,6 +143,31 @@ export async function runCase({
     for (let scenarioIndex = 0; scenarioIndex < benchmarkCase.input.scenarios.length; scenarioIndex += 1) {
       const scenario = benchmarkCase.input.scenarios[scenarioIndex];
       const executionId = `${benchmarkCase.case_id}#s${scenarioIndex}#r${repetition}`;
+      if (beforeExecution && !beforeExecution({ benchmarkCase, scenarioIndex, repetition })) {
+        const execution = {
+          execution_id: executionId,
+          case_id: benchmarkCase.case_id,
+          scenario_index: scenarioIndex,
+          scenario,
+          repetition,
+          status: "skipped",
+          skip_reason: "Execution was not started because the live budget guard would be exceeded.",
+          grader_results: [
+            {
+              grader_id: "execution-completion",
+              grader_version: "1.0.0",
+              severity: "required",
+              status: "fail",
+              summary: "The execution was not started.",
+              finding_codes: [],
+              details: ["The live budget guard stopped this execution before any provider request."],
+            },
+          ],
+        };
+        executions.push(execution);
+        onExecution?.(execution);
+        continue;
+      }
       const stageSnapshots = [];
       const { provider, trace } = createObservingProvider(
         createProvider({ benchmarkCase, scenarioIndex, repetition }),
@@ -189,6 +216,7 @@ export async function runCase({
               repetitions,
             }),
             benchmarkCase.known_defects,
+            { execution, benchmarkCase },
           )
         : [
             {
@@ -197,6 +225,7 @@ export async function runCase({
               severity: "required",
               status: "fail",
               summary: "The pipeline did not produce a completed response for this execution.",
+              finding_codes: [],
               details: [failureReason ?? "unknown failure"],
             },
           ];

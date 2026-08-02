@@ -6,8 +6,9 @@ itself is in [`BENCHMARK_V1.md`](BENCHMARK_V1.md).
 
 ## Commands
 
-All four run from the repository root, support `--help`, emit no ANSI escape
-codes, and return nonzero on a required failure.
+All four run from the repository root, support `--help`, reject unknown or
+malformed options, emit no ANSI escape codes, and return nonzero on a required
+failure.
 
 ```bash
 npm run eval:validate
@@ -111,10 +112,12 @@ npm run eval:live -- --live --case case-001 --max-budget-usd 0.25
 ### Budget arithmetic
 
 The estimate is deliberately pessimistic, because under-estimating is the only
-error that costs money. It assumes **every stage consumes its full retry
-allowance** (a 2x multiplier on both attempts and output tokens) and a
-generous fixed input size per attempt, then prices the result through the same
-`server/ai/pricing/openaiPricing.js` table the application uses.
+error that costs money. It includes two provider attempts for each context and
+decision request; two integrity passes for scoring and, where applicable,
+pairing, each with two provider attempts; and truncation-retry output headroom.
+It also uses a generous fixed input size per attempt, then prices the result
+through the same `server/ai/pricing/openaiPricing.js` table the application
+uses.
 
 One honest caveat, stated in the stop message itself: reported spend excludes
 attempts that failed before returning a response body, so true spend can exceed
@@ -193,9 +196,11 @@ in their own prominent section of `summary.md`, and do **not** gate the exit
 status — one real finding should not leave the baseline permanently red, which
 would train everyone to ignore it.
 
-The safety catch: if a known defect stops reproducing anywhere in its case, a
+The safety catch: every record names its exact scenario indexes and stable
+semantic finding code. If that exact known defect stops reproducing, a
 **required** failure fires demanding the record be removed. A known-defect
-record cannot outlive the defect it describes.
+record cannot outlive the defect it describes, and it cannot suppress an
+unrelated failure from the same grader.
 
 If you see `known-defect-still-present:SR-XXX-NNN` fail, something was fixed.
 Remove the `known_defects` entry from the case and update the referenced

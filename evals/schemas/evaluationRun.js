@@ -46,6 +46,16 @@ export const graderResultSchema = z
     severity: z.enum(GRADER_SEVERITIES),
     status: z.enum(GRADER_STATUSES),
     summary: z.string().min(1),
+    /** Stable machine-readable finding classes used for exact known-defect matching. */
+    finding_codes: z.array(z.string().min(1)).default([]),
+    /** Structured failure identities; messages are never used as known-defect keys. */
+    observations: z.array(z.record(z.unknown())).default([]),
+    /** Present only when a scoped known-defect record reclassified this failure. */
+    known_defect_id: z.string().min(1).optional(),
+    /** Exact expected-observation identities matched by this failure. */
+    known_defect_observation_ids: z.array(z.string().min(1)).default([]),
+    /** XPASS-like signal: an expected product defect disappeared and needs review. */
+    unexpected_defect_resolution: z.boolean().default(false),
     /** Structured, human-readable specifics. Never raw provider payloads. */
     details: z.array(z.string().min(1)),
   })
@@ -63,7 +73,7 @@ export const executionResultSchema = z
     scenario_index: z.number().int().min(0),
     scenario: z.string().min(1),
     repetition: z.number().int().min(1),
-    status: z.enum(["completed", "failed"]),
+    status: z.enum(["completed", "failed", "skipped"]),
     /**
      * The pipeline response, stored as-is.
      *
@@ -78,6 +88,8 @@ export const executionResultSchema = z
     response: z.record(z.unknown()).optional(),
     /** Safe message only — never a stack trace or provider payload. */
     failure_reason: z.string().min(1).optional(),
+    /** A safe reason for an intentionally unstarted execution, e.g. budget guard. */
+    skip_reason: z.string().min(1).optional(),
     /**
      * The decision content the comparison command actually diffs. Extracted
      * here so a comparison never has to re-walk a full response, and so
@@ -114,6 +126,13 @@ export const executionResultSchema = z
         code: z.ZodIssueCode.custom,
         path: ["failure_reason"],
         message: "A failed execution must record why it failed.",
+      });
+    }
+    if (execution.status === "skipped" && !execution.skip_reason) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["skip_reason"],
+        message: "A skipped execution must record why it was not started.",
       });
     }
   });
@@ -187,6 +206,7 @@ export const runSummarySchema = z
     failed_cases: z.number().int().min(0),
     required_failures: z.number().int().min(0),
     advisory_failures: z.number().int().min(0),
+    run_state: z.enum(["clean_pass", "pass_with_known_defects", "unexpected_failure", "baseline_change_required"]),
     grader_totals: z.record(
       z
         .object({
@@ -201,6 +221,12 @@ export const runSummarySchema = z
     ),
     /** Failures attributed to a documented, pre-existing product defect. */
     expected_failures: z.number().int().min(0),
+    clean_pass_count: z.number().int().min(0),
+    affected_defect_ids: z.array(z.string().min(1)),
+    affected_execution_ids: z.array(z.string().min(1)),
+    unexpected_failures: z.number().int().min(0),
+    unexpected_defect_resolutions: z.number().int().min(0),
+    known_defect_observations: z.array(z.record(z.unknown())).default([]),
     /**
      * Winner agreement across repetitions of the same case+scenario.
      * `insufficient_samples` when repetitions < 2 — a single run can never

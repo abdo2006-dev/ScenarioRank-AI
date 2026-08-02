@@ -198,12 +198,22 @@ describe("CLI ergonomics", () => {
     const result = runCli([commands.validate, "--benchmark", "does-not-exist-v1"]);
     expect(result.status).toBe(1);
     expect(result.stderr.length).toBeGreaterThan(0);
+    expect(result.stderr).not.toMatch(/\/(?:Users|home|root)\//);
+  });
+
+  it("rejects unknown options instead of silently changing command behaviour", () => {
+    for (const script of Object.values(commands)) {
+      const result = runCli([script, "--definitely-unknown"]);
+      expect(result.status, script).toBe(1);
+      expect(result.stderr, script).toContain("Unknown option");
+    }
   });
 
   it("eval:fixtures exits 0 on the committed baseline", () => {
     const result = runCli([commands.fixtures, "--no-write"]);
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("result: PASSED");
+    expect(result.stdout).toContain("fixture machinery: PASSED");
+    expect(result.stdout).toContain("production baseline: PASS WITH KNOWN DEFECTS");
   });
 
   it("eval:fixtures exits nonzero when a required invariant fails", () => {
@@ -216,7 +226,8 @@ describe("CLI ergonomics", () => {
       "--no-write",
     ]);
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("result: FAILED");
+    expect(result.stdout).toContain("fixture machinery: FAILED");
+    expect(result.stdout).toContain("production baseline: UNEXPECTED FAILURE");
     expect(result.stderr).toContain("required grader failure");
   });
 

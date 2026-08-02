@@ -11,7 +11,7 @@
  * implementation. Its refusal paths and budget arithmetic are covered by
  * tests that inject values rather than calling the API.
  */
-import { parseArgs, single, many, integerOption, showHelp, failWith } from "./args.js";
+import { parseArgs, assertAllowedArgs, single, many, integerOption, showHelp, failWith } from "./args.js";
 import { loadBenchmark, DEFAULT_BENCHMARK_ID } from "../datasets/loadBenchmark.js";
 import { runBenchmark } from "../runners/runBenchmark.js";
 import { buildHumanReviewTemplate } from "../graders/rubricTemplate.js";
@@ -66,7 +66,9 @@ Exit status:
 `;
 
 async function main() {
-  const { flags, values } = parseArgs(process.argv.slice(2));
+  const parsed = parseArgs(process.argv.slice(2));
+  const { flags, values } = parsed;
+  assertAllowedArgs(parsed, { flags: ["help", "live", "all-cases", "allow-ci"], values: ["benchmark", "case", "repetitions", "max-budget-usd"], singleValues: ["benchmark", "repetitions", "max-budget-usd"] });
   if (flags.help) showHelp(HELP);
 
   const benchmarkId = single(values, "benchmark") ?? DEFAULT_BENCHMARK_ID;
@@ -101,14 +103,7 @@ async function main() {
 
   const run = await runBenchmark({
     benchmark,
-    // Filtered by the guard as the run proceeds: a case is dropped from the
-    // selection the moment its worst case would breach the limit.
-    caseIds: selectedIds.filter((caseId) => {
-      const benchmarkCase = benchmark.cases.find((entry) => entry.case_id === caseId);
-      if (guard.canProceed(benchmarkCase)) return true;
-      stopped.push(caseId);
-      return false;
-    }),
+    caseIds: selectedIds,
     mode: "live",
     provider: provider.name,
     model,
@@ -116,6 +111,11 @@ async function main() {
     createProvider: () => provider,
     onExecution: (execution) => {
       guard.record(execution.response?.run_metadata.estimatedCostUsd ?? null);
+    },
+    beforeExecution: ({ benchmarkCase }) => {
+      if (guard.canProceed(benchmarkCase)) return true;
+      stopped.push(benchmarkCase.case_id);
+      return false;
     },
   });
 

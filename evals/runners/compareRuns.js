@@ -81,6 +81,48 @@ function schemaFailureCount(caseResults) {
   );
 }
 
+function expectedFailureCount(caseResults) {
+  return caseResults.reduce(
+    (total, caseResult) =>
+      total +
+      [...caseResult.executions.flatMap((execution) => execution.grader_results ?? []), ...(caseResult.grader_results ?? [])].filter(
+        (result) => result.status === "expected_failure",
+      ).length,
+    0,
+  );
+}
+
+function observationIdentity(observation, includeSignature = true) {
+  const fields = {
+    defect_id: observation.defect_id,
+    case_id: observation.case_id,
+    execution_id: observation.execution_id,
+    scenario_id: observation.scenario_id,
+    variant_id: observation.variant_id,
+    repetition: observation.repetition,
+    grader_id: observation.grader_id,
+    ...(includeSignature ? { signature: observation.signature } : {}),
+  };
+  return JSON.stringify(fields);
+}
+
+function compareDefectObservations(baseline, candidate) {
+  const before = baseline.summary.known_defect_observations ?? [];
+  const after = candidate.summary.known_defect_observations ?? [];
+  const beforeKeys = new Set(before.map((entry) => observationIdentity(entry)));
+  const afterKeys = new Set(after.map((entry) => observationIdentity(entry)));
+  const disappeared = [...beforeKeys].filter((key) => !afterKeys.has(key));
+  const appeared = [...afterKeys].filter((key) => !beforeKeys.has(key));
+  const beforeScope = new Map(before.map((entry) => [observationIdentity(entry, false), observationIdentity(entry)]));
+  const afterScope = new Map(after.map((entry) => [observationIdentity(entry, false), observationIdentity(entry)]));
+  const changedSignature = [...beforeScope.keys()].filter((key) => afterScope.has(key) && beforeScope.get(key) !== afterScope.get(key));
+  const bySignature = (entry) => JSON.stringify({ defect_id: entry.defect_id, case_id: entry.case_id, grader_id: entry.grader_id, signature: entry.signature });
+  const beforePlacement = new Map(before.map((entry) => [bySignature(entry), observationIdentity(entry, false)]));
+  const afterPlacement = new Map(after.map((entry) => [bySignature(entry), observationIdentity(entry, false)]));
+  const moved = [...beforePlacement.keys()].filter((key) => afterPlacement.has(key) && beforePlacement.get(key) !== afterPlacement.get(key));
+  return { unchanged: [...beforeKeys].filter((key) => afterKeys.has(key)), disappeared, appeared, changed_signature: changedSignature, moved };
+}
+
 /** First completed execution per case+scenario; enough to detect a change. */
 function outcomesByScenario(caseResult) {
   const map = new Map();
@@ -164,6 +206,10 @@ function compareCase(baselineCase, candidateCase) {
     explanation_changed: explanationChanged,
     required_failures: requiredDelta,
     advisory_failures: numericDelta(baselineCase.advisory_failures, candidateCase.advisory_failures),
+    expected_failures: numericDelta(
+      expectedFailureCount([baselineCase]),
+      expectedFailureCount([candidateCase]),
+    ),
     schema_failures: numericDelta(
       schemaFailureCount([baselineCase]),
       schemaFailureCount([candidateCase]),
@@ -252,12 +298,17 @@ export function compareRuns(baseline, candidate) {
       baseline.summary.advisory_failures,
       candidate.summary.advisory_failures,
     ),
+    expected_failures: numericDelta(
+      baseline.summary.expected_failures,
+      candidate.summary.expected_failures,
+    ),
     schema_failures: numericDelta(
       schemaFailureCount(baseline.caseResults),
       schemaFailureCount(candidate.caseResults),
     ),
     passed_cases: numericDelta(baseline.summary.passed_cases, candidate.summary.passed_cases),
   };
+  const defectObservations = compareDefectObservations(baseline, candidate);
 
   const verdictReasons = [];
   let verdict;
@@ -265,15 +316,18 @@ export function compareRuns(baseline, candidate) {
   if (shared.length === 0) {
     verdict = "inconclusive";
     verdictReasons.push("the two runs share no cases, so nothing could be compared");
+  } else if (invariants.required_failures.delta > 0 || defectObservations.appeared.length > 0) {
+    verdict = "regressed";
+    verdictReasons.push(defectObservations.appeared.length > 0
+      ? `${defectObservations.appeared.length} additional exact known-defect observation(s) appeared`
+      : `required-grader failures rose from ${baseline.summary.required_failures} to ${candidate.summary.required_failures}`);
+  } else if (defectObservations.disappeared.length > 0 || defectObservations.changed_signature.length > 0 || defectObservations.moved.length > 0) {
+    verdict = "baseline_change_required";
+    verdictReasons.push("known-defect observations changed; review and deliberately update the production baseline");
   } else if (invariants.required_failures.delta < 0) {
     verdict = "improved";
     verdictReasons.push(
       `required-grader failures fell from ${baseline.summary.required_failures} to ${candidate.summary.required_failures}`,
-    );
-  } else if (invariants.required_failures.delta > 0) {
-    verdict = "regressed";
-    verdictReasons.push(
-      `required-grader failures rose from ${baseline.summary.required_failures} to ${candidate.summary.required_failures}`,
     );
   } else if (cases.some((entry) => entry.verdict === "inconclusive")) {
     verdict = "inconclusive";
@@ -306,6 +360,7 @@ export function compareRuns(baseline, candidate) {
     verdict,
     verdict_reasons: verdictReasons,
     invariants,
+    defect_observations: defectObservations,
     cost: numericDelta(baseline.manifest.estimated_cost_usd, candidate.manifest.estimated_cost_usd),
     tokens: numericDelta(baseline.manifest.total_tokens, candidate.manifest.total_tokens),
     duration_ms: numericDelta(baseline.manifest.duration_ms, candidate.manifest.duration_ms),

@@ -52,7 +52,7 @@ enforced by schema and by test:
 | Change | Required action |
 |---|---|
 | Changing what an existing case means — its inputs, expectations, or what a pass implies | **New `benchmark_version`**, and by convention a new `benchmark_id` suffix (`decision-benchmark-v2`) |
-| Fixing a typo or clarifying prose, with no possible effect on any result | Increment `metadata_revision` only |
+| Fixing a typo or clarifying prose, with no possible effect on any result | Increment `metadata_revision` and deliberately refresh the reviewed content digest |
 | Changing the case or manifest **file shape** | New `schema_version`; runners refuse a version they do not support |
 | Adding a new case | New `benchmark_version`; case IDs are append-only |
 
@@ -65,6 +65,12 @@ Additional invariants:
   best-effort read of an unknown format.
 - **The comparison command refuses to compare across benchmark versions**, so a
   benchmark edit can never be mistaken for a pipeline improvement.
+- **The released corpus is content-locked.** `release-integrity.json` binds
+  the benchmark/version/schema/metadata revision to a canonical SHA-256 hash
+  of the manifest, rubric, and every listed case. Object-key order and JSON
+  whitespace do not affect it; array order does. Validation never rewrites the
+  lock. A reviewer must deliberately regenerate the digest after confirming
+  the appropriate versioning action.
 - **Deterministic tests validate every committed case** on every test run.
 
 The manifest also declares `required_pipeline_version`. Honest scope note:
@@ -139,7 +145,11 @@ explicitly. See [`HUMAN_REVIEW_GUIDE.md`](HUMAN_REVIEW_GUIDE.md).
 cases: 16/16 passed   executions: 21   repetitions: 1
 required failures: 0   advisory failures: 0   known defects: 8
 stages: 65   attempts: 65   tokens: 0   cost: unavailable
-result: PASSED
+fixture machinery: PASSED
+production baseline: PASS WITH KNOWN DEFECTS
+known defect observations: 8 across 4 scoped executions
+unexpected failures: 0
+unexpected defect resolutions: 0
 ```
 
 Scenario sensitivity is real, not assumed: `case-004` produces different
@@ -174,9 +184,10 @@ Observed values in the benchmark: `-30` (case-001, case-011), `-11.94`
 (case-006 second scenario), `-0.4` (case-008).
 
 Phase 3A is explicitly forbidden from changing scoring, ranking, or public
-contracts, so this was **not fixed**. It is recorded as a known defect on the
-four cases that reproduce it. It does not gate the baseline, but a required
-failure fires if it ever stops reproducing, so the fix cannot land silently.
+contracts, so this was **not fixed**. It is recorded only for the four scoped
+scenario executions that reproduce its stable semantic signature. It does not
+gate the baseline, but a required failure fires if it ever stops reproducing in
+that exact scope, so the fix cannot land silently.
 Also recorded in `docs/architecture/KNOWN_LIMITATIONS.md` (P0.7).
 
 Deciding between the two candidate fixes — clamping the score, or widening the

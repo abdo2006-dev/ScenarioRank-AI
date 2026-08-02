@@ -566,16 +566,23 @@ describe("scenario-coverage", () => {
 
 describe("known-defect handling", () => {
   const defect = {
-    id: "SR-TEST-001",
-    grader_id: "contract-validity",
+    defect_id: "SR-TEST-001",
+    title: "A structured test defect with a scoped contract observation.",
+    case_id: "case-001",
+    execution_scope: { execution_id: "case-001#s1#r1", scenario_id: "scenario-2", scenario_index: 1, variant_id: null, repetition: 1 },
+    expected_observations: [{
+      grader_id: "contract-validity",
+      signature: { kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" },
+    }],
     summary: "A documented, pre-existing defect used only by this test suite.",
     reference: "docs/evaluation/BENCHMARK_V1.md",
   };
 
   it("downgrades a matching failure to expected_failure", () => {
     const results = applyKnownDefects(
-      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "broken", details: [] }],
+      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "broken", details: [], finding_codes: ["negative-risk-adjusted-score"], observations: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" }] }],
       [defect],
+      { execution: { execution_id: "case-001#s1#r1", scenario_index: 1, repetition: 1 }, benchmarkCase: { case_id: "case-001", variant_kind: null } },
     );
     expect(results[0].status).toBe("expected_failure");
     expect(results[0].summary).toContain("SR-TEST-001");
@@ -585,21 +592,23 @@ describe("known-defect handling", () => {
     const results = applyKnownDefects(
       [{ grader_id: "ranking-consistency", severity: "required", status: "fail", summary: "x", details: [] }],
       [defect],
+      { execution: { execution_id: "case-001#s1#r1", scenario_index: 1, repetition: 1 }, benchmarkCase: { case_id: "case-001", variant_kind: null } },
     );
     expect(results[0].status).toBe("fail");
   });
 
   it("stops an expected failure from gating the exit status", () => {
     const results = applyKnownDefects(
-      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "x", details: [] }],
+      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "x", details: [], finding_codes: ["negative-risk-adjusted-score"], observations: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" }] }],
       [defect],
+      { execution: { execution_id: "case-001#s1#r1", scenario_index: 1, repetition: 1 }, benchmarkCase: { case_id: "case-001", variant_kind: null } },
     );
     expect(countFailures(results).required).toBe(0);
   });
 
   it("raises a required failure when a known defect stops reproducing", () => {
     const executions = [
-      { grader_results: [{ grader_id: "contract-validity", severity: "required", status: "pass", summary: "ok", details: [] }] },
+      { execution_id: "case-001#s1#r1", scenario_index: 1, grader_results: [{ grader_id: "contract-validity", severity: "required", status: "pass", summary: "ok", details: [] }] },
     ];
     const resurrections = checkKnownDefectsStillReproduce(executions, [], [defect]);
     expect(resurrections).toHaveLength(1);
@@ -609,10 +618,28 @@ describe("known-defect handling", () => {
 
   it("does not raise an alarm when the defect reproduces in any execution of the case", () => {
     const executions = [
-      { grader_results: [{ grader_id: "contract-validity", severity: "required", status: "pass", summary: "ok", details: [] }] },
-      { grader_results: [{ grader_id: "contract-validity", severity: "required", status: "expected_failure", summary: "known", details: [] }] },
+      { execution_id: "case-001#s0#r1", scenario_index: 0, grader_results: [{ grader_id: "contract-validity", severity: "required", status: "pass", summary: "ok", details: [] }] },
+      { execution_id: "case-001#s1#r1", scenario_index: 1, grader_results: [{ grader_id: "contract-validity", known_defect_id: "SR-TEST-001", known_defect_observation_ids: ["SR-TEST-001:case-001#s1#r1:contract-validity:0"], severity: "required", status: "expected_failure", summary: "known", details: [] }] },
     ];
     expect(checkKnownDefectsStillReproduce(executions, [], [defect])).toHaveLength(0);
+  });
+
+  it("does not suppress a different failure from the same grader", () => {
+    const results = applyKnownDefects(
+      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "different schema break", details: [], finding_codes: ["different-finding"], observations: [{ kind: "schema_issue", path_pattern: "other", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" }] }],
+      [defect],
+      { execution: { execution_id: "case-001#s1#r1", scenario_index: 1, repetition: 1 }, benchmarkCase: { case_id: "case-001", variant_kind: null } },
+    );
+    expect(results[0].status).toBe("fail");
+  });
+
+  it("does not suppress the defect outside its declared scenario", () => {
+    const results = applyKnownDefects(
+      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "negative score", details: [], finding_codes: ["negative-risk-adjusted-score"], observations: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" }] }],
+      [defect],
+      { execution: { execution_id: "case-001#s0#r1", scenario_index: 0, repetition: 1 }, benchmarkCase: { case_id: "case-001", variant_kind: null } },
+    );
+    expect(results[0].status).toBe("fail");
   });
 });
 

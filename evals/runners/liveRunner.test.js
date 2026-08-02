@@ -155,11 +155,21 @@ describe("budget estimation", () => {
     );
   });
 
-  it("assumes every stage uses its full retry allowance", () => {
+  it("includes adapter retries, batch-integrity retries, and truncation headroom", () => {
     const plain = benchmarkCases.find((entry) => !entry.deterministic_expectations.pairing_enabled);
-    // Three logical stages without pairing, doubled by the retry assumption.
+    // Context and decision each permit two provider attempts; scoring can make
+    // two integrity passes, each of which can make two provider attempts.
     expect(estimateExecutionCost(plain, PRICED_MODEL).maxAttempts).toBe(
-      3 * BUDGET_ASSUMPTIONS.attemptMultiplier,
+      BUDGET_ASSUMPTIONS.providerAttemptsPerRequest *
+        (1 + BUDGET_ASSUMPTIONS.batchIntegrityPasses + 1),
+    );
+  });
+
+  it("includes a separately retryable pairing batch when pairing is enabled", () => {
+    const pairing = benchmarkCases.find((entry) => entry.deterministic_expectations.pairing_enabled);
+    expect(estimateExecutionCost(pairing, PRICED_MODEL).maxAttempts).toBe(
+      BUDGET_ASSUMPTIONS.providerAttemptsPerRequest *
+        (1 + BUDGET_ASSUMPTIONS.batchIntegrityPasses * 2 + 1),
     );
   });
 

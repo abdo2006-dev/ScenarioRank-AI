@@ -46,8 +46,12 @@ export const STAGE_OUTPUT_TOKEN_BUDGETS = Object.freeze({
  * error mode that actually costs money, so both are set high.
  */
 export const BUDGET_ASSUMPTIONS = Object.freeze({
-  /** Every stage is assumed to consume its full retry allowance. */
-  attemptMultiplier: 2,
+  /** The production adapter can make an initial request plus one retry. */
+  providerAttemptsPerRequest: 2,
+  /** Batch scoring and pairing can each issue a corrective second request. */
+  batchIntegrityPasses: 2,
+  /** A truncation retry may raise its output cap by 1.5x. */
+  truncationRetryOutputMultiplier: 1.5,
   /** Assumed prompt size per attempt; real prompts are far smaller. */
   inputTokensPerAttempt: 6000,
 });
@@ -69,19 +73,24 @@ export function estimateExecutionCost(benchmarkCase, model) {
   const candidateCount = benchmarkCase.input.candidates.length;
   const pairingEnabled = benchmarkCase.deterministic_expectations.pairing_enabled;
   const pairCount = benchmarkCase.deterministic_expectations.expected_pair_count ?? 0;
-  const stages = pairingEnabled ? 4 : 3;
-
-  const outputPerAttemptSet =
-    STAGE_OUTPUT_TOKEN_BUDGETS.contextAnalysis +
+  const requestOutputWorstCase = (cap) =>
+    cap * (1 + BUDGET_ASSUMPTIONS.truncationRetryOutputMultiplier);
+  const batchMultiplier = BUDGET_ASSUMPTIONS.batchIntegrityPasses;
+  const contextOutput = requestOutputWorstCase(STAGE_OUTPUT_TOKEN_BUDGETS.contextAnalysis);
+  const scoringOutput = requestOutputWorstCase(
     candidateCount * STAGE_OUTPUT_TOKEN_BUDGETS.candidateScoringPerCandidate +
-    STAGE_OUTPUT_TOKEN_BUDGETS.candidateScoringOverhead +
-    (pairingEnabled
-      ? pairCount * STAGE_OUTPUT_TOKEN_BUDGETS.pairingPerPair + STAGE_OUTPUT_TOKEN_BUDGETS.pairingOverhead
-      : 0) +
-    STAGE_OUTPUT_TOKEN_BUDGETS.decisionExplanation;
-
-  const maxAttempts = stages * BUDGET_ASSUMPTIONS.attemptMultiplier;
-  const outputTokens = outputPerAttemptSet * BUDGET_ASSUMPTIONS.attemptMultiplier;
+      STAGE_OUTPUT_TOKEN_BUDGETS.candidateScoringOverhead,
+  ) * batchMultiplier;
+  const pairingOutput = pairingEnabled
+    ? requestOutputWorstCase(
+      pairCount * STAGE_OUTPUT_TOKEN_BUDGETS.pairingPerPair + STAGE_OUTPUT_TOKEN_BUDGETS.pairingOverhead,
+    ) * batchMultiplier
+    : 0;
+  const decisionOutput = requestOutputWorstCase(STAGE_OUTPUT_TOKEN_BUDGETS.decisionExplanation);
+  const maxAttempts =
+    BUDGET_ASSUMPTIONS.providerAttemptsPerRequest *
+    (1 + batchMultiplier + (pairingEnabled ? batchMultiplier : 0) + 1);
+  const outputTokens = contextOutput + scoringOutput + pairingOutput + decisionOutput;
   const inputTokens = maxAttempts * BUDGET_ASSUMPTIONS.inputTokensPerAttempt;
 
   return {
@@ -150,7 +159,15 @@ export function resolveBudgetLimit({ maxBudgetUsd, env = process.env } = {}) {
       "Live mode requires an explicit budget limit. Pass --max-budget-usd <amount> or set EVAL_MAX_BUDGET_USD.",
     );
   }
-  const parsed = Number(raw);
+  const normalized = `${raw}`.trim();
+  // Deliberately decimal-only: exponent forms and trailing junk make an
+  // operator's budget review harder, and this CLI does not document them.
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) {
+    throw new LiveModeRefusedError(
+      `Invalid budget limit "${raw}". Use a positive, finite number of US dollars written as a decimal.`,
+    );
+  }
+  const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new LiveModeRefusedError(
       `Invalid budget limit "${raw}". It must be a positive, finite number of US dollars.`,
@@ -206,7 +223,7 @@ export function assertLiveModeAllowed({
 
   const budgetUsd = resolveBudgetLimit({ maxBudgetUsd, env });
 
-  if (!Number.isInteger(repetitions) || repetitions < 1) {
+  if (!Number.isSafeInteger(repetitions) || repetitions < 1) {
     throw new LiveModeRefusedError(
       `Invalid --repetitions "${repetitions}". It must be a positive integer; the default is 1.`,
     );
@@ -246,6 +263,11 @@ export function assertBudgetCoversPlan(estimate, budgetUsd) {
     throw new LiveModeRefusedError(
       `No recorded pricing for model "${estimate.model}", so a budget cannot be enforced. ` +
         "Add the model to server/ai/pricing/openaiPricing.js from OpenAI's own pricing page before running live.",
+    );
+  }
+  if (!Number.isFinite(estimate.maxEstimatedCostUsd) || !Number.isSafeInteger(estimate.maxProviderAttempts)) {
+    throw new LiveModeRefusedError(
+      "Refusing to start: the requested plan overflows conservative budget arithmetic.",
     );
   }
   if (estimate.maxEstimatedCostUsd > budgetUsd) {

@@ -230,6 +230,57 @@ const caseInputSchema = z
   })
   .strict();
 
+const defectObservationSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("schema_issue"),
+      path_pattern: z.literal("candidate_evaluations.*.risk_adjusted_score"),
+      code: z.literal("too_small"),
+      minimum: z.literal(0),
+      subject_candidate_id: candidateIdSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("score_bound_violation"),
+      metric: z.literal("risk_adjusted_score"),
+      operator: z.literal("lt"),
+      bound: z.literal(0),
+      subject_candidate_id: candidateIdSchema,
+    })
+    .strict(),
+]);
+
+const knownDefectSchema = z
+  .object({
+    defect_id: z.string().regex(/^SR-[A-Z0-9-]+$/, "Defect IDs look like SR-P3A-001."),
+    title: z.string().min(20).max(240),
+    /** Repeated deliberately so a record remains meaningful when extracted. */
+    case_id: benchmarkCaseIdSchema,
+    execution_scope: z
+      .object({
+        execution_id: z.string().min(1),
+        scenario_id: z.string().regex(/^scenario-[1-9]\d*$/),
+        scenario_index: z.number().int().min(0),
+        variant_id: z.enum(VARIANT_KINDS).nullable(),
+        repetition: z.number().int().min(1),
+      })
+      .strict(),
+    expected_observations: z
+      .array(
+        z
+          .object({
+            grader_id: z.string().min(1),
+            signature: defectObservationSchema,
+          })
+          .strict(),
+      )
+      .min(1),
+    summary: z.string().min(20).max(500),
+    reference: z.string().min(1),
+  })
+  .strict();
+
 export const benchmarkCaseSchema = z
   .object({
     case_id: benchmarkCaseIdSchema,
@@ -267,18 +318,7 @@ export const benchmarkCaseSchema = z
      *     required failure. A fix can never land unnoticed, and the record can
      *     never silently rot.
      */
-    known_defects: z
-      .array(
-        z
-          .object({
-            id: z.string().regex(/^SR-[A-Z0-9-]+$/, "Defect IDs look like SR-P3A-001."),
-            grader_id: z.string().min(1),
-            summary: z.string().min(20).max(500),
-            reference: z.string().min(1),
-          })
-          .strict(),
-      )
-      .default([]),
+    known_defects: z.array(knownDefectSchema).default([]),
     notes: z.string().max(2000).optional(),
   })
   .strict()
@@ -294,6 +334,36 @@ export const benchmarkCaseSchema = z
     }
 
     const expectations = benchmarkCase.deterministic_expectations;
+    const knownDefectIds = new Set();
+    const knownObservationKeys = new Set();
+    benchmarkCase.known_defects.forEach((defect, defectIndex) => {
+      if (defect.case_id !== benchmarkCase.case_id) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["known_defects", defectIndex, "case_id"], message: "Known-defect case_id must equal its enclosing case." });
+      }
+      if (defect.execution_scope.scenario_index >= benchmarkCase.input.scenarios.length) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["known_defects", defectIndex, "execution_scope", "scenario_index"], message: "Known-defect scenario index is outside this case's scenario list." });
+      }
+      const expectedScenarioId = `scenario-${defect.execution_scope.scenario_index + 1}`;
+      const expectedExecutionId = `${benchmarkCase.case_id}#s${defect.execution_scope.scenario_index}#r${defect.execution_scope.repetition}`;
+      if (defect.execution_scope.scenario_id !== expectedScenarioId || defect.execution_scope.execution_id !== expectedExecutionId) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["known_defects", defectIndex, "execution_scope"], message: `Known-defect execution scope must identify ${expectedExecutionId} / ${expectedScenarioId}.` });
+      }
+      if (defect.execution_scope.variant_id !== benchmarkCase.variant_kind) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["known_defects", defectIndex, "execution_scope", "variant_id"], message: "Known-defect variant_id must match this case's variant kind (or null)." });
+      }
+      if (knownDefectIds.has(defect.defect_id)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["known_defects", defectIndex, "defect_id"], message: "Duplicate known-defect ID in one case." });
+      }
+      knownDefectIds.add(defect.defect_id);
+      defect.expected_observations.forEach((observation, observationIndex) => {
+        if (!declaredIds.includes(observation.signature.subject_candidate_id)) {
+          context.addIssue({ code: z.ZodIssueCode.custom, path: ["known_defects", defectIndex, "expected_observations", observationIndex, "signature", "subject_candidate_id"], message: "Known-defect observation references a candidate that is not in this case." });
+        }
+        const key = `${defect.execution_scope.execution_id}\u0000${observation.grader_id}\u0000${JSON.stringify(observation.signature)}`;
+        if (knownObservationKeys.has(key)) context.addIssue({ code: z.ZodIssueCode.custom, path: ["known_defects", defectIndex, "expected_observations", observationIndex], message: "Duplicate or ambiguous known-defect observation signature." });
+        knownObservationKeys.add(key);
+      });
+    });
     const expectedIds = [...expectations.expected_candidate_ids].sort();
     if (JSON.stringify(expectedIds) !== JSON.stringify([...declaredIds].sort())) {
       context.addIssue({

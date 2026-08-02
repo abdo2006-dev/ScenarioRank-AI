@@ -40,9 +40,9 @@ export const GRADER_SUITE_VERSION = "1.0.0";
 
 const EPSILON = 1e-9;
 
-const pass = (summary, details = []) => ({ status: "pass", summary, details });
-const fail = (summary, details = []) => ({ status: "fail", summary, details });
-const skip = (summary, details = []) => ({ status: "skip", summary, details });
+const pass = (summary, details = [], findingCodes = [], observations = []) => ({ status: "pass", summary, details, finding_codes: findingCodes, observations });
+const fail = (summary, details = [], findingCodes = [], observations = []) => ({ status: "fail", summary, details, finding_codes: findingCodes, observations });
+const skip = (summary, details = [], findingCodes = [], observations = []) => ({ status: "skip", summary, details, finding_codes: findingCodes, observations });
 
 function near(actual, expected) {
   return typeof actual === "number" && Math.abs(actual - expected) <= EPSILON;
@@ -87,6 +87,8 @@ const contractValidity = {
   description: "The response and every stage event validate against the public production contract.",
   run({ response, stageSnapshots }) {
     const details = [];
+    const findingCodes = [];
+    const observations = [];
 
     const responseResult = completedPipelineResponseSchema.safeParse(response);
     if (!responseResult.success) {
@@ -136,9 +138,22 @@ const contractValidity = {
     walk(response, "response");
     details.push(...malformed.map((path) => `non-finite number at ${path}`));
 
+    for (const candidate of response.candidate_evaluations ?? []) {
+      if (candidate.risk_adjusted_score < 0) {
+        findingCodes.push("negative-risk-adjusted-score");
+        observations.push({
+          kind: "schema_issue",
+          path_pattern: "candidate_evaluations.*.risk_adjusted_score",
+          code: "too_small",
+          minimum: 0,
+          subject_candidate_id: candidate.candidate_id,
+        });
+      }
+    }
+
     return details.length === 0
       ? pass("Response, run metadata, and every stage event validate against the public contract.")
-      : fail(`${details.length} contract violation(s).`, details);
+      : fail(`${details.length} contract violation(s).`, details, findingCodes, observations);
   },
 };
 
@@ -273,6 +288,8 @@ const scoreIntegrity = {
   description: "Scores stay in range and every recomputable deterministic value matches a fresh recomputation.",
   run({ response }) {
     const details = [];
+    const findingCodes = [];
+    const observations = [];
 
     for (const candidate of response.candidate_evaluations) {
       const label = candidate.candidate_id;
@@ -294,6 +311,16 @@ const scoreIntegrity = {
       for (const field of ["weighted_fit_score", "risk_adjusted_score", "expected_outcome_score"]) {
         if (candidate[field] < 0 || candidate[field] > 100) {
           details.push(`${label}.${field}=${candidate[field]} is outside 0-100`);
+          if (field === "risk_adjusted_score" && candidate[field] < 0) {
+            findingCodes.push("negative-risk-adjusted-score");
+            observations.push({
+              kind: "score_bound_violation",
+              metric: "risk_adjusted_score",
+              operator: "lt",
+              bound: 0,
+              subject_candidate_id: label,
+            });
+          }
         }
       }
 
@@ -360,7 +387,7 @@ const scoreIntegrity = {
 
     return details.length === 0
       ? pass("All scores in range; every recomputable deterministic value matches a fresh recomputation.")
-      : fail(`${details.length} score-integrity problem(s).`, details);
+      : fail(`${details.length} score-integrity problem(s).`, details, [...new Set(findingCodes)], observations);
   },
 };
 
@@ -781,6 +808,10 @@ const scenarioCoverage = {
         );
       }
       for (const execution of matching) {
+        if (execution.status === "skipped") {
+          details.push(`scenario ${index} was not executed: ${execution.skip_reason ?? "unknown reason"}`);
+          continue;
+        }
         if (execution.scenario !== scenario) {
           details.push(`scenario ${index} executed with the wrong scenario text`);
         }
@@ -848,6 +879,8 @@ export function runGraders(graders, context) {
         status: "error",
         summary: `Grader "${grader.id}" threw while evaluating this result.`,
         details: [error.message],
+        finding_codes: [],
+        observations: [],
       };
     }
     return {
@@ -856,6 +889,8 @@ export function runGraders(graders, context) {
       severity: grader.severity,
       status: outcome.status,
       summary: outcome.summary,
+      finding_codes: outcome.finding_codes ?? [],
+      observations: outcome.observations ?? [],
       details: outcome.details ?? [],
     };
   });
@@ -891,21 +926,39 @@ export function countFailures(graderResults) {
  * @param {object[]} graderResults
  * @param {Array<{id: string, grader_id: string, summary: string, reference: string}>} knownDefects
  */
-export function applyKnownDefects(graderResults, knownDefects) {
+export function applyKnownDefects(graderResults, knownDefects, { execution, benchmarkCase } = {}) {
   if (!knownDefects || knownDefects.length === 0) return graderResults;
-  const byGraderId = new Map(knownDefects.map((defect) => [defect.grader_id, defect]));
 
   return graderResults.map((result) => {
-    const defect = byGraderId.get(result.grader_id);
-    if (!defect) return result;
-    if (result.status !== "fail" && result.status !== "error") return result;
+    if (result.status !== "fail" || !execution || !benchmarkCase) return result;
+    const matches = knownDefects.flatMap((defect) => {
+      const scope = defect.execution_scope;
+      const scoped = defect.case_id === benchmarkCase.case_id &&
+        scope.execution_id === execution.execution_id &&
+        scope.scenario_id === `scenario-${execution.scenario_index + 1}` &&
+        scope.scenario_index === execution.scenario_index &&
+        scope.variant_id === benchmarkCase.variant_kind &&
+        scope.repetition === execution.repetition;
+      if (!scoped) return [];
+      return defect.expected_observations
+        .map((expected, index) => ({ defect, expected, index }))
+        .filter(({ expected }) => expected.grader_id === result.grader_id && result.observations.some((actual) => JSON.stringify(actual) === JSON.stringify(expected.signature)));
+    });
+    // A grader result with even one unrecognised structured observation is an
+    // unexpected failure, never a broad suppression for a known product bug.
+    if (matches.length === 0 || matches.length !== result.observations.length) return result;
+    const defectIds = [...new Set(matches.map(({ defect }) => defect.defect_id))];
+    if (defectIds.length !== 1) return result;
+    const defect = matches[0].defect;
     return {
       ...result,
       status: "expected_failure",
-      summary: `Known defect ${defect.id}: ${result.summary}`,
+      known_defect_id: defect.defect_id,
+      known_defect_observation_ids: matches.map(({ expected, index }) => `${defect.defect_id}:${execution.execution_id}:${expected.grader_id}:${index}`),
+      summary: `Known defect ${defect.defect_id}: ${result.summary}`,
       details: [
         ...result.details,
-        `known defect ${defect.id} — ${defect.summary} (see ${defect.reference})`,
+        `known defect ${defect.defect_id} — ${defect.summary} (see ${defect.reference})`,
       ],
     };
   });
@@ -928,27 +981,24 @@ export function applyKnownDefects(graderResults, knownDefects) {
 export function checkKnownDefectsStillReproduce(executions, caseGraderResults, knownDefects) {
   if (!knownDefects || knownDefects.length === 0) return [];
 
-  const allResults = [
-    ...executions.flatMap((execution) => execution.grader_results),
-    ...caseGraderResults,
-  ];
-
-  return knownDefects
-    .filter(
-      (defect) =>
-        !allResults.some(
-          (result) => result.grader_id === defect.grader_id && result.status === "expected_failure",
-        ),
-    )
-    .map((defect) => ({
-      grader_id: `known-defect-still-present:${defect.id}`,
+  return knownDefects.flatMap((defect) => defect.expected_observations
+    .map((expected, index) => ({ defect, expected, index }))
+    .filter(({ defect, expected, index }) => !executions.some((execution) =>
+      execution.execution_id === defect.execution_scope.execution_id &&
+      execution.grader_results.some((result) => result.known_defect_observation_ids?.includes(`${defect.defect_id}:${execution.execution_id}:${expected.grader_id}:${index}`)),
+    ))
+    .map(({ defect, expected }) => ({
+      grader_id: `unexpected-defect-resolution:${defect.defect_id}:${expected.grader_id}`,
       grader_version: "1.0.0",
       severity: "required",
       status: "fail",
-      summary: `Known defect ${defect.id} no longer reproduces via "${defect.grader_id}" anywhere in this case.`,
+      summary: `Expected known defect ${defect.defect_id} no longer reproduces via "${expected.grader_id}" in ${defect.execution_scope.execution_id}.`,
       details: [
         `${defect.summary} (see ${defect.reference})`,
         "If this was fixed deliberately, remove the known_defects entry from this benchmark case and update the referenced documentation. A known-defect record must never outlive the defect it describes.",
       ],
-    }));
+      finding_codes: [],
+      observations: [],
+      unexpected_defect_resolution: true,
+    })));
 }

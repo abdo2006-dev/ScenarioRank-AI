@@ -15,10 +15,11 @@
  * Parses `--flag`, `--key value`, and `--key=value`. Repeated keys collect
  * into an array, which is how `--case a --case b` works.
  * @param {string[]} argv
- * @returns {{ flags: Record<string, true>, values: Record<string, string[]>, positional: string[] }}
+ * @returns {{ flags: Record<string, true>, flagCounts: Record<string, number>, values: Record<string, string[]>, positional: string[] }}
  */
 export function parseArgs(argv) {
   const flags = {};
+  const flagCounts = {};
   const values = {};
   const positional = [];
 
@@ -43,9 +44,47 @@ export function parseArgs(argv) {
       continue;
     }
     flags[body] = true;
+    flagCounts[body] = (flagCounts[body] ?? 0) + 1;
   }
 
-  return { flags, values, positional };
+  return { flags, flagCounts, values, positional };
+}
+
+/**
+ * Rejects misspelled, positional, and value/flag-shape mistakes before a CLI
+ * performs any work. A harness must never quietly treat an unknown option as
+ * permission to run a different command (especially a whole benchmark run).
+ */
+export function assertAllowedArgs(parsed, { flags = [], values = [], singleValues = [] }) {
+  const allowedFlags = new Set(flags);
+  const allowedValues = new Set(values);
+  const unknown = [
+    ...Object.keys(parsed.flags),
+    ...Object.keys(parsed.values),
+  ].filter((key) => !allowedFlags.has(key) && !allowedValues.has(key));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown option(s): ${unknown.map((key) => `--${key}`).join(", ")}. Run with --help to see supported options.`);
+  }
+
+  const valuesUsedAsFlags = Object.keys(parsed.flags).filter((key) => allowedValues.has(key));
+  if (valuesUsedAsFlags.length > 0) {
+    throw new Error(`Option(s) require a value: ${valuesUsedAsFlags.map((key) => `--${key}`).join(", ")}.`);
+  }
+  const flagsUsedAsValues = Object.keys(parsed.values).filter((key) => allowedFlags.has(key));
+  if (flagsUsedAsValues.length > 0) {
+    throw new Error(`Option(s) do not accept a value: ${flagsUsedAsValues.map((key) => `--${key}`).join(", ")}.`);
+  }
+  const duplicateFlags = Object.entries(parsed.flagCounts ?? {}).filter(([, count]) => count > 1).map(([key]) => key);
+  if (duplicateFlags.length > 0) {
+    throw new Error(`Option(s) may be used only once: ${duplicateFlags.map((key) => `--${key}`).join(", ")}. Run with --help to see supported options.`);
+  }
+  const duplicateValues = singleValues.filter((key) => (parsed.values[key]?.length ?? 0) > 1);
+  if (duplicateValues.length > 0) {
+    throw new Error(`Option(s) may be supplied only once: ${duplicateValues.map((key) => `--${key}`).join(", ")}. Run with --help to see supported options.`);
+  }
+  if (parsed.positional.length > 0) {
+    throw new Error(`Unexpected positional argument(s): ${parsed.positional.join(", ")}. Run with --help to see supported options.`);
+  }
 }
 
 /** @returns {string|undefined} the last value given for a key */

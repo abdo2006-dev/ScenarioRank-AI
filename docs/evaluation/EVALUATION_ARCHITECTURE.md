@@ -158,16 +158,18 @@ the case. A matching failure becomes `expected_failure` and stops gating the
 exit status, so one real finding does not leave the whole baseline red — which
 would train everyone to ignore it.
 
-Two rules keep this from becoming an ordinary suppression:
+Three rules keep this from becoming an ordinary suppression:
 
 - a known defect must name a documented reference;
-- if a listed grader stops failing *anywhere in its case*, a **required**
-  failure is raised demanding the record be removed. A known-defect record
-  cannot outlive the defect it describes, and a fix cannot land unnoticed.
+- it must name the exact scenario indexes and a stable semantic finding code;
+- if that grader/finding-code combination stops failing in a declared scenario,
+  a **required** failure is raised demanding the record be removed. A
+  known-defect record cannot outlive the defect it describes, and an unrelated
+  grader failure cannot be suppressed by sharing its grader ID.
 
-The check is evaluated per case rather than per execution, because a defect can
-legitimately reproduce in one scenario and not another — `case-006` is exactly
-that shape.
+The reproduction check is evaluated per declared execution, because a defect
+can legitimately reproduce in one scenario and not another — `case-006` is
+exactly that shape.
 
 One known defect exists today: `SR-P3A-001`, found by the very first fixture
 run. See [`BENCHMARK_V1.md`](BENCHMARK_V1.md) and

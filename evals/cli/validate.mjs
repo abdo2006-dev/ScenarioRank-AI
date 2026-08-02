@@ -7,7 +7,7 @@
  * written. This is the cheapest way to find out that a benchmark edit broke
  * something.
  */
-import { parseArgs, single, showHelp, failWith } from "./args.js";
+import { parseArgs, assertAllowedArgs, single, showHelp, failWith } from "./args.js";
 import { loadBenchmark, DEFAULT_BENCHMARK_ID } from "../datasets/loadBenchmark.js";
 import { FAKE_PROVIDER_PROFILES, VALID_BASELINE_PROFILES } from "../fixtures/fakeProviderProfiles.js";
 import { ALL_GRADERS, GRADER_SUITE_VERSION } from "../graders/deterministicGraders.js";
@@ -42,7 +42,9 @@ No pipeline is executed and no network request is made.
 `;
 
 async function main() {
-  const { flags, values } = parseArgs(process.argv.slice(2));
+  const parsed = parseArgs(process.argv.slice(2));
+  const { flags, values } = parsed;
+  assertAllowedArgs(parsed, { flags: ["help"], values: ["benchmark"], singleValues: ["benchmark"] });
   if (flags.help) showHelp(HELP);
 
   const benchmarkId = single(values, "benchmark") ?? DEFAULT_BENCHMARK_ID;

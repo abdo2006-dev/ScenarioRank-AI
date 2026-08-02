@@ -27,6 +27,8 @@ function makeRun({
   humanReview = null,
   caseIds = ["case-001"],
   contractValidityStatus = "pass",
+  expectedFailures = 0,
+  knownDefectObservations = [],
 } = {}) {
   return {
     manifest: {
@@ -43,6 +45,8 @@ function makeRun({
     summary: {
       required_failures: requiredFailures,
       advisory_failures: advisoryFailures,
+      expected_failures: expectedFailures,
+      known_defect_observations: knownDefectObservations,
       passed_cases: passedCases,
       stability: stabilityAssessed
         ? { assessed: true, reason: "assessed", winner_agreement: 1, ranking_agreement: 1 }
@@ -52,6 +56,7 @@ function makeRun({
       case_id: caseId,
       required_failures: requiredFailures,
       advisory_failures: advisoryFailures,
+      grader_results: [],
       executions: [
         {
           status: "completed",
@@ -129,6 +134,15 @@ describe("comparison verdicts", () => {
     expect(report.invariants.required_failures.delta).toBe(2);
   });
 
+  it("reports expected known-defect observations without changing an otherwise unchanged verdict", () => {
+    const report = compareRuns(
+      makeRun({ expectedFailures: 2 }),
+      makeRun({ runId: "run-b", expectedFailures: 1 }),
+    );
+    expect(report.verdict).toBe("unchanged");
+    expect(report.invariants.expected_failures.delta).toBe(-1);
+  });
+
   it("reports inconclusive when the winner changes without an invariant change", () => {
     const report = compareRuns(
       makeRun(),
@@ -183,6 +197,38 @@ describe("comparison verdicts", () => {
   it("notes when a fixture run is compared against a live run", () => {
     const report = compareRuns(makeRun(), makeRun({ runId: "run-b", mode: "live" }));
     expect(report.verdict_reasons.join(" ")).toContain("different modes");
+  });
+});
+
+describe("exact known-defect observation comparison", () => {
+  const observation = {
+    defect_id: "SR-P3A-001",
+    case_id: "case-001",
+    execution_id: "case-001#s0#r1",
+    scenario_id: "scenario-1",
+    variant_id: null,
+    repetition: 1,
+    grader_id: "score-integrity",
+    signature: { kind: "score_bound_violation", metric: "risk_adjusted_score", operator: "lt", bound: 0, subject_candidate_id: "priya-tallow" },
+  };
+
+  it("requires a baseline review when an exact observation disappears", () => {
+    const report = compareRuns(
+      makeRun({ knownDefectObservations: [observation], expectedFailures: 1 }),
+      makeRun({ runId: "run-b" }),
+    );
+    expect(report.verdict).toBe("baseline_change_required");
+    expect(report.defect_observations.disappeared).toHaveLength(1);
+  });
+
+  it("treats an additional scoped observation as a regression", () => {
+    const moved = { ...observation, execution_id: "case-001#s1#r1", scenario_id: "scenario-2" };
+    const report = compareRuns(
+      makeRun({ knownDefectObservations: [observation], expectedFailures: 1 }),
+      makeRun({ runId: "run-b", knownDefectObservations: [observation, moved], expectedFailures: 2 }),
+    );
+    expect(report.verdict).toBe("regressed");
+    expect(report.defect_observations.appeared).toHaveLength(1);
   });
 });
 

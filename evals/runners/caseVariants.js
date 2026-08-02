@@ -22,6 +22,9 @@ function derive(original, overrides, variantKind, titleSuffix) {
     ...overrides,
     variant_of: original.variant_of ?? original.case_id,
     variant_kind: variantKind,
+    // Scoped observations belong only to the released source execution. A
+    // generated test variant must never inherit a suppression for another ID.
+    known_defects: [],
     title: `${original.title} (${titleSuffix})`,
     tags: [...new Set([...original.tags, "permutation"])],
   };

@@ -8,7 +8,7 @@
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
-import { parseArgs, single, showHelp, failWith } from "./args.js";
+import { parseArgs, assertAllowedArgs, single, showHelp, failWith } from "./args.js";
 import { readRunArtifacts } from "../reporters/jsonReporter.js";
 import { compareRuns } from "../runners/compareRuns.js";
 import { renderComparisonMarkdown } from "../reporters/markdownReporter.js";
@@ -52,7 +52,9 @@ Exit status:
 `;
 
 async function main() {
-  const { flags, values } = parseArgs(process.argv.slice(2));
+  const parsed = parseArgs(process.argv.slice(2));
+  const { flags, values } = parsed;
+  assertAllowedArgs(parsed, { flags: ["help", "fail-on-regressed"], values: ["baseline", "candidate", "out"], singleValues: ["baseline", "candidate", "out"] });
   if (flags.help) showHelp(HELP);
 
   const baselineDir = single(values, "baseline");
@@ -63,8 +65,14 @@ async function main() {
     );
   }
 
-  const baseline = await readRunArtifacts(path.resolve(baselineDir));
-  const candidate = await readRunArtifacts(path.resolve(candidateDir));
+  let baseline;
+  let candidate;
+  try {
+    baseline = await readRunArtifacts(path.resolve(baselineDir));
+    candidate = await readRunArtifacts(path.resolve(candidateDir));
+  } catch {
+    throw new Error("Could not read one or both run directories. Pass directories produced by eval:fixtures or eval:live.");
+  }
   const report = compareRuns(baseline, candidate);
 
   const markdown = renderComparisonMarkdown(report);

@@ -94,6 +94,38 @@ describe("fixture baseline", () => {
     expect(run.caseResults[0].executions).toHaveLength(2 * 3);
   });
 
+  it("does not construct a provider after a per-execution budget stop", async () => {
+    const benchmarkCase = caseById.get("case-004");
+    let providerCount = 0;
+    const result = await runCase({
+      benchmarkCase,
+      model: "fixture:test",
+      beforeExecution: ({ scenarioIndex }) => scenarioIndex === 0,
+      createProvider: (context) => {
+        providerCount += 1;
+        return createEvalFakeProvider({
+          benchmarkCase,
+          scenarioIndex: context.scenarioIndex,
+        });
+      },
+    });
+
+    expect(providerCount).toBe(1);
+    expect(result.executions.map((execution) => execution.status)).toEqual([
+      "completed",
+      "skipped",
+    ]);
+    expect(result.executions[1].skip_reason).toContain("budget guard");
+    expect(result.passed).toBe(false);
+  });
+
+  it("distinguishes a clean pass from a pass that observes known defects", async () => {
+    const clean = await runAll({ caseIds: ["case-007"] });
+    const withKnownDefect = await runAll({ caseIds: ["case-001"] });
+    expect(clean.summary.run_state).toBe("clean_pass");
+    expect(withKnownDefect.summary.run_state).toBe("pass_with_known_defects");
+  });
+
   it("is deterministic in its decision content across repeated runs", async () => {
     const first = await runAll({ caseIds: ["case-004", "case-015"] });
     const second = await runAll({ caseIds: ["case-004", "case-015"] });
@@ -398,10 +430,30 @@ describe("known defects in the committed baseline", () => {
         .flatMap((execution) => execution.grader_results)
         .filter((result) => result.status === "expected_failure"),
     );
-    expect(expected.length).toBeGreaterThan(0);
+    expect(expected).toHaveLength(8);
+    expect(new Set(expected.map((result) => result.known_defect_id))).toEqual(new Set(["SR-P3A-001"]));
+    expect(run.summary.affected_execution_ids).toHaveLength(4);
     for (const result of expected) {
       expect(result.summary).toMatch(/^Known defect SR-/);
       expect(result.details.join(" ")).toContain("see docs/");
+    }
+  });
+
+  it("renders all top-level run states without a bare pass label", async () => {
+    const run = await runAll({ caseIds: ["case-007"] });
+    const states = {
+      clean_pass: "CLEAN PASS",
+      pass_with_known_defects: "PASS WITH KNOWN DEFECTS",
+      unexpected_failure: "UNEXPECTED FAILURE",
+      baseline_change_required: "BASELINE CHANGE REQUIRED",
+    };
+    for (const [runState, label] of Object.entries(states)) {
+      const rendered = renderConsoleSummary({
+        ...run,
+        summary: { ...run.summary, run_state: runState },
+      });
+      expect(rendered).toContain(`production baseline: ${label}`);
+      expect(rendered).not.toContain("result: PASSED");
     }
   });
 });

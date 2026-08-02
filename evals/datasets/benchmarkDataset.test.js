@@ -11,6 +11,12 @@ import path from "node:path";
 
 import { loadBenchmark, toRepoRelative, BenchmarkValidationError } from "./loadBenchmark.js";
 import { VALID_BASELINE_PROFILES } from "../fixtures/fakeProviderProfiles.js";
+import {
+  RELEASED_BENCHMARK_DIGESTS,
+  assertReleasedBenchmarkIntegrity,
+  benchmarkContentDigest,
+  canonicalJson,
+} from "./releasedBenchmarkIntegrity.js";
 import { evaluationRequestSchema } from "../../shared/contracts/decisionApi.js";
 
 const DATASET = path.resolve("evals/datasets/decision-benchmark-v1");
@@ -22,6 +28,32 @@ describe("committed benchmark", () => {
     expect(benchmark.manifest.benchmark_id).toBe("decision-benchmark-v1");
     expect(benchmark.cases).toHaveLength(benchmark.manifest.case_count);
     expect(benchmark.cases.map((entry) => entry.case_id)).toEqual(benchmark.manifest.case_ids);
+  });
+
+  it("matches the reviewed content lock for this released benchmark", async () => {
+    const key = `${benchmark.manifest.benchmark_id}@${benchmark.manifest.benchmark_version}`;
+    expect(RELEASED_BENCHMARK_DIGESTS[key]).toBeTruthy();
+    await expect(benchmarkContentDigest(DATASET, benchmark.manifest)).resolves.toBe(
+      RELEASED_BENCHMARK_DIGESTS[key],
+    );
+  });
+
+  it("refuses an unregistered version instead of letting a version bump bypass the lock", async () => {
+    await expect(
+      assertReleasedBenchmarkIntegrity(DATASET, {
+        ...benchmark.manifest,
+        benchmark_version: "999.0.0",
+      }),
+    ).rejects.toThrow(/invalid release-integrity/i);
+  });
+
+  it("canonicalizes object keys while preserving meaningful array order", () => {
+    expect(canonicalJson({ b: ["second", "first"], a: 1 })).toBe(
+      canonicalJson({ a: 1, b: ["second", "first"] }),
+    );
+    expect(canonicalJson({ a: ["first", "second"] })).not.toBe(
+      canonicalJson({ a: ["second", "first"] }),
+    );
   });
 
   it("contains between 12 and 16 cases", () => {

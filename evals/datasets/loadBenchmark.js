@@ -19,6 +19,7 @@ import {
   assertSupportedSchemaVersion,
   assertPipelineCompatibility,
 } from "../schemas/benchmarkManifest.js";
+import { assertReleasedBenchmarkIntegrity } from "./releasedBenchmarkIntegrity.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,7 +52,14 @@ export class BenchmarkValidationError extends Error {
 }
 
 async function readJson(filePath) {
-  const raw = await readFile(filePath, "utf8");
+  let raw;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch (error) {
+    throw new BenchmarkValidationError(`Could not read ${toRepoRelative(filePath)}.`, [
+      error && typeof error === "object" && "code" in error ? `filesystem error: ${error.code}` : "filesystem error",
+    ]);
+  }
   try {
     return JSON.parse(raw);
   } catch (error) {
@@ -170,10 +178,12 @@ export async function loadBenchmark({
     // A known-defect record that names a grader which does not exist would
     // silently suppress nothing while looking like an acknowledged issue.
     for (const defect of benchmarkCase.known_defects) {
-      if (!graderIds.has(defect.grader_id)) {
-        issues.push(
-          `${fileName}: known defect ${defect.id} references unknown grader "${defect.grader_id}".`,
-        );
+      for (const observation of defect.expected_observations) {
+        if (!graderIds.has(observation.grader_id)) {
+          issues.push(
+            `${fileName}: known defect ${defect.defect_id} references unknown grader "${observation.grader_id}".`,
+          );
+        }
       }
     }
 
@@ -225,6 +235,12 @@ export async function loadBenchmark({
       `Benchmark "${benchmarkId}" failed validation.`,
       issues,
     );
+  }
+
+  // Only the repository's released corpus is locked. Temporary datasets in
+  // schema tests remain free to model invalid inputs deliberately.
+  if (path.resolve(datasetsDir) === HERE) {
+    await assertReleasedBenchmarkIntegrity(benchmarkDir, manifest);
   }
 
   // Ordered by the manifest, so a run's case order is a property of the

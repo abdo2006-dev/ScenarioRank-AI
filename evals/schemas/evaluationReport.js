@@ -26,6 +26,7 @@ export const COMPARISON_VERDICTS = Object.freeze([
   "regressed",
   "unchanged",
   "inconclusive",
+  "baseline_change_required",
 ]);
 
 /** 0-4 anchored scale, plus two explicit non-scores. */
@@ -123,6 +124,7 @@ export const caseComparisonSchema = z
     explanation_changed: z.boolean(),
     required_failures: numericDeltaSchema,
     advisory_failures: numericDeltaSchema,
+    expected_failures: numericDeltaSchema,
     schema_failures: numericDeltaSchema,
   })
   .strict();
@@ -141,8 +143,18 @@ export const comparisonReportSchema = z
       .object({
         required_failures: numericDeltaSchema,
         advisory_failures: numericDeltaSchema,
+        expected_failures: numericDeltaSchema,
         schema_failures: numericDeltaSchema,
         passed_cases: numericDeltaSchema,
+      })
+      .strict(),
+    defect_observations: z
+      .object({
+        unchanged: z.array(z.string()),
+        disappeared: z.array(z.string()),
+        appeared: z.array(z.string()),
+        changed_signature: z.array(z.string()),
+        moved: z.array(z.string()),
       })
       .strict(),
     cost: numericDeltaSchema,

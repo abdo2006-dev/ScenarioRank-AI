@@ -243,6 +243,7 @@ function aggregateGraderTotals(caseResults) {
  * @param {number} [options.repetitions]
  * @param {string} [options.runId]
  * @param {(execution: object) => void} [options.onExecution] budget hook
+ * @param {(context: object) => boolean} [options.beforeExecution] live budget gate
  * @param {(caseResult: object) => void} [options.onCase] progress hook
  */
 export async function runBenchmark({
@@ -255,6 +256,7 @@ export async function runBenchmark({
   repetitions = 1,
   runId,
   onExecution,
+  beforeExecution,
   onCase,
 }) {
   const selected = caseIds.map((caseId) => {
@@ -279,6 +281,7 @@ export async function runBenchmark({
       createProvider,
       model,
       repetitions,
+      beforeExecution,
       onExecution,
     });
     caseResults.push(caseResult);
@@ -311,6 +314,42 @@ export async function runBenchmark({
       ).length,
     0,
   );
+  const allGraderResults = caseResults.flatMap((caseResult) => [
+    ...caseResult.executions.flatMap((execution) => execution.grader_results),
+    ...caseResult.grader_results,
+  ]);
+  const unexpectedDefectResolutions = allGraderResults.filter(
+    (result) => result.unexpected_defect_resolution,
+  ).length;
+  const unexpectedFailures = Math.max(0, requiredFailures - unexpectedDefectResolutions);
+  const expectedResults = caseResults.flatMap((caseResult) =>
+    caseResult.executions.flatMap((execution) =>
+      execution.grader_results
+        .filter((result) => result.status === "expected_failure")
+        .map((result) => ({ execution, result })),
+    ),
+  );
+  const affectedDefectIds = [...new Set(expectedResults.map(({ result }) => result.known_defect_id).filter(Boolean))].sort();
+  const affectedExecutionIds = [...new Set(expectedResults.map(({ execution }) => execution.execution_id))].sort();
+  const knownDefectObservations = expectedResults.flatMap(({ execution, result }) =>
+    result.observations.map((signature) => ({
+      defect_id: result.known_defect_id,
+      case_id: execution.case_id,
+      execution_id: execution.execution_id,
+      scenario_id: `scenario-${execution.scenario_index + 1}`,
+      variant_id: caseResults.find((entry) => entry.case_id === execution.case_id)?.variant_kind ?? null,
+      repetition: execution.repetition,
+      grader_id: result.grader_id,
+      signature,
+    })),
+  );
+  const runState = unexpectedDefectResolutions > 0
+    ? "baseline_change_required"
+    : requiredFailures > 0
+      ? "unexpected_failure"
+      : expectedFailures > 0
+        ? "pass_with_known_defects"
+        : "clean_pass";
 
   const manifest = {
     run_id: resolvedRunId,
@@ -357,8 +396,15 @@ export async function runBenchmark({
     failed_cases: caseResults.filter((caseResult) => !caseResult.passed).length,
     required_failures: requiredFailures,
     advisory_failures: advisoryFailures,
+    run_state: runState,
     grader_totals: aggregateGraderTotals(caseResults),
     expected_failures: expectedFailures,
+    clean_pass_count: caseResults.filter((caseResult) => caseResult.passed && !caseResult.executions.some((execution) => execution.grader_results.some((result) => result.status === "expected_failure"))).length,
+    affected_defect_ids: affectedDefectIds,
+    affected_execution_ids: affectedExecutionIds,
+    unexpected_failures: unexpectedFailures,
+    unexpected_defect_resolutions: unexpectedDefectResolutions,
+    known_defect_observations: knownDefectObservations,
     stability: computeStability(caseResults, repetitions),
     totals: {
       logical_provider_stages: manifest.logical_provider_stages,

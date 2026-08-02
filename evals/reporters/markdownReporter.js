@@ -17,6 +17,13 @@ const STATUS_LABEL = {
   expected_failure: "known defect",
 };
 
+const RUN_STATUS_LABEL = {
+  clean_pass: "CLEAN PASS",
+  pass_with_known_defects: "PASS WITH KNOWN DEFECTS",
+  unexpected_failure: "UNEXPECTED FAILURE",
+  baseline_change_required: "BASELINE CHANGE REQUIRED",
+};
+
 function formatCost(value) {
   return value === null ? "unavailable" : `$${value.toFixed(6)}`;
 }
@@ -49,8 +56,8 @@ function knownDefectSection(caseResults) {
     ];
     for (const result of results) {
       if (result.status !== "expected_failure") continue;
-      const key = `${result.grader_id}`;
-      if (!seen.has(key)) seen.set(key, { grader_id: result.grader_id, cases: new Set(), detail: result.details.at(-1) });
+      const key = `${result.known_defect_id ?? "unknown"}\u0000${result.grader_id}`;
+      if (!seen.has(key)) seen.set(key, { defect_id: result.known_defect_id ?? "unknown", grader_id: result.grader_id, cases: new Set(), detail: result.details.at(-1) });
       seen.get(key).cases.add(caseResult.case_id);
     }
   }
@@ -61,7 +68,7 @@ function knownDefectSection(caseResults) {
     "",
     ...[...seen.values()].map(
       (entry) =>
-        `- \`${entry.grader_id}\` in ${[...entry.cases].sort().join(", ")} — ${entry.detail ?? "see the case's known_defects entry"}`,
+        `- \`${entry.defect_id}\` / \`${entry.grader_id}\` in ${[...entry.cases].sort().join(", ")} — ${entry.detail ?? "see the case's known_defects entry"}`,
     ),
     "",
   ];
@@ -132,7 +139,7 @@ export function renderRunMarkdown(run) {
   const lines = [
     `# Evaluation run \`${manifest.run_id}\``,
     "",
-    `**Result: ${run.passed ? "PASSED" : "FAILED"}** — ${summary.required_failures} required failure(s), ${summary.advisory_failures} advisory failure(s), ${summary.expected_failures} known-defect failure(s).`,
+    `**Run state: ${RUN_STATUS_LABEL[summary.run_state]}** — ${summary.required_failures} required failure(s), ${summary.advisory_failures} advisory failure(s), ${summary.expected_failures} known-defect observation(s).`,
     "",
     "| Field | Value |",
     "|---|---|",
@@ -200,7 +207,11 @@ export function renderConsoleSummary(run) {
     `required failures: ${summary.required_failures}   advisory failures: ${summary.advisory_failures}   known defects: ${summary.expected_failures}`,
     `stages: ${manifest.logical_provider_stages}   attempts: ${manifest.provider_attempts}   tokens: ${manifest.total_tokens}   cost: ${formatCost(manifest.estimated_cost_usd)}   duration: ${manifest.duration_ms}ms`,
     `stability: ${summary.stability.assessed ? `winner ${summary.stability.winner_agreement}, ranking ${summary.stability.ranking_agreement}` : "not assessed (single repetition)"}`,
-    `result: ${run.passed ? "PASSED" : "FAILED"}`,
+    `fixture machinery: ${summary.run_state === "unexpected_failure" || summary.run_state === "baseline_change_required" ? "FAILED" : "PASSED"}`,
+    `production baseline: ${RUN_STATUS_LABEL[summary.run_state]}`,
+    `known defect observations: ${summary.expected_failures} across ${summary.affected_execution_ids.length} scoped execution(s)`,
+    `unexpected failures: ${summary.unexpected_failures}`,
+    `unexpected defect resolutions: ${summary.unexpected_defect_resolutions}`,
   ].join("\n");
 }
 
@@ -223,6 +234,7 @@ export function renderComparisonMarkdown(report) {
     "|---|---|",
     `| Required failures | ${delta(report.invariants.required_failures)} |`,
     `| Advisory failures | ${delta(report.invariants.advisory_failures)} |`,
+    `| Expected known-defect observations | ${delta(report.invariants.expected_failures)} |`,
     `| Schema failures | ${delta(report.invariants.schema_failures)} |`,
     `| Passed cases | ${delta(report.invariants.passed_cases)} |`,
     `| Total tokens | ${delta(report.tokens)} |`,
