@@ -12,7 +12,7 @@ import path from "node:path";
 import { loadBenchmark, toRepoRelative, BenchmarkValidationError } from "./loadBenchmark.js";
 import { VALID_BASELINE_PROFILES } from "../fixtures/fakeProviderProfiles.js";
 import {
-  RELEASED_BENCHMARK_DIGESTS,
+  readReleaseRegistry,
   assertReleasedBenchmarkIntegrity,
   benchmarkContentDigest,
   canonicalJson,
@@ -31,10 +31,15 @@ describe("committed benchmark", () => {
   });
 
   it("matches the reviewed content lock for this released benchmark", async () => {
-    const key = `${benchmark.manifest.benchmark_id}@${benchmark.manifest.benchmark_version}`;
-    expect(RELEASED_BENCHMARK_DIGESTS[key]).toBeTruthy();
+    const registry = await readReleaseRegistry();
+    const record = registry.records.find((entry) =>
+      entry.benchmark_id === benchmark.manifest.benchmark_id &&
+      entry.benchmark_version === benchmark.manifest.benchmark_version &&
+      entry.metadata_revision === benchmark.manifest.metadata_revision,
+    );
+    expect(record?.digest).toBeTruthy();
     await expect(benchmarkContentDigest(DATASET, benchmark.manifest)).resolves.toBe(
-      RELEASED_BENCHMARK_DIGESTS[key],
+      record.digest,
     );
   });
 

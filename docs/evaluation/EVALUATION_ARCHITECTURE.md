@@ -251,3 +251,6 @@ logic, and the versioning policy are all independent of where execution
 happens. This is why Phase 3A did not adopt one: nothing about doing it later
 is harder than doing it now, and doing it now would have coupled the benchmark
 to a vendor before it had proven itself locally.
+# Final Phase 3A hardening
+
+Every failure detail is derived from a structured finding. A known defect is suppressible only when all and only the scoped findings match its declared observations; an unrelated failure cannot be hidden. Run-state precedence is `unexpected_failure`, `baseline_change_required`, `pass_with_known_defects`, then `clean_pass`. Comparison Markdown reports unchanged, disappeared, new, changed-signature, moved, and count-change observations with repetition-preserving identity.

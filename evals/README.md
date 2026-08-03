@@ -65,3 +65,6 @@ objective. Every candidate, company, and record in it is invented.
 
 A passing fixture run means the orchestration, deterministic computation, and
 graders behave as specified. It says nothing about prompt quality.
+# Current baseline and safety caps
+
+The offline fixture baseline is `pass_with_known_defects`: 12 clean cases and 8 expected observations across 4 executions, with no unexpected failures. SR-P3A-001 remains unfixed. Live mode has a $100 per-command safety cap and at most 20 repetitions; it verifies the conservative plan before provider construction and before each execution. No live run has occurred.

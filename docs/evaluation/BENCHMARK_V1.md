@@ -242,3 +242,6 @@ harness is supposed to be measuring from a fixed baseline.
    not just that it passes. A case that passes for the wrong reason is worse
    than no case.
 6. Run `npm run test:evals`.
+# Release integrity
+
+Normal validation cross-checks each local `release-integrity.json` against `evals/datasets/released-benchmark-registry.json`. Formatting-only JSON changes do not change the canonical digest; array order and values do. To update a reviewed release deliberately, change `benchmark_version` for semantic changes or `metadata_revision` for cosmetic changes, confirm that classification with a reviewer, then run `npm run eval:update-integrity -- --benchmark decision-benchmark-v1 --reason "..."`. The command records previous/new digests, reason, timestamp, and version metadata; it never runs automatically, commits, or contacts a network.

@@ -415,3 +415,6 @@ the `SR-P3A-001` fix (clamp the score, or widen the contract), re-baseline the
 benchmark, and only then begin prompt and model work with before/after
 comparison. Remaining Phase 3 items from the original plan — structured error
 classes and cancellation, and CI wiring — also belong here.
+# Phase 3A hardening status
+
+Phase 3A remains measurement-only. The committed fixture baseline is `pass_with_known_defects` (12 clean cases; 8 expected observations across 4 executions; 0 unexpected failures). SR-P3A-001 remains unfixed and Phase 3B has not started.

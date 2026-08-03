@@ -17,6 +17,7 @@
     "eval:fixtures": "node evals/cli/fixtures.mjs",
     "eval:live": "node evals/cli/live.mjs",
     "eval:compare": "node evals/cli/compare.mjs",
+    "eval:update-integrity": "node evals/cli/update-integrity.mjs",
     "preview": "vite preview",
     "test": "npm run test:frontend && npm run test:server && npm run test:evals",
     "test:frontend": "vitest run --config vitest.config.ts",

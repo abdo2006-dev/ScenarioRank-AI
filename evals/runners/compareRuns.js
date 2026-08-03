@@ -113,13 +113,25 @@ function compareDefectObservations(baseline, candidate) {
   const afterKeys = new Set(after.map((entry) => observationIdentity(entry)));
   const disappeared = [...beforeKeys].filter((key) => !afterKeys.has(key));
   const appeared = [...afterKeys].filter((key) => !beforeKeys.has(key));
-  const beforeScope = new Map(before.map((entry) => [observationIdentity(entry, false), observationIdentity(entry)]));
-  const afterScope = new Map(after.map((entry) => [observationIdentity(entry, false), observationIdentity(entry)]));
-  const changedSignature = [...beforeScope.keys()].filter((key) => afterScope.has(key) && beforeScope.get(key) !== afterScope.get(key));
-  const bySignature = (entry) => JSON.stringify({ defect_id: entry.defect_id, case_id: entry.case_id, grader_id: entry.grader_id, signature: entry.signature });
-  const beforePlacement = new Map(before.map((entry) => [bySignature(entry), observationIdentity(entry, false)]));
-  const afterPlacement = new Map(after.map((entry) => [bySignature(entry), observationIdentity(entry, false)]));
-  const moved = [...beforePlacement.keys()].filter((key) => afterPlacement.has(key) && beforePlacement.get(key) !== afterPlacement.get(key));
+  const group = (entries, identity) => entries.reduce((map, entry) => {
+    const key = identity(entry);
+    map.set(key, [...(map.get(key) ?? []), entry]);
+    return map;
+  }, new Map());
+  const beforeScope = group(before, (entry) => observationIdentity(entry, false));
+  const afterScope = group(after, (entry) => observationIdentity(entry, false));
+  const changedSignature = [...beforeScope.keys()].filter((key) =>
+    afterScope.has(key) && JSON.stringify(beforeScope.get(key).map((entry) => entry.signature).sort()) !== JSON.stringify(afterScope.get(key).map((entry) => entry.signature).sort()),
+  );
+  // Repetition is deliberately retained: a signature in r2 cannot cancel or
+  // be called a move of an otherwise identical signature in r1.
+  const bySignature = (entry) => JSON.stringify({ defect_id: entry.defect_id, case_id: entry.case_id, repetition: entry.repetition, grader_id: entry.grader_id, signature: entry.signature });
+  const placement = (entries) => group(entries, bySignature);
+  const beforePlacement = placement(before);
+  const afterPlacement = placement(after);
+  const moved = [...beforePlacement.keys()].filter((key) => afterPlacement.has(key) &&
+    JSON.stringify(beforePlacement.get(key).map((entry) => observationIdentity(entry, false)).sort()) !== JSON.stringify(afterPlacement.get(key).map((entry) => observationIdentity(entry, false)).sort()),
+  );
   return { unchanged: [...beforeKeys].filter((key) => afterKeys.has(key)), disappeared, appeared, changed_signature: changedSignature, moved };
 }
 

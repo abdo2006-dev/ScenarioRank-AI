@@ -50,6 +50,8 @@ export const graderResultSchema = z
     finding_codes: z.array(z.string().min(1)).default([]),
     /** Structured failure identities; messages are never used as known-defect keys. */
     observations: z.array(z.record(z.unknown())).default([]),
+    /** Finding source of truth; details are exactly these human-readable messages. */
+    findings: z.array(z.record(z.unknown())).default([]),
     /** Present only when a scoped known-defect record reclassified this failure. */
     known_defect_id: z.string().min(1).optional(),
     /** Exact expected-observation identities matched by this failure. */
@@ -59,7 +61,17 @@ export const graderResultSchema = z
     /** Structured, human-readable specifics. Never raw provider payloads. */
     details: z.array(z.string().min(1)),
   })
-  .strict();
+  .strict()
+  .superRefine((result, context) => {
+    const messages = result.findings.map((finding) => finding.message);
+    if (messages.some((message) => typeof message !== "string" || message.length === 0) || JSON.stringify(messages) !== JSON.stringify(result.details)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["details"],
+        message: "Every human-readable failure detail must be derived from exactly one structured finding.",
+      });
+    }
+  });
 
 /**
  * One pipeline execution. A case with N scenarios produces N executions, and a

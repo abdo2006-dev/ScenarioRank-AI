@@ -107,9 +107,12 @@ export function many(values, key) {
  */
 export function integerOption(raw, label, fallback) {
   if (raw === undefined) return fallback;
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`Invalid ${label} "${raw}". It must be a decimal integer.`);
+  }
   const parsed = Number(raw);
-  if (!Number.isInteger(parsed)) {
-    throw new Error(`Invalid ${label} "${raw}". It must be an integer.`);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`Invalid ${label} "${raw}". It must be a safe decimal integer.`);
   }
   return parsed;
 }

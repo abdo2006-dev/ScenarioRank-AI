@@ -24,6 +24,7 @@ import {
   createBudgetGuard,
   renderLivePlan,
 } from "../runners/liveRunner.js";
+import { resolveOpenAIModel } from "../../server/config/env.js";
 
 const HELP = `
 eval:live — run benchmark cases against the real OpenAI provider (spends money)
@@ -83,20 +84,18 @@ async function main() {
     maxBudgetUsd: single(values, "max-budget-usd"),
     benchmarkCases: benchmark.cases,
   });
-
-  // Imported only after every guard has passed, so no OpenAI client is ever
-  // constructed by a refused invocation.
-  const { createProvider } = await import("../../server/ai/providerFactory.js");
-  const provider = createProvider();
-  const model = provider.model;
-
   const selectedCases = selectedIds.map((caseId) =>
     benchmark.cases.find((entry) => entry.case_id === caseId),
   );
+  const model = resolveOpenAIModel();
   const estimate = estimateRunBudget(selectedCases, model, repetitions);
-
-  process.stdout.write(`${renderLivePlan({ model, selectedIds, repetitions, estimate, budgetUsd })}\n\n`);
   assertBudgetCoversPlan(estimate, budgetUsd);
+  process.stdout.write(`${renderLivePlan({ model, selectedIds, repetitions, estimate, budgetUsd })}\n\n`);
+
+  // Imported and constructed only after the entire plan fits the declared
+  // budget, so a refused plan cannot instantiate an OpenAI client.
+  const { createProvider } = await import("../../server/ai/providerFactory.js");
+  const provider = createProvider();
 
   const guard = createBudgetGuard({ budgetUsd, model });
   const stopped = [];

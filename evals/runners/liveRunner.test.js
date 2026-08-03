@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
 import { loadBenchmark } from "../datasets/loadBenchmark.js";
+import { PROVIDER_COST_POLICY } from "../../server/pipeline/runPipeline.js";
 import {
   assertLiveModeAllowed,
   assertBudgetCoversPlan,
@@ -18,6 +19,9 @@ import {
   renderLivePlan,
   LiveModeRefusedError,
   BUDGET_ASSUMPTIONS,
+  STAGE_OUTPUT_TOKEN_BUDGETS,
+  MAX_EVALUATION_BUDGET_USD,
+  MAX_EVALUATION_REPETITIONS,
 } from "./liveRunner.js";
 
 const PRICED_MODEL = "gpt-5-mini";
@@ -85,6 +89,11 @@ describe("live mode refusals", () => {
     }
   });
 
+  it("refuses budgets above the per-command safety cap", () => {
+    expect(() => resolveBudgetLimit({ maxBudgetUsd: "100.01" })).toThrow(/safety cap/);
+    expect(MAX_EVALUATION_BUDGET_USD).toBe(100);
+  });
+
   it("accepts a budget from the environment when no flag is given", () => {
     const resolved = assertLiveModeAllowed(
       validOptions({
@@ -121,11 +130,15 @@ describe("live mode refusals", () => {
   });
 
   it("refuses a non-integer or non-positive repetition count", () => {
-    for (const value of [0, -1, 1.5]) {
+    for (const value of [0, -1, 1.5, 21, Number.MAX_SAFE_INTEGER + 1]) {
       expect(() => assertLiveModeAllowed(validOptions({ repetitions: value })), value).toThrow(
         /--repetitions/,
       );
     }
+  });
+
+  it("caps repetitions at the documented safety limit", () => {
+    expect(MAX_EVALUATION_REPETITIONS).toBe(20);
   });
 
   it("defaults to a single repetition and a single selected case", () => {
@@ -145,6 +158,11 @@ describe("live mode refusals", () => {
 });
 
 describe("budget estimation", () => {
+  it("derives its production-cost policy rather than copying constants", () => {
+    expect(STAGE_OUTPUT_TOKEN_BUDGETS).toBe(PROVIDER_COST_POLICY.outputTokenBudgets);
+    expect(BUDGET_ASSUMPTIONS.providerAttemptsPerRequest).toBe(PROVIDER_COST_POLICY.maxProviderAttemptsPerRequest);
+    expect(BUDGET_ASSUMPTIONS.batchIntegrityPasses).toBe(PROVIDER_COST_POLICY.maxBatchIntegrityExecutions);
+  });
   it("estimates more for a pairing case than a non-pairing case", () => {
     const pairing = benchmarkCases.find((entry) => entry.deterministic_expectations.pairing_enabled);
     const plain = benchmarkCases.find(
@@ -170,6 +188,14 @@ describe("budget estimation", () => {
     expect(estimateExecutionCost(pairing, PRICED_MODEL).maxAttempts).toBe(
       BUDGET_ASSUMPTIONS.providerAttemptsPerRequest *
         (1 + BUDGET_ASSUMPTIONS.batchIntegrityPasses * 2 + 1),
+    );
+  });
+
+  it("uses an injected policy fixture rather than ignoring policy changes", () => {
+    const plain = benchmarkCases.find((entry) => !entry.deterministic_expectations.pairing_enabled);
+    const changed = { ...PROVIDER_COST_POLICY, outputTokenBudgets: { ...PROVIDER_COST_POLICY.outputTokenBudgets, contextAnalysis: 9999 } };
+    expect(estimateExecutionCost(plain, PRICED_MODEL, { policy: changed }).outputTokens).toBeGreaterThan(
+      estimateExecutionCost(plain, PRICED_MODEL).outputTokens,
     );
   });
 

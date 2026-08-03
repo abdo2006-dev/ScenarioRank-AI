@@ -580,7 +580,7 @@ describe("known-defect handling", () => {
 
   it("downgrades a matching failure to expected_failure", () => {
     const results = applyKnownDefects(
-      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "broken", details: [], finding_codes: ["negative-risk-adjusted-score"], observations: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" }] }],
+      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "broken", details: ["negative"], finding_codes: ["negative-risk-adjusted-score"], observations: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" }], findings: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow", message: "negative" }] }],
       [defect],
       { execution: { execution_id: "case-001#s1#r1", scenario_index: 1, repetition: 1 }, benchmarkCase: { case_id: "case-001", variant_kind: null } },
     );
@@ -599,7 +599,7 @@ describe("known-defect handling", () => {
 
   it("stops an expected failure from gating the exit status", () => {
     const results = applyKnownDefects(
-      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "x", details: [], finding_codes: ["negative-risk-adjusted-score"], observations: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" }] }],
+      [{ grader_id: "contract-validity", severity: "required", status: "fail", summary: "x", details: ["negative"], finding_codes: ["negative-risk-adjusted-score"], observations: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" }], findings: [{ kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow", message: "negative" }] }],
       [defect],
       { execution: { execution_id: "case-001#s1#r1", scenario_index: 1, repetition: 1 }, benchmarkCase: { case_id: "case-001", variant_kind: null } },
     );

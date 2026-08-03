@@ -343,10 +343,12 @@ export async function runBenchmark({
       signature,
     })),
   );
-  const runState = unexpectedDefectResolutions > 0
-    ? "baseline_change_required"
-    : requiredFailures > 0
-      ? "unexpected_failure"
+  // A genuine failure is never hidden by a simultaneous XPASS/baseline
+  // change. Review still receives the disappeared observation separately.
+  const runState = requiredFailures > 0
+    ? "unexpected_failure"
+    : unexpectedDefectResolutions > 0
+      ? "baseline_change_required"
       : expectedFailures > 0
         ? "pass_with_known_defects"
         : "clean_pass";

@@ -161,6 +161,7 @@ export async function runCase({
               summary: "The execution was not started.",
               finding_codes: [],
               details: ["The live budget guard stopped this execution before any provider request."],
+              findings: [{ kind: "budget_guard", code: "not_started", message: "The live budget guard stopped this execution before any provider request." }],
             },
           ],
         };
@@ -227,6 +228,7 @@ export async function runCase({
               summary: "The pipeline did not produce a completed response for this execution.",
               finding_codes: [],
               details: [failureReason ?? "unknown failure"],
+              findings: [{ kind: "execution_error", code: "pipeline_failed", message: failureReason ?? "unknown failure" }],
             },
           ];
 

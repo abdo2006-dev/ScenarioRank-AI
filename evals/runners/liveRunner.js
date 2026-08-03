@@ -24,6 +24,7 @@
  * with injected values, and no automated test in this repository calls OpenAI.
  */
 import { estimateCostUsd, getPricingForModel } from "../../server/ai/pricing/openaiPricing.js";
+import { PROVIDER_COST_POLICY } from "../../server/pipeline/runPipeline.js";
 
 /**
  * Worst-case output-token budgets per logical stage, mirroring the constants
@@ -32,14 +33,7 @@ import { estimateCostUsd, getPricingForModel } from "../../server/ai/pricing/ope
  * because an estimate that silently tracked a pipeline change would stop being
  * conservative without anyone noticing.
  */
-export const STAGE_OUTPUT_TOKEN_BUDGETS = Object.freeze({
-  contextAnalysis: 3000,
-  candidateScoringPerCandidate: 1100,
-  candidateScoringOverhead: 300,
-  pairingPerPair: 380,
-  pairingOverhead: 200,
-  decisionExplanation: 2200,
-});
+export const STAGE_OUTPUT_TOKEN_BUDGETS = PROVIDER_COST_POLICY.outputTokenBudgets;
 
 /**
  * Deliberately pessimistic assumptions. Under-estimating spend is the only
@@ -47,14 +41,18 @@ export const STAGE_OUTPUT_TOKEN_BUDGETS = Object.freeze({
  */
 export const BUDGET_ASSUMPTIONS = Object.freeze({
   /** The production adapter can make an initial request plus one retry. */
-  providerAttemptsPerRequest: 2,
+  providerAttemptsPerRequest: PROVIDER_COST_POLICY.maxProviderAttemptsPerRequest,
   /** Batch scoring and pairing can each issue a corrective second request. */
-  batchIntegrityPasses: 2,
+  batchIntegrityPasses: PROVIDER_COST_POLICY.maxBatchIntegrityExecutions,
   /** A truncation retry may raise its output cap by 1.5x. */
   truncationRetryOutputMultiplier: 1.5,
   /** Assumed prompt size per attempt; real prompts are far smaller. */
   inputTokensPerAttempt: 6000,
 });
+
+/** Safety caps, not default spend or throughput targets. */
+export const MAX_EVALUATION_BUDGET_USD = 100;
+export const MAX_EVALUATION_REPETITIONS = 20;
 
 export class LiveModeRefusedError extends Error {
   constructor(message) {
@@ -69,27 +67,27 @@ export class LiveModeRefusedError extends Error {
  * @param {string} model
  * @returns {{ estimatedCostUsd: number|null, maxAttempts: number, outputTokens: number, inputTokens: number }}
  */
-export function estimateExecutionCost(benchmarkCase, model) {
+export function estimateExecutionCost(benchmarkCase, model, { policy = PROVIDER_COST_POLICY } = {}) {
   const candidateCount = benchmarkCase.input.candidates.length;
   const pairingEnabled = benchmarkCase.deterministic_expectations.pairing_enabled;
   const pairCount = benchmarkCase.deterministic_expectations.expected_pair_count ?? 0;
   const requestOutputWorstCase = (cap) =>
     cap * (1 + BUDGET_ASSUMPTIONS.truncationRetryOutputMultiplier);
-  const batchMultiplier = BUDGET_ASSUMPTIONS.batchIntegrityPasses;
-  const contextOutput = requestOutputWorstCase(STAGE_OUTPUT_TOKEN_BUDGETS.contextAnalysis);
+  const budgets = policy.outputTokenBudgets;
+  const providerAttempts = policy.maxProviderAttemptsPerRequest;
+  const batchPasses = policy.maxBatchIntegrityExecutions;
+  const contextOutput = requestOutputWorstCase(budgets.contextAnalysis);
   const scoringOutput = requestOutputWorstCase(
-    candidateCount * STAGE_OUTPUT_TOKEN_BUDGETS.candidateScoringPerCandidate +
-      STAGE_OUTPUT_TOKEN_BUDGETS.candidateScoringOverhead,
-  ) * batchMultiplier;
+    candidateCount * budgets.candidateScoringPerCandidate + budgets.candidateScoringOverhead,
+  ) * batchPasses;
   const pairingOutput = pairingEnabled
     ? requestOutputWorstCase(
-      pairCount * STAGE_OUTPUT_TOKEN_BUDGETS.pairingPerPair + STAGE_OUTPUT_TOKEN_BUDGETS.pairingOverhead,
-    ) * batchMultiplier
+      pairCount * budgets.pairingPerPair + budgets.pairingOverhead,
+    ) * batchPasses
     : 0;
-  const decisionOutput = requestOutputWorstCase(STAGE_OUTPUT_TOKEN_BUDGETS.decisionExplanation);
+  const decisionOutput = requestOutputWorstCase(budgets.decisionExplanation);
   const maxAttempts =
-    BUDGET_ASSUMPTIONS.providerAttemptsPerRequest *
-    (1 + batchMultiplier + (pairingEnabled ? batchMultiplier : 0) + 1);
+    providerAttempts * (1 + batchPasses + (pairingEnabled ? batchPasses : 0) + 1);
   const outputTokens = contextOutput + scoringOutput + pairingOutput + decisionOutput;
   const inputTokens = maxAttempts * BUDGET_ASSUMPTIONS.inputTokensPerAttempt;
 
@@ -107,7 +105,7 @@ export function estimateExecutionCost(benchmarkCase, model) {
  * @param {string} model
  * @param {number} repetitions
  */
-export function estimateRunBudget(selectedCases, model, repetitions) {
+export function estimateRunBudget(selectedCases, model, repetitions, { policy = PROVIDER_COST_POLICY } = {}) {
   if (getPricingForModel(model) === null) {
     return {
       priced: false,
@@ -126,7 +124,7 @@ export function estimateRunBudget(selectedCases, model, repetitions) {
 
   for (const benchmarkCase of selectedCases) {
     const executions = benchmarkCase.input.scenarios.length * repetitions;
-    const estimate = estimateExecutionCost(benchmarkCase, model);
+    const estimate = estimateExecutionCost(benchmarkCase, model, { policy });
     cost += estimate.estimatedCostUsd * executions;
     attempts += estimate.maxAttempts * executions;
     executionCount += executions;
@@ -171,6 +169,11 @@ export function resolveBudgetLimit({ maxBudgetUsd, env = process.env } = {}) {
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new LiveModeRefusedError(
       `Invalid budget limit "${raw}". It must be a positive, finite number of US dollars.`,
+    );
+  }
+  if (parsed > MAX_EVALUATION_BUDGET_USD) {
+    throw new LiveModeRefusedError(
+      `Invalid budget limit "${raw}". The evaluation safety cap is $${MAX_EVALUATION_BUDGET_USD} per command; select fewer cases instead.`,
     );
   }
   return parsed;
@@ -223,9 +226,9 @@ export function assertLiveModeAllowed({
 
   const budgetUsd = resolveBudgetLimit({ maxBudgetUsd, env });
 
-  if (!Number.isSafeInteger(repetitions) || repetitions < 1) {
+  if (!Number.isSafeInteger(repetitions) || repetitions < 1 || repetitions > MAX_EVALUATION_REPETITIONS) {
     throw new LiveModeRefusedError(
-      `Invalid --repetitions "${repetitions}". It must be a positive integer; the default is 1.`,
+      `Invalid --repetitions "${repetitions}". It must be a positive integer no greater than ${MAX_EVALUATION_REPETITIONS}; the default is 1.`,
     );
   }
 

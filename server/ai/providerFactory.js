@@ -11,7 +11,13 @@
  */
 
 import { ConfigurationError } from "./errors.js";
-import { createOpenAIProvider, DEFAULT_OPENAI_MODEL, REASONING_EFFORT_VALUES } from "./providers/openaiProvider.js";
+import { createOpenAIProvider, REASONING_EFFORT_VALUES } from "./providers/openaiProvider.js";
+import { resolveOpenAIModel } from "../config/env.js";
+
+/** Pure model resolution for callers that must validate spend before construction. */
+export function resolveProviderModel({ env = process.env } = {}) {
+  return resolveOpenAIModel({ env });
+}
 
 /**
  * @param {{ env?: Record<string, string|undefined> }} [options]
@@ -22,7 +28,7 @@ export function createProvider({ env = process.env } = {}) {
   if (!apiKey) {
     throw new ConfigurationError("OPENAI_API_KEY is required to construct the OpenAI provider.");
   }
-  const model = env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+  const model = resolveProviderModel({ env });
 
   let reasoningEffort;
   const rawEffort = env.OPENAI_REASONING_EFFORT;

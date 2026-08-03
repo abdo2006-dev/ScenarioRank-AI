@@ -40,9 +40,27 @@ export const GRADER_SUITE_VERSION = "1.0.0";
 
 const EPSILON = 1e-9;
 
-const pass = (summary, details = [], findingCodes = [], observations = []) => ({ status: "pass", summary, details, finding_codes: findingCodes, observations });
-const fail = (summary, details = [], findingCodes = [], observations = []) => ({ status: "fail", summary, details, finding_codes: findingCodes, observations });
-const skip = (summary, details = [], findingCodes = [], observations = []) => ({ status: "skip", summary, details, finding_codes: findingCodes, observations });
+function outcome(status, summary, details = [], findingCodes = [], observations = []) {
+  // Findings are the source of truth. Existing graders still supply their
+  // concise detail strings, but every one is represented exactly once here.
+  // A structured observation is assigned only to its corresponding detail;
+  // extra details become explicit unmatched findings and cannot be suppressed.
+  const findings = details.map((message, index) => ({
+    ...(observations[index] ?? { kind: "detail", code: "unclassified" }),
+    message,
+  }));
+  return {
+    status,
+    summary,
+    finding_codes: findingCodes,
+    observations,
+    findings,
+    details: findings.map((finding) => finding.message),
+  };
+}
+const pass = (summary, details = [], findingCodes = [], observations = []) => outcome("pass", summary, details, findingCodes, observations);
+const fail = (summary, details = [], findingCodes = [], observations = []) => outcome("fail", summary, details, findingCodes, observations);
+const skip = (summary, details = [], findingCodes = [], observations = []) => outcome("skip", summary, details, findingCodes, observations);
 
 function near(actual, expected) {
   return typeof actual === "number" && Math.abs(actual - expected) <= EPSILON;
@@ -878,9 +896,10 @@ export function runGraders(graders, context) {
       outcome = {
         status: "error",
         summary: `Grader "${grader.id}" threw while evaluating this result.`,
-        details: [error.message],
         finding_codes: [],
         observations: [],
+        findings: [{ kind: "grader_error", code: "threw", message: error.message }],
+        details: [error.message],
       };
     }
     return {
@@ -891,7 +910,8 @@ export function runGraders(graders, context) {
       summary: outcome.summary,
       finding_codes: outcome.finding_codes ?? [],
       observations: outcome.observations ?? [],
-      details: outcome.details ?? [],
+      findings: outcome.findings ?? (outcome.details ?? []).map((message) => ({ kind: "detail", code: "unclassified", message })),
+      details: (outcome.findings ?? (outcome.details ?? []).map((message) => ({ message }))).map((finding) => finding.message),
     };
   });
 }
@@ -942,11 +962,18 @@ export function applyKnownDefects(graderResults, knownDefects, { execution, benc
       if (!scoped) return [];
       return defect.expected_observations
         .map((expected, index) => ({ defect, expected, index }))
-        .filter(({ expected }) => expected.grader_id === result.grader_id && result.observations.some((actual) => JSON.stringify(actual) === JSON.stringify(expected.signature)));
+        .filter(({ expected }) => expected.grader_id === result.grader_id && result.findings?.some((finding) => {
+          const actual = { ...finding };
+          delete actual.message;
+          return JSON.stringify(actual) === JSON.stringify(expected.signature);
+        }));
     });
-    // A grader result with even one unrecognised structured observation is an
-    // unexpected failure, never a broad suppression for a known product bug.
-    if (matches.length === 0 || matches.length !== result.observations.length) return result;
+    const actualFindings = result.findings ?? [];
+    const derivedDetails = actualFindings.map((finding) => finding.message);
+    // A result may be downgraded only when findings are a faithful, complete
+    // source for the human details and every actual failure finding is named
+    // by the scoped defect record.
+    if (matches.length === 0 || matches.length !== actualFindings.length || JSON.stringify(result.details) !== JSON.stringify(derivedDetails)) return result;
     const defectIds = [...new Set(matches.map(({ defect }) => defect.defect_id))];
     if (defectIds.length !== 1) return result;
     const defect = matches[0].defect;
@@ -959,6 +986,10 @@ export function applyKnownDefects(graderResults, knownDefects, { execution, benc
       details: [
         ...result.details,
         `known defect ${defect.defect_id} — ${defect.summary} (see ${defect.reference})`,
+      ],
+      findings: [
+        ...actualFindings,
+        { kind: "known_defect_reference", code: defect.defect_id, message: `known defect ${defect.defect_id} — ${defect.summary} (see ${defect.reference})` },
       ],
     };
   });
@@ -999,6 +1030,10 @@ export function checkKnownDefectsStillReproduce(executions, caseGraderResults, k
       ],
       finding_codes: [],
       observations: [],
+      findings: [
+        { kind: "unexpected_defect_resolution", code: defect.defect_id, message: defect.summary },
+        { kind: "remediation", code: "review_required", message: "If this was fixed deliberately, remove the known_defects entry from this benchmark case and update the referenced documentation. A known-defect record must never outlive the defect it describes." },
+      ],
       unexpected_defect_resolution: true,
     })));
 }

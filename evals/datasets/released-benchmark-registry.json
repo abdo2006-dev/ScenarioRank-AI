@@ -1,0 +1,14 @@
+{
+  "records": [
+    {
+      "benchmark_id": "decision-benchmark-v1",
+      "benchmark_version": "1.0.0",
+      "schema_version": "1.0.0",
+      "metadata_revision": 0,
+      "previous_digest": null,
+      "digest": "c59afa0c0362a69e7f03f3c6ef9511e9c8987dd766085b096061d6fc8efa60f8",
+      "reason": "Initial reviewed Phase 3A release record.",
+      "timestamp": "2026-08-02T14:04:51.000Z"
+    }
+  ]
+}

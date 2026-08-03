@@ -165,3 +165,6 @@ hiring decisions, not evidence of fairness or demographic neutrality, not a
 legal-compliance test, not a calibrated-confidence benchmark, and not a
 production service-level objective. Nothing in the harness, the documentation,
 or the UI may imply otherwise.
+# 2026-08-03 hardening addendum
+
+Known-defect suppression requires complete exact structured findings: an expected finding plus any unrelated finding remains a failure. Live budgeting derives from the frozen production cost/retry policy and verifies the plan before provider construction and before each execution. The released corpus is cross-checked against a repository-level integrity registry; only `eval:update-integrity -- --reason "..."` may add a provenance-bearing release record after reviewer confirmation.

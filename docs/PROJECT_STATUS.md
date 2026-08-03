@@ -2084,3 +2084,6 @@ the numbers. Full limitation list: `docs/evaluation/BENCHMARK_V1.md`.
 **Phase 3B has not started.** The recommended next milestone is to decide and
 apply the `SR-P3A-001` fix, re-baseline the benchmark, and only then begin
 prompt and model work with before/after comparison.
+# Phase 3A current state (2026-08-03)
+
+Phase 3A is `pass_with_known_defects`: 16 cases complete without unexpected failure, with 12 clean cases, 8 expected SR-P3A-001 observations across 4 affected executions, and 0 unexpected failures. SR-P3A-001 remains unfixed. No live evaluation or OpenAI request has occurred; Phase 3B remains unstarted.
