@@ -146,9 +146,11 @@ real OpenAI call at any point in Phase 2D; Phase 3 remains unstarted. The
 recommended next action is Phase 3A evaluation infrastructure planning.
 See "Phase 2D" below for full detail.
 
-**Phase 3A is in draft and not merged.** Branch
-`v2/phase-3a-evaluation-harness`, targeting `main` at
-`93dfd4f517bf32ea949a5efeda2140478f62c702`. It adds `evals/` — a
+**Phase 3A is complete and merged.** PR #8 was squash-merged into `main` at
+`2026-08-05T12:53:18Z` as
+`45e753dadb5b7ab297b4ccccbce197f777fc772f`; the temporary
+`v2/phase-3a-evaluation-harness` branch was deleted locally and remotely. It
+adds `evals/` — a
 local-first, offline-capable evaluation harness — and
 `decision-benchmark-v1`, a versioned benchmark of 16 fully synthetic cases
 (21 scenario executions) with 11 deterministic graders, an 8-dimension
@@ -1898,10 +1900,11 @@ independently reviewable follow-up.
     Framework Mode, or Data Mode, or when a deliberate React Router 8
     migration is separately scoped.
 
-## Phase 3A — evaluation harness and synthetic benchmark (draft PR, not merged)
+## Phase 3A — evaluation harness and synthetic benchmark (complete and merged)
 
-**Branch `v2/phase-3a-evaluation-harness`**, targeting `main` at
-`93dfd4f517bf32ea949a5efeda2140478f62c702`. Draft pull request, not merged.
+**PR #8** was squash-merged into `main` at `2026-08-05T12:53:18Z` as
+`45e753dadb5b7ab297b4ccccbce197f777fc772f`. The temporary
+`v2/phase-3a-evaluation-harness` branch has been deleted locally and remotely.
 
 ### Objective
 
@@ -2087,18 +2090,26 @@ the numbers. Full limitation list: `docs/evaluation/BENCHMARK_V1.md`.
 **Phase 3B has not started.** The recommended next milestone is to decide and
 apply the `SR-P3A-001` fix, re-baseline the benchmark, and only then begin
 prompt and model work with before/after comparison.
-# Phase 3A current state (2026-08-05)
+# Phase 3A completion record (2026-08-05)
 
-Phase 3A is `pass_with_known_defects`. Fixture machinery: passed. 16/16 cases
-completed without unexpected failure: 12 clean cases and four cases containing
-8 known-defect observations across 4 affected executions. 0 unexpected failures. 0 unexpected defect resolutions.
+Phase 3A is complete and merged through PR #8. Its squash-merge commit is
+`45e753dadb5b7ab297b4ccccbce197f777fc772f` at `2026-08-05T12:53:18Z`; the
+temporary `v2/phase-3a-evaluation-harness` branch was deleted locally and
+remotely. The milestone delivers the versioned synthetic benchmark
+`decision-benchmark-v1` and an evaluation harness that invokes the real
+production pipeline.
 
-Current verification totals are 103 frontend tests, 224 server tests, 326
-evaluation tests, and 653 total tests. The 2026-08-05 `npm audit` verification
-reached the endpoint and reported two high advisories: `brace-expansion`
-(`GHSA-rgw5-rvv9-x895`) and React Router RSC mode (`GHSA-qwww-vcr4-c8h2`).
-Neither was introduced by this Phase 3A documentation pass; no dependency
-changed in Phase 3A.
+The committed offline baseline is `pass_with_known_defects`. Fixture machinery:
+passed. 16/16 cases completed without unexpected failure: 12 clean cases and
+four cases containing 8 known-defect observations across 4 affected executions.
+0 unexpected failures. 0 unexpected defect resolutions. Final verification:
+103 frontend tests, 224 server tests, 326 evaluation tests, and 653 total tests.
 
-SR-P3A-001 remains unfixed. No live evaluation or OpenAI request has occurred;
-Phase 3B remains unstarted.
+Live mode remains unexecuted, and no real OpenAI call occurred in Phase 3A. The
+2026-08-05 `npm audit` verification reported two pre-existing high advisories:
+`brace-expansion` (`GHSA-rgw5-rvv9-x895`) and React Router RSC mode
+(`GHSA-qwww-vcr4-c8h2`); no dependency changed in the final documentation pass.
+SR-P3A-001 remains unfixed, and Phase 3B remains unstarted.
+
+The exact next milestone is a separate SR-P3A-001 semantic-fix PR followed by
+benchmark re-baselining. It is not part of this completed Phase 3A milestone.
