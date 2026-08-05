@@ -84,6 +84,27 @@ describe("/health", () => {
 });
 
 describe("POST /api/decision/stream", () => {
+  it("characterizes the current signed-score contract failure after offline provider work completes", async () => {
+    const provider = createFakePipelineProvider({
+      handlers: defaultHandlers({ scoreByCandidateId: { strong: 6, weak: 3 } }),
+    });
+    activeServer = await startServer({ provider, aiEnabled: true });
+    const port = activeServer.address().port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(defaultInput({ candidateIds: ["strong", "weak"] })),
+    });
+    const events = parseSseEvents(await res.text());
+
+    expect(provider.calls.map(({ promptId }) => promptId)).toEqual([
+      "context-analysis", "batch-candidate-scoring", "decision-explanation",
+    ]);
+    expect(events.some((event) => event.event === "complete")).toBe(false);
+    expect(events.at(-1)).toEqual({ event: "error", data: { message: "Pipeline failed. Please try again." } });
+  });
+
   it("emits stage_update events in order, then a complete event, and closes the response", async () => {
     const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
     activeServer = await startServer({ provider, aiEnabled: true });
@@ -195,6 +216,26 @@ describe("POST /api/decision/stream", () => {
 });
 
 describe("POST /api/decision (non-streaming)", () => {
+  it("characterizes the current generic failure after offline provider work completes", async () => {
+    const provider = createFakePipelineProvider({
+      handlers: defaultHandlers({ scoreByCandidateId: { strong: 6, weak: 3 } }),
+    });
+    activeServer = await startServer({ provider, aiEnabled: true });
+    const port = activeServer.address().port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(defaultInput({ candidateIds: ["strong", "weak"] })),
+    });
+
+    expect(provider.calls.map(({ promptId }) => promptId)).toEqual([
+      "context-analysis", "batch-candidate-scoring", "decision-explanation",
+    ]);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Pipeline failed. Please try again." });
+  });
+
   it("returns the full pipeline result as JSON", async () => {
     const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
     activeServer = await startServer({ provider, aiEnabled: true });

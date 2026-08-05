@@ -19,6 +19,45 @@ describe("runPipeline — full mocked execution", () => {
   });
 });
 
+describe("runPipeline — signed lowest-risk characterization", () => {
+  async function rank(candidateIds, scoreByCandidateId, confidenceByCandidateId) {
+    const provider = createFakePipelineProvider({
+      handlers: defaultHandlers({ scoreByCandidateId, confidenceByCandidateId }),
+    });
+    return runPipeline(
+      provider,
+      provider.model,
+      defaultInput({ candidateIds, decisionMode: "lowest_risk" }),
+      () => {},
+    );
+  }
+
+  it("keeps -0.18 ahead of -40 in either submission order", async () => {
+    const scoring = { a: 4.99, b: 3 };
+    const confidence = { a: 0.5, b: 0.3 };
+
+    for (const candidateIds of [["a", "b"], ["b", "a"]]) {
+      const result = await rank(candidateIds, scoring, confidence);
+      expect(result.candidate_evaluations.map(({ candidate_id, risk_adjusted_score }) => ({ candidate_id, risk_adjusted_score }))).toEqual([
+        { candidate_id: "a", risk_adjusted_score: -0.18 },
+        { candidate_id: "b", risk_adjusted_score: -40 },
+      ]);
+      expect(result.decision_result.recommended_candidate_id).toBe("a");
+    }
+  });
+
+  it("keeps exact signed ties in submission order", async () => {
+    const scoring = { a: 4.99, b: 4.99 };
+    const confidence = { a: 0.5, b: 0.5 };
+
+    for (const candidateIds of [["a", "b"], ["b", "a"]]) {
+      const result = await rank(candidateIds, scoring, confidence);
+      expect(result.candidate_evaluations.map(({ candidate_id }) => candidate_id)).toEqual(candidateIds);
+      expect(result.candidate_evaluations.every(({ risk_adjusted_score }) => risk_adjusted_score === -0.18)).toBe(true);
+    }
+  });
+});
+
 describe("runPipeline — one provider per run", () => {
   it("uses only the single provider instance passed in, for every stage and every candidate", async () => {
     const provider = createFakePipelineProvider({ handlers: defaultHandlers() });

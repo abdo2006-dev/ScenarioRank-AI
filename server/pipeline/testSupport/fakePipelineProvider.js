@@ -31,8 +31,8 @@ const CRITERIA_KEYS = [
   "stakeholder_management", "crisis_management", "innovation_digital", "strategic_scalability",
 ];
 
-export function criteriaScoresFixture(score = 6) {
-  return Object.fromEntries(CRITERIA_KEYS.map((k) => [k, { score, confidence: 0.8, evidence: "Evidence long enough to pass validation.", reasoning: "Reasoning text." }]));
+export function criteriaScoresFixture(score = 6, confidence = 0.8) {
+  return Object.fromEntries(CRITERIA_KEYS.map((k) => [k, { score, confidence, evidence: "Evidence long enough to pass validation.", reasoning: "Reasoning text." }]));
 }
 
 function candidateIdsFromPrompt(prompt) {
@@ -51,7 +51,7 @@ function pairsFromPrompt(prompt) {
  * candidate's criterion scores (and therefore the deterministic ranking)
  * without touching prompt text.
  */
-export function defaultHandlers({ scoreByCandidateId = {} } = {}) {
+export function defaultHandlers({ scoreByCandidateId = {}, confidenceByCandidateId = {} } = {}) {
   return {
     "context-analysis": {
       role_analysis: {
@@ -76,7 +76,10 @@ export function defaultHandlers({ scoreByCandidateId = {} } = {}) {
       return {
         results: ids.map((id) => ({
           candidate_id: id,
-          criteria_scores: criteriaScoresFixture(scoreByCandidateId[id] ?? 6),
+          criteria_scores: criteriaScoresFixture(
+            scoreByCandidateId[id] ?? 6,
+            confidenceByCandidateId[id] ?? 0.8,
+          ),
           strengths: ["Strong stakeholder trust"],
           weaknesses: ["Limited digital experience"],
           best_fit_contexts: ["Post-merger integration"],
