@@ -52,6 +52,9 @@ function isHistoricalContext(lines, index) {
     if (heading && heading[1].length <= childHeadingLevel) {
       if (/\b(historical|superseded)\b/i.test(lines[cursor])) return true;
       childHeadingLevel = heading[1].length;
+      // A current top-level section cannot inherit historical context from a
+      // preceding sibling section.
+      if (childHeadingLevel === 1) return false;
     }
   }
   return false;
