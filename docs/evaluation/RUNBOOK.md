@@ -235,4 +235,4 @@ the current benchmark version.
 before running live.
 # Current reporting and live safeguards
 
-Fixture reports lead with run state and list clean cases, expected observations, affected executions, unexpected failures, and unexpected defect resolutions. The baseline is `PASS WITH KNOWN DEFECTS`: 12 clean cases, 8 observations, 4 affected executions, and 0 unexpected failures. Live runs are not part of this baseline and have not been run. A live plan is budget-verified before provider construction and before every execution; budgets are decimal-only and capped at $100, repetitions are decimal integers capped at 20.
+Fixture reports lead with run state and list clean cases, expected observations, affected executions, unexpected failures, and unexpected defect resolutions. The current v1.1.0 baseline is `CLEAN PASS`: 16 clean cases, 0 observations, 0 affected executions, and 0 unexpected failures. Live runs are not part of this baseline and have not been run. A live plan is budget-verified before provider construction and before every execution; budgets are decimal-only and capped at $100, repetitions are decimal integers capped at 20.

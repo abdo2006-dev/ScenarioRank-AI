@@ -117,41 +117,33 @@ out of scope for this phase. Full detail:
 
 ~~The pairing stage's *outer* fallback — returning a generic default pair when every pair call in a run fails — means a result can look complete when the underlying evaluation didn't succeed for any pair.~~ The pairing stage's `?? default`-style fallbacks for individual metric fields were removed in Phase 1B (the production schema now requires all six pairing metrics, so a response missing one is rejected and retried rather than defaulted). Post-review correction (Phase 1D): the remaining *outer* fallback — a fabricated "Default pair" with invented scores (`pair_score: 7.0`, `scenario_coverage: 0.75`, etc.) — was removed entirely. When every pair evaluation in a run fails, `pairing_result` is now `{ "status": "unavailable", "reason": "All pair evaluations failed.", "best_pair": null, "top_pairs": [] }` instead of an invented pair, and the frontend's pairing tab shows a plain "Pairing Unavailable" message rather than a fake recommendation. Regression tests (`server/pipeline/runPipeline.test.js`, "pairing failure modes never fabricate a pair") cover full success, partial pair failure, and all-pairs-failed, and assert none of the old fabricated values appear anywhere in the response. **Post-review correction (ADR-0004):** pairing was later redesigned from one provider request per pair to a single batch request for every relevant pair; the same honesty guarantee carries over and was later tightened further: a duplicate, unrequested, *or merely-missing* pair in the batch is now rejected (one corrective retry, then the stage fails), because a successful pairing result must cover every expected pair — a subset is never classified as a successful "best pair" analysis. Only a batch that still fails to cover every expected pair after the retry falls back to the honest `{"status":"unavailable","reason":"Complete pair analysis was unavailable.","best_pair":null,"top_pairs":[]}` shape (reason text updated from the earlier "All pair evaluations failed.").
 
-### P0.7 Negative `risk_adjusted_score` violates the public response contract — OPEN (found by the Phase 3A evaluation harness)
+### P0.7 Negative `risk_adjusted_score` violates the public response contract — RESOLVED (ADR-0010)
 
 **Defect ID `SR-P3A-001`.** Found by the first fixture run ever executed
 against `decision-benchmark-v1`.
 
-`computeRiskAdjustedScore` (`server/domain/scoring.js`) can legitimately return
-a negative value for a sufficiently weak candidate — its risk penalties are
-subtracted from the weighted fit score with no lower clamp. But
-`completedPipelineResponseSchema` (`shared/contracts/decisionApi.js`) bounds
-`risk_adjusted_score` to `0-100`, and `server/http/routes.js` (the
-`/api/decision` handler) calls `completedPipelineResponseSchema.parse(result)`
-before responding.
+The signed-score correction keeps the existing formula and coefficients but
+changes this field's public contract to `-100…100`. It rounds before applying
+that final bound. JSON and SSE completion now accept observed values such as
+`-30`, `-11.94`, and `-0.4`; higher remains better for `lowest_risk` ranking.
 
-The consequence is user-visible and expensive: an evaluation containing a
-sufficiently weak candidate throws inside the route handler and the user
-receives a generic `500 Pipeline failed. Please try again.` — **after** every
-OpenAI call for that run has already been made and paid for. The SSE path
-performs the same validation.
+The v1.0.0 known-defect annotations first raised `baseline_change_required`
+when the observations disappeared. They were then removed in benchmark v1.1.0,
+which is `clean_pass`. See ADR-0010.
 
-Observed values across the benchmark: `-30` (case-001, case-011), `-11.94`
-(case-006, second scenario), `-0.4` (case-008). A candidate scoring 3/10 across
-the board is enough to trigger it.
+**Separate open issue:** `normalizeWeights` can leave a small residual negative
+weight after rounding the preceding weights. This correction deliberately does
+not change that behavior.
 
-**Deliberately not fixed in Phase 3A.** That phase was explicitly scoped to
-building measurement infrastructure and forbidden from changing scoring,
-ranking, or public contracts. Fixing it means choosing between clamping the
-score (changes scoring output) and widening the contract (changes the public
-API) — and either choice moves the baseline the harness was built to measure
-*from*. This is the first thing Phase 3B should decide.
+### P1.4 Weight-normalization residual can escape nonnegative weights — OPEN (`SR-P3A-002`)
 
-The benchmark records it as a documented known defect on the four cases that
-reproduce it. Known-defect failures do not gate the evaluation exit status, but
-a case-level check raises a **required** failure if the defect ever stops
-reproducing, so the fix cannot land silently and the record cannot outlive the
-defect. See `docs/evaluation/BENCHMARK_V1.md`.
+`normalizeWeights` rounds each preceding normalized weight before assigning the
+last key the residual needed to reach 100. A cumulative rounding overshoot can
+therefore make that final residual slightly negative. This can create adjacent
+score edges outside intended percentage bounds. It is tracked separately from
+the signed-score contract correction and requires its own characterization,
+semantic decision, and benchmark review; no normalization behavior changed in
+ADR-0010.
 
 ### P0.6 Candidate scoring depends on very limited evidence
 

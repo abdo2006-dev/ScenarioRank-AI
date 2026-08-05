@@ -5,8 +5,8 @@ import process from "node:process";
 /**
  * Current Phase 3A declarations are intentionally checked as committed text,
  * not calculated by running tests. This keeps the documentation reviewable,
- * deterministic, and network-free while preventing old green-baseline wording
- * from returning to active status sections.
+ * deterministic, and network-free while preventing superseded Phase 3A
+ * baseline wording from returning to active status sections.
  */
 const statusDocuments = [
   "docs/PROJECT_STATUS.md",
@@ -15,17 +15,17 @@ const statusDocuments = [
 ];
 
 const requiredCurrentStatements = [
-  "pass_with_known_defects",
+  "clean_pass",
   "fixture machinery: passed",
-  "12 clean cases",
-  "8 known-defect observations",
-  "4 affected executions",
+  "16 clean cases",
+  "0 known-defect observations",
+  "0 affected executions",
   "0 unexpected failures",
   "0 unexpected defect resolutions",
-  "103 frontend tests",
-  "224 server tests",
-  "326 evaluation tests",
-  "653 total tests",
+  "105 frontend tests",
+  "231 server tests",
+  "329 evaluation tests",
+  "665 total tests",
 ];
 
 const stalePatterns = [
@@ -35,15 +35,23 @@ const stalePatterns = [
   /\b309\s+(?:evaluation\s+)?tests\b/i,
   /\b642\s+(?:total\s+)?tests\b/i,
   /\b322\s+(?:evaluation\s+)?tests\b/i,
+  /\bpass_with_known_defects\b/i,
+  /\b12\s+clean\s+cases\b/i,
+  /\b8\s+known-defect\s+observations\b/i,
+  /\b4\s+affected\s+executions\b/i,
+  /SR-P3A-001 remains unfixed/i,
 ];
 
 function isHistoricalContext(lines, index) {
   const line = lines[index];
   if (/\b(historical|superseded)\b/i.test(line)) return true;
 
+  let childHeadingLevel = Number.POSITIVE_INFINITY;
   for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-    if (/^#{1,6}\s/.test(lines[cursor])) {
-      return /\b(historical|superseded)\b/i.test(lines[cursor]);
+    const heading = /^(#{1,6})\s/.exec(lines[cursor]);
+    if (heading && heading[1].length <= childHeadingLevel) {
+      if (/\b(historical|superseded)\b/i.test(lines[cursor])) return true;
+      childHeadingLevel = heading[1].length;
     }
   }
   return false;

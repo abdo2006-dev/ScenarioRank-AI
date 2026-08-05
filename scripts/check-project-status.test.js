@@ -79,22 +79,30 @@ describe("scripts/check-project-status.mjs", () => {
   it("rejects a missing current run-state declaration", async () => {
     await captureOriginals();
     await Promise.all(statusPaths.map(async (file, index) =>
-      writeFile(file, originals[index].replaceAll("pass_with_known_defects", "baseline-pending")),
+      writeFile(file, originals[index].replaceAll("clean_pass", "baseline-pending")),
     ));
     await expect(runScript()).rejects.toMatchObject({
       code: 1,
-      stderr: expect.stringContaining("pass_with_known_defects"),
+      stderr: expect.stringContaining("clean_pass"),
     });
   });
 
   it("rejects missing current total declarations", async () => {
     await captureOriginals();
     await Promise.all(statusPaths.map(async (file, index) =>
-      writeFile(file, originals[index].replaceAll("653 total tests", "total pending")),
+      writeFile(file, originals[index].replaceAll("665 total tests", "total pending")),
     ));
     await expect(runScript()).rejects.toMatchObject({
       code: 1,
-      stderr: expect.stringContaining("653 total tests"),
+      stderr: expect.stringContaining("665 total tests"),
+    });
+  });
+
+  it("rejects an active claim that SR-P3A-001 remains unfixed", async () => {
+    await appendProjectStatus("SR-P3A-001 remains unfixed.");
+    await expect(runScript()).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("SR-P3A-001 remains unfixed"),
     });
   });
 });

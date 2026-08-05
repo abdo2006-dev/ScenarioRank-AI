@@ -289,10 +289,21 @@ describe("benchmark case schema", () => {
 
   it("rejects a known defect with a malformed ID or a missing reference", () => {
     const badId = caseFixture("case-001");
-    badId.known_defects[0].id = "oops";
+    badId.known_defects = [{
+      defect_id: "SR-TEST-001",
+      title: "A synthetic schema-test defect.",
+      case_id: badId.case_id,
+      execution_scope: { execution_id: "case-001#s0#r1", scenario_id: "scenario-1", scenario_index: 0, variant_id: null, repetition: 1 },
+      expected_observations: [{ grader_id: "contract-validity", signature: { kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" } }],
+      summary: "Synthetic schema-test defect.",
+      reference: "docs/evaluation/BENCHMARK_V1.md",
+    }];
+    badId.known_defects[0].defect_id = "oops";
     expect(parseBenchmarkCase(badId).ok).toBe(false);
 
     const noReference = caseFixture("case-001");
+    noReference.known_defects = structuredClone(badId.known_defects);
+    noReference.known_defects[0].defect_id = "SR-TEST-001";
     delete noReference.known_defects[0].reference;
     expect(parseBenchmarkCase(noReference).ok).toBe(false);
   });

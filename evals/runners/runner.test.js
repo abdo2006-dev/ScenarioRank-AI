@@ -119,11 +119,39 @@ describe("fixture baseline", () => {
     expect(result.passed).toBe(false);
   });
 
-  it("distinguishes a clean pass from a pass that observes known defects", async () => {
+  it("keeps the re-baselined committed cases clean", async () => {
     const clean = await runAll({ caseIds: ["case-007"] });
-    const withKnownDefect = await runAll({ caseIds: ["case-001"] });
+    const repairedCase = await runAll({ caseIds: ["case-001"] });
     expect(clean.summary.run_state).toBe("clean_pass");
-    expect(withKnownDefect.summary.run_state).toBe("pass_with_known_defects");
+    expect(repairedCase.summary.run_state).toBe("clean_pass");
+  });
+
+  it("reports a resolved known defect as a required baseline change, not an unrelated failure", async () => {
+    const resolvedCase = structuredClone(caseById.get("case-001"));
+    resolvedCase.known_defects = [{
+      defect_id: "SR-TEST-RESOLVED",
+      title: "Synthetic resolved-defect test record.",
+      case_id: resolvedCase.case_id,
+      execution_scope: { execution_id: "case-001#s0#r1", scenario_id: "scenario-1", scenario_index: 0, variant_id: null, repetition: 1 },
+      expected_observations: [{ grader_id: "contract-validity", signature: { kind: "schema_issue", path_pattern: "candidate_evaluations.*.risk_adjusted_score", code: "too_small", minimum: 0, subject_candidate_id: "priya-tallow" } }],
+      summary: "Synthetic resolved-defect test record.",
+      reference: "docs/evaluation/BENCHMARK_V1.md",
+    }];
+    const run = await runBenchmark({
+      benchmark: { ...benchmark, cases: [resolvedCase] },
+      caseIds: [resolvedCase.case_id],
+      mode: "fixtures",
+      provider: "fake-eval",
+      model: "fixture:per-case",
+      createProvider: ({ benchmarkCase, scenarioIndex }) =>
+        createEvalFakeProvider({ benchmarkCase, scenarioIndex }),
+    });
+
+    expect(run.summary).toMatchObject({
+      run_state: "baseline_change_required",
+      unexpected_failures: 0,
+      unexpected_defect_resolutions: 1,
+    });
   });
 
   it("is deterministic in its decision content across repeated runs", async () => {
@@ -415,28 +443,24 @@ describe("run artifacts", () => {
   });
 });
 
-describe("known defects in the committed baseline", () => {
-  it("keeps the baseline green while reporting the defect prominently", async () => {
+describe("known defects after the committed baseline is re-versioned", () => {
+  it("keeps the baseline clean with no active known-defect observations", async () => {
     const run = await runAll();
     expect(run.passed).toBe(true);
-    expect(run.summary.expected_failures).toBeGreaterThan(0);
-    expect(renderRunMarkdown(run)).toContain("Known defects reproduced");
+    expect(run.summary.run_state).toBe("clean_pass");
+    expect(run.summary.expected_failures).toBe(0);
+    expect(renderRunMarkdown(run)).toContain("No known defects were reproduced");
   });
 
-  it("attributes every expected failure to a documented defect", async () => {
+  it("does not retain resolved SR-P3A-001 annotations in committed cases", async () => {
     const run = await runAll();
     const expected = run.caseResults.flatMap((caseResult) =>
       caseResult.executions
         .flatMap((execution) => execution.grader_results)
         .filter((result) => result.status === "expected_failure"),
     );
-    expect(expected).toHaveLength(8);
-    expect(new Set(expected.map((result) => result.known_defect_id))).toEqual(new Set(["SR-P3A-001"]));
-    expect(run.summary.affected_execution_ids).toHaveLength(4);
-    for (const result of expected) {
-      expect(result.summary).toMatch(/^Known defect SR-/);
-      expect(result.details.join(" ")).toContain("see docs/");
-    }
+    expect(expected).toEqual([]);
+    expect(run.summary.affected_execution_ids).toEqual([]);
   });
 
   it("renders all top-level run states without a bare pass label", async () => {

@@ -9,6 +9,16 @@
       "digest": "c59afa0c0362a69e7f03f3c6ef9511e9c8987dd766085b096061d6fc8efa60f8",
       "reason": "Initial reviewed Phase 3A release record.",
       "timestamp": "2026-08-02T14:04:51.000Z"
+    },
+    {
+      "benchmark_id": "decision-benchmark-v1",
+      "benchmark_version": "1.1.0",
+      "schema_version": "1.0.0",
+      "metadata_revision": 0,
+      "previous_digest": "c59afa0c0362a69e7f03f3c6ef9511e9c8987dd766085b096061d6fc8efa60f8",
+      "digest": "4a938724a3be0de9682786d9a6c068cecce29f69fe19fecf4db73b43c80f1da8",
+      "reason": "Version 1.1.0 removes SR-P3A-001 expected observations after adopting the signed -100..100 risk-adjusted-score contract.",
+      "timestamp": "2026-08-05T13:36:07.757Z"
     }
   ]
 }

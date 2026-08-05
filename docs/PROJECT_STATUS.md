@@ -159,20 +159,13 @@ gated live runner, and a four-verdict comparison command. **No production
 behaviour changed**: no prompt, model, structured-output schema, scoring
 formula, ranking rule, pairing behaviour, HTTP contract, or frontend
 component was touched, and no coding agent made a real OpenAI call at any
-point. Current verification: 653 tests (103 frontend + 224 server + 326
-evaluation). The frontend count remains unchanged from `main`; the server count
-includes repository documentation-guard regression tests only.
-**The harness found a real, previously-unknown production defect on its
-first run** — `SR-P3A-001`, where `computeRiskAdjustedScore` can return a
-negative value while the public contract bounds `risk_adjusted_score` to
-0-100, so `server/http/routes.js` rejects its own response and returns a
-generic 500 *after* the OpenAI calls have been paid for. It was
-deliberately **not** fixed, because Phase 3A is scoped to measurement and
-forbidden from changing scoring or contracts; it is recorded in
-`docs/architecture/KNOWN_LIMITATIONS.md` (P0.7) and tracked by the
-benchmark's known-defect mechanism, which raises a required failure if the
-defect ever stops reproducing. Phase 3B has not started. See "Phase 3A"
-below for full detail.
+point. The subsequent narrow SR-P3A-001 correction adopted a signed
+`-100…100` risk-adjusted net-score contract without changing coefficients,
+ranking modes, pairing, prompts, or providers. Benchmark v1.1.0 is now
+`clean_pass`: 16 clean cases, 0 known-defect observations, 0 affected
+executions, and 0 unexpected failures or resolutions. Current verification is
+665 tests (105 frontend + 231 server + 329 evaluation). Phase 3B remains
+unstarted. See ADR-0010 and the current status record below.
 
 ## Project objective
 
@@ -1900,7 +1893,7 @@ independently reviewable follow-up.
     Framework Mode, or Data Mode, or when a deliberate React Router 8
     migration is separately scoped.
 
-## Phase 3A — evaluation harness and synthetic benchmark (complete and merged)
+## Historical: Phase 3A — evaluation harness and synthetic benchmark (complete and merged)
 
 **PR #8** was squash-merged into `main` at `2026-08-05T12:53:18Z` as
 `45e753dadb5b7ab297b4ccccbce197f777fc772f`. The temporary
@@ -2090,7 +2083,7 @@ the numbers. Full limitation list: `docs/evaluation/BENCHMARK_V1.md`.
 **Phase 3B has not started.** The recommended next milestone is to decide and
 apply the `SR-P3A-001` fix, re-baseline the benchmark, and only then begin
 prompt and model work with before/after comparison.
-# Phase 3A completion record (2026-08-05)
+# Historical: Phase 3A completion record (2026-08-05)
 
 Phase 3A is complete and merged through PR #8. Its squash-merge commit is
 `45e753dadb5b7ab297b4ccccbce197f777fc772f` at `2026-08-05T12:53:18Z`; the
@@ -2111,5 +2104,32 @@ Live mode remains unexecuted, and no real OpenAI call occurred in Phase 3A. The
 (`GHSA-qwww-vcr4-c8h2`); no dependency changed in the final documentation pass.
 SR-P3A-001 remains unfixed, and Phase 3B remains unstarted.
 
-The exact next milestone is a separate SR-P3A-001 semantic-fix PR followed by
-benchmark re-baselining. It is not part of this completed Phase 3A milestone.
+The exact next milestone was the separate SR-P3A-001 semantic-fix PR followed
+by benchmark re-baselining. It is retained here as historical Phase 3A evidence.
+
+# Current: SR-P3A-001 signed-score correction (2026-08-05)
+
+`SR-P3A-001` is resolved by the narrow signed-score correction recorded in
+`docs/decisions/ADR-0010-signed-risk-adjusted-score.md`. The public
+`risk_adjusted_score` is a signed penalty-adjusted net score in `-100…100`;
+higher is better, and a negative result means modeled penalties exceed weighted
+fit. The formula rounds to two decimals before applying that final boundary.
+
+Benchmark `decision-benchmark-v1` advanced from `1.0.0` to `1.1.0` only after
+the old annotations produced `baseline_change_required`. The reviewed v1.1.0
+integrity record now supports this committed offline baseline:
+
+```text
+run state: clean_pass
+fixture machinery: passed
+16 clean cases
+0 known-defect observations
+0 affected executions
+0 unexpected failures
+0 unexpected defect resolutions
+105 frontend tests, 231 server tests, 329 evaluation tests, 665 total tests
+```
+
+No live evaluation or OpenAI request was made for this correction. Phase 3B
+remains unstarted. The separate weight-normalization residual issue remains
+open and is not fixed by this change.

@@ -127,7 +127,10 @@ WFS
 - 0.15 * OpportunityCostRisk
 ```
 
-This result can be negative. It is not clamped before ranking.
+This is a signed penalty-adjusted net score. It can be negative when modeled
+penalties exceed weighted fit. The existing calculation rounds to two decimals,
+then enforces the public `-100…100` boundary; ranking uses that same final
+value. It is neither a percentage nor a calibrated probability.
 
 ### Pair score
 
