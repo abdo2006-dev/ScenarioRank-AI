@@ -24,6 +24,16 @@ would mean less code to maintain.
 as more than it is becomes a liability: it invites "our system was evaluated
 and passed" from a set of sixteen invented cases.
 
+## Current Phase 3A status (2026-08-05)
+
+The committed offline baseline is `pass_with_known_defects`; fixture machinery:
+passed. 16/16 cases completed without unexpected failure. There are 12 clean
+cases, 8 known-defect observations, and 4 affected executions; 0 unexpected
+failures and 0 unexpected defect resolutions. Current verification totals
+are 103 frontend tests, 224 server tests, 326 evaluation tests, and 653 total
+tests. SR-P3A-001 remains unfixed. No live evaluation or OpenAI request has
+occurred, and Phase 3B remains unstarted.
+
 ## Decision
 
 ### 1. The harness is repository-native and local-first
@@ -44,7 +54,8 @@ Reasons, in order of weight:
    small real budget. An evaluation system that costs money every time it runs
    will not be run, and an unused benchmark measures nothing.
 3. **It must be testable without spending anything.** The harness is itself
-   code that can be wrong. It has 309 tests, none of which calls OpenAI.
+   code that can be wrong. It has 326 evaluation tests, none of which calls
+   OpenAI.
 4. **It must remain provider-portable.** ScenarioRank reaches its provider
    through a provider-neutral contract (ADR-0002/ADR-0004). Binding evaluation
    to one vendor's evaluation product would reintroduce, at the evaluation

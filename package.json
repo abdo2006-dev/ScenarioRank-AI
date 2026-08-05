@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "lint:server": "eslint server/ai server/domain server/config server/pipeline server/http server.mjs evals",
     "check:decision-readability": "node scripts/check-decision-source-readability.mjs",
+    "check:project-status": "node scripts/check-project-status.mjs",
     "check:unused-template": "node scripts/check-unused-template.mjs",
     "check:toolchain": "node scripts/check-toolchain.mjs && node scripts/check-router-toolchain.mjs",
     "eval:validate": "node evals/cli/validate.mjs",

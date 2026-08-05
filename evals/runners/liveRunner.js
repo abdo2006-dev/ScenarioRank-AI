@@ -27,11 +27,10 @@ import { estimateCostUsd, getPricingForModel } from "../../server/ai/pricing/ope
 import { PROVIDER_COST_POLICY } from "../../server/pipeline/runPipeline.js";
 
 /**
- * Worst-case output-token budgets per logical stage, mirroring the constants
- * in server/pipeline/runPipeline.js. Kept as a separate, clearly-labelled copy
- * because the harness must not reach into the pipeline's internals, and
- * because an estimate that silently tracked a pipeline change would stop being
- * conservative without anyone noticing.
+ * Worst-case output-token budgets per logical stage, derived from the frozen
+ * production cost policy export in server/pipeline/runPipeline.js. The
+ * estimator therefore tracks the same reviewed limits without maintaining a
+ * second copy.
  */
 export const STAGE_OUTPUT_TOKEN_BUDGETS = PROVIDER_COST_POLICY.outputTokenBudgets;
 

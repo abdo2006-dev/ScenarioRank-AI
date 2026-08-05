@@ -157,8 +157,9 @@ gated live runner, and a four-verdict comparison command. **No production
 behaviour changed**: no prompt, model, structured-output schema, scoring
 formula, ranking rule, pairing behaviour, HTTP contract, or frontend
 component was touched, and no coding agent made a real OpenAI call at any
-point. Verification: 629 tests (103 frontend + 217 backend + 309
-evaluation), with frontend and backend counts unchanged from `main`.
+point. Current verification: 653 tests (103 frontend + 224 server + 326
+evaluation). The frontend count remains unchanged from `main`; the server count
+includes repository documentation-guard regression tests only.
 **The harness found a real, previously-unknown production defect on its
 first run** — `SR-P3A-001`, where `computeRiskAdjustedScore` can return a
 negative value while the public contract bounds `risk_adjusted_score` to
@@ -2001,10 +2002,11 @@ schema-validated and scanned for secret- and absolute-path-shaped strings
 ### Fixture baseline
 
 ```text
-cases: 16/16 passed   executions: 21   repetitions: 1
-required failures: 0   advisory failures: 0   known defects: 8
-stages: 65   attempts: 65   tokens: 0   cost: unavailable
-result: PASSED
+run state: pass_with_known_defects
+fixture machinery: passed
+16/16 cases completed without unexpected failure
+clean cases: 12   known-defect observations: 8   affected executions: 4
+unexpected failures: 0   unexpected defect resolutions: 0
 ```
 
 Scenario sensitivity is demonstrated, not assumed: `case-004` produces
@@ -2056,19 +2058,20 @@ Recorded as P2.5.
 | `npm run check:unused-template` | passes |
 | `npm run check:toolchain` | passes |
 | `npm run eval:validate` | 16 cases valid, 8 rubric dimensions, 11 graders |
-| `npm run eval:fixtures` | 16/16 cases passed, 0 required failures |
-| `npm test` | **629 tests** (103 frontend + 217 backend + 309 evaluation) |
+| `npm run eval:fixtures` | `pass_with_known_defects`; fixture machinery passed; 12 clean cases, 8 known-defect observations, 4 affected executions |
+| `npm test` | **653 tests** (103 frontend + 224 server + 326 evaluation) |
 | `npm run build` | passes |
 | `node --check server.mjs` | passes |
-| `npm audit` | 1 finding, unchanged (`GHSA-qwww-vcr4-c8h2`, not applicable — see Phase 2D) |
+| `npm audit` | 2 high advisories: `brace-expansion` (`GHSA-rgw5-rvv9-x895`) and React Router RSC mode (`GHSA-qwww-vcr4-c8h2`); neither was introduced by this Phase 3A documentation pass, and no dependencies changed |
 | Dependency/lockfile changes | none |
 | `git diff --check` | clean |
 | Real OpenAI calls | **none** |
 | Router / Vite versions | `react-router` 7.18.2, `vite` 6.4.3, `esbuild` 0.25.12 — unchanged |
 | Archive branch and tag | `archive/bmw-award-original` and `bmw-award-original` untouched |
 
-Frontend and backend test counts are **unchanged from `main`** (103 and 217),
-which is the evidence that no production behaviour was altered.
+The frontend test count remains **unchanged from `main`** (103). The server
+count includes repository documentation-guard tests only; no production
+behaviour was altered.
 
 ### What Phase 3A does not claim
 
@@ -2084,6 +2087,18 @@ the numbers. Full limitation list: `docs/evaluation/BENCHMARK_V1.md`.
 **Phase 3B has not started.** The recommended next milestone is to decide and
 apply the `SR-P3A-001` fix, re-baseline the benchmark, and only then begin
 prompt and model work with before/after comparison.
-# Phase 3A current state (2026-08-03)
+# Phase 3A current state (2026-08-05)
 
-Phase 3A is `pass_with_known_defects`: 16 cases complete without unexpected failure, with 12 clean cases, 8 expected SR-P3A-001 observations across 4 affected executions, and 0 unexpected failures. SR-P3A-001 remains unfixed. No live evaluation or OpenAI request has occurred; Phase 3B remains unstarted.
+Phase 3A is `pass_with_known_defects`. Fixture machinery: passed. 16/16 cases
+completed without unexpected failure: 12 clean cases and four cases containing
+8 known-defect observations across 4 affected executions. 0 unexpected failures. 0 unexpected defect resolutions.
+
+Current verification totals are 103 frontend tests, 224 server tests, 326
+evaluation tests, and 653 total tests. The 2026-08-05 `npm audit` verification
+reached the endpoint and reported two high advisories: `brace-expansion`
+(`GHSA-rgw5-rvv9-x895`) and React Router RSC mode (`GHSA-qwww-vcr4-c8h2`).
+Neither was introduced by this Phase 3A documentation pass; no dependency
+changed in Phase 3A.
+
+SR-P3A-001 remains unfixed. No live evaluation or OpenAI request has occurred;
+Phase 3B remains unstarted.

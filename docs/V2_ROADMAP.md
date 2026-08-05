@@ -395,8 +395,9 @@ Architecture and reasoning:
 
 **No production behaviour changed.** No prompt, model, schema, scoring formula,
 ranking rule, pairing behaviour, HTTP contract, or frontend component was
-touched. Verification: 629 tests (103 frontend + 217 backend + 309 evaluation),
-with the frontend and backend counts unchanged from `main`.
+touched. Current verification: 653 tests (103 frontend + 224 server + 326
+evaluation). The frontend count remains unchanged from `main`; the server count
+includes repository documentation-guard regression tests only.
 
 **The harness found a real defect on its first run** and deliberately did not
 fix it: `SR-P3A-001` — `computeRiskAdjustedScore` can return a negative value
@@ -417,4 +418,10 @@ comparison. Remaining Phase 3 items from the original plan — structured error
 classes and cancellation, and CI wiring — also belong here.
 # Phase 3A hardening status
 
-Phase 3A remains measurement-only. The committed fixture baseline is `pass_with_known_defects` (12 clean cases; 8 expected observations across 4 executions; 0 unexpected failures). SR-P3A-001 remains unfixed and Phase 3B has not started.
+Phase 3A remains measurement-only. The committed fixture baseline is
+`pass_with_known_defects`; fixture machinery: passed. 16/16 cases completed
+without unexpected failure: 12 clean cases, 8 known-defect observations, and 4
+affected executions. 0 unexpected failures. 0 unexpected defect resolutions.
+Current verification totals: 103 frontend tests, 224 server tests, 326
+evaluation tests, and 653 total tests. SR-P3A-001 remains unfixed; no live
+evaluation or OpenAI request has occurred; Phase 3B has not started.
