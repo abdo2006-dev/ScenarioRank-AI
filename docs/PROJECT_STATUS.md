@@ -146,6 +146,32 @@ real OpenAI call at any point in Phase 2D; Phase 3 remains unstarted. The
 recommended next action is Phase 3A evaluation infrastructure planning.
 See "Phase 2D" below for full detail.
 
+**Phase 3A is in draft and not merged.** Branch
+`v2/phase-3a-evaluation-harness`, targeting `main` at
+`93dfd4f517bf32ea949a5efeda2140478f62c702`. It adds `evals/` — a
+local-first, offline-capable evaluation harness — and
+`decision-benchmark-v1`, a versioned benchmark of 16 fully synthetic cases
+(21 scenario executions) with 11 deterministic graders, an 8-dimension
+anchored human-review rubric, seven offline fake-provider profiles, a
+gated live runner, and a four-verdict comparison command. **No production
+behaviour changed**: no prompt, model, structured-output schema, scoring
+formula, ranking rule, pairing behaviour, HTTP contract, or frontend
+component was touched, and no coding agent made a real OpenAI call at any
+point. Current verification: 653 tests (103 frontend + 224 server + 326
+evaluation). The frontend count remains unchanged from `main`; the server count
+includes repository documentation-guard regression tests only.
+**The harness found a real, previously-unknown production defect on its
+first run** — `SR-P3A-001`, where `computeRiskAdjustedScore` can return a
+negative value while the public contract bounds `risk_adjusted_score` to
+0-100, so `server/http/routes.js` rejects its own response and returns a
+generic 500 *after* the OpenAI calls have been paid for. It was
+deliberately **not** fixed, because Phase 3A is scoped to measurement and
+forbidden from changing scoring or contracts; it is recorded in
+`docs/architecture/KNOWN_LIMITATIONS.md` (P0.7) and tracked by the
+benchmark's known-defect mechanism, which raises a required failure if the
+defect ever stops reproducing. Phase 3B has not started. See "Phase 3A"
+below for full detail.
+
 ## Project objective
 
 ScenarioRank AI V2 is a post-award engineering refinement of the BMW
@@ -1871,3 +1897,208 @@ independently reviewable follow-up.
     actual usage and should be revisited only if this app adopts RSC,
     Framework Mode, or Data Mode, or when a deliberate React Router 8
     migration is separately scoped.
+
+## Phase 3A — evaluation harness and synthetic benchmark (draft PR, not merged)
+
+**Branch `v2/phase-3a-evaluation-harness`**, targeting `main` at
+`93dfd4f517bf32ea949a5efeda2140478f62c702`. Draft pull request, not merged.
+
+### Objective
+
+Build the measurement infrastructure needed to evaluate ScenarioRank's AI
+pipeline **before** changing prompts, models, structured-output schemas,
+deterministic scoring, ranking, or pairing. Explicitly out of scope: prompt
+optimisation, model switching, temperature experiments, production score/
+ranking/pairing changes, LLM-as-judge grading, hosted OpenAI Evals integration,
+external benchmark publishing, demographic fairness testing, real applicant
+data, database persistence, evaluation dashboards, UI redesign, and Phase 3B.
+
+### Why evaluation precedes prompt optimisation
+
+Without a measurement, "this prompt is better" is an opinion — improvements
+cannot be demonstrated and regressions stay invisible until a user finds them.
+There is also a project-specific reason: ScenarioRank's central architectural
+claim is that LLMs interpret evidence while deterministic code computes the
+ranking, and most of what the new graders check is exactly that claim. Those
+checks needed to exist before anyone began adjusting the parts of the system
+that could quietly break them.
+
+### What was added
+
+`evals/`, a repository-native harness that executes the **real** production
+pipeline (`server/pipeline/runPipeline.js`) — real prompts, real schemas, real
+deterministic scoring, real batch-identity validation.
+
+- **`decision-benchmark-v1`** — 16 fully synthetic cases, 21 scenario
+  executions. Immutable benchmark ID; enforced versioning policy (case IDs never
+  change or get reused; a meaning change requires a new `benchmark_version`; a
+  cosmetic change increments `metadata_revision`; runners refuse an unsupported
+  `schema_version`; reports record benchmark version and git commit). Closed tag
+  vocabulary. Every case declares `synthetic: true` and
+  `data_policy: "synthetic-only"` as schema literals.
+- **11 deterministic graders** — contract validity, candidate coverage,
+  scenario coverage, ranking consistency, score integrity, pairing integrity,
+  pipeline accounting, `not_measured` honesty, winner expectations, unsupported
+  claims, uncertainty acknowledgement. Score integrity recomputes every
+  recomputable deterministic value using the production formulas in
+  `server/domain/scoring.js`.
+- **An 8-dimension anchored human-review rubric** (0-4), with
+  `not_applicable`/`cannot_determine` never coerced into numbers, per-dimension
+  scores always retained, and the convenience aggregate withheld below five
+  scored dimensions. No LLM-as-judge grading.
+- **Seven offline fake-provider profiles** — three valid (usable by a committed
+  case) and four deliberately invalid, so the graders are *proven* to catch
+  real defects rather than only ever observed passing.
+- **A gated live runner**, **a four-verdict comparison command**, and
+  **permutation/stability utilities**.
+
+### Commands
+
+`npm run eval:validate`, `npm run eval:fixtures`, `npm run eval:live`,
+`npm run eval:compare` — all support `--help`, emit no ANSI escape codes, and
+return nonzero on a required failure.
+
+### Boundaries held
+
+`evals/` imports production; production imports **nothing** from `evals/`, and
+`evals/repositoryProtection.test.js` enforces the direction across `server/`,
+`src/`, `shared/`, `scripts/`, and `server.mjs`. No competing schema copies were
+created: the decision output continues to validate through the real
+`completedPipelineResponseSchema`.
+
+One deliberate exception, worth recording because it was learned by a crash:
+the run-artifact schema stores the pipeline response *without* enforcing the
+public contract. The `contract-validity` grader exists to detect a response
+that violates that contract; if the artifact schema enforced it too, the
+harness would crash while recording the very defect it exists to find.
+Validation happens in exactly one place — the grader — which reports the
+violation instead of destroying the evidence.
+
+### Live-mode safeguards (never executed)
+
+`--live` required; `OPENAI_API_KEY` required; CI refused unless `--allow-ci`;
+an explicit positive, finite budget required (`--max-budget-usd` or
+`EVAL_MAX_BUDGET_USD`); the plan (model, cases, repetitions, worst-case calls,
+worst-case cost, budget) displayed before the first request; the run refused
+outright if the worst case exceeds the budget; a model with no recorded pricing
+refused, because a budget that cannot be computed cannot be enforced; spend
+re-checked between executions, stopping *before* an execution that could
+breach the limit; default repetitions 1; default case selection nothing, with
+`--all-cases` required to run the whole benchmark. The provider factory is
+imported lazily, so a refused invocation never constructs an OpenAI client.
+
+**No real OpenAI call was made at any point during Phase 3A**, and no automated
+test in this repository calls OpenAI.
+
+### Artifacts
+
+Written to `.eval-runs/<run-id>/` (git-ignored): `run-manifest.json`,
+`case-results.jsonl`, `summary.json`, `summary.md`, `permutations.json`,
+`human-review-template.json`. Never recorded: API keys, headers, request or
+response bodies, machine-specific absolute paths. Every artifact is
+schema-validated and scanned for secret- and absolute-path-shaped strings
+**before** it is written.
+
+### Fixture baseline
+
+```text
+run state: pass_with_known_defects
+fixture machinery: passed
+16/16 cases completed without unexpected failure
+clean cases: 12   known-defect observations: 8   affected executions: 4
+unexpected failures: 0   unexpected defect resolutions: 0
+```
+
+Scenario sensitivity is demonstrated, not assumed: `case-004` produces
+different winners across its two scenarios, `case-005` produces three different
+specialist winners across three scenarios while never ranking the consistently
+moderate candidate first, and `case-016` selects a best pair
+(`finnegan-adler::hollis-nakamura`) that is *not* the two strongest
+individuals.
+
+### Real defect found — `SR-P3A-001`, deliberately not fixed
+
+The first fixture run ever executed found a genuine, previously-unrecorded
+production defect. `computeRiskAdjustedScore` (`server/domain/scoring.js`) can
+legitimately return a negative value for a weak candidate, while
+`completedPipelineResponseSchema` bounds `risk_adjusted_score` to `0-100` — and
+`server/http/routes.js` calls `completedPipelineResponseSchema.parse(result)`
+before responding. A run containing a sufficiently weak candidate therefore
+throws inside the route handler and the user receives a generic
+`500 Pipeline failed. Please try again.` **after** every OpenAI call for that
+run has already been made and paid for. Observed values: `-30`, `-11.94`,
+`-0.4`.
+
+It was **not fixed**: Phase 3A is scoped to measurement and explicitly
+forbidden from changing scoring, ranking, or public contracts, and either
+candidate fix (clamping the score, or widening the contract) moves the baseline
+the harness was built to measure from. It is recorded in
+`docs/architecture/KNOWN_LIMITATIONS.md` (P0.7) and carried in the benchmark as
+a documented known defect on the four cases that reproduce it. Known-defect
+failures do not gate the exit status — a permanently red baseline trains
+everyone to ignore it — but a case-level check raises a **required** failure if
+the defect ever stops reproducing, so the fix cannot land silently and the
+record cannot outlive the defect.
+
+A second, smaller gap was surfaced while building `case-002`: ScenarioRank has
+**no near-tie uncertainty signal** at all. The deterministic
+confidence-and-evidence review keys only on reported confidence and evidence
+length, so a decision separated by noise is never flagged for human review.
+Recorded as P2.5.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `npm ci` | passes |
+| `npm run lint` | 0 problems |
+| `npm run lint:server` | 0 problems (now also covers `evals/`) |
+| `npm run typecheck` | passes |
+| `npm run check:decision-readability` | passes |
+| `npm run check:unused-template` | passes |
+| `npm run check:toolchain` | passes |
+| `npm run eval:validate` | 16 cases valid, 8 rubric dimensions, 11 graders |
+| `npm run eval:fixtures` | `pass_with_known_defects`; fixture machinery passed; 12 clean cases, 8 known-defect observations, 4 affected executions |
+| `npm test` | **653 tests** (103 frontend + 224 server + 326 evaluation) |
+| `npm run build` | passes |
+| `node --check server.mjs` | passes |
+| `npm audit` | 2 high advisories: `brace-expansion` (`GHSA-rgw5-rvv9-x895`) and React Router RSC mode (`GHSA-qwww-vcr4-c8h2`); neither was introduced by this Phase 3A documentation pass, and no dependencies changed |
+| Dependency/lockfile changes | none |
+| `git diff --check` | clean |
+| Real OpenAI calls | **none** |
+| Router / Vite versions | `react-router` 7.18.2, `vite` 6.4.3, `esbuild` 0.25.12 — unchanged |
+| Archive branch and tag | `archive/bmw-award-original` and `bmw-award-original` untouched |
+
+The frontend test count remains **unchanged from `main`** (103). The server
+count includes repository documentation-guard tests only; no production
+behaviour was altered.
+
+### What Phase 3A does not claim
+
+`decision-benchmark-v1` is a development benchmark. It is not scientifically
+validated, not representative of real hiring decisions, not evidence of
+fairness or demographic neutrality, not a legal-compliance test, not a
+calibrated-confidence benchmark, and not a production service-level objective.
+A passing fixture run proves the orchestration, deterministic computation, and
+graders behave as specified — it says nothing about prompt quality. The
+disclaimer is carried inside every run artifact so it cannot be separated from
+the numbers. Full limitation list: `docs/evaluation/BENCHMARK_V1.md`.
+
+**Phase 3B has not started.** The recommended next milestone is to decide and
+apply the `SR-P3A-001` fix, re-baseline the benchmark, and only then begin
+prompt and model work with before/after comparison.
+# Phase 3A current state (2026-08-05)
+
+Phase 3A is `pass_with_known_defects`. Fixture machinery: passed. 16/16 cases
+completed without unexpected failure: 12 clean cases and four cases containing
+8 known-defect observations across 4 affected executions. 0 unexpected failures. 0 unexpected defect resolutions.
+
+Current verification totals are 103 frontend tests, 224 server tests, 326
+evaluation tests, and 653 total tests. The 2026-08-05 `npm audit` verification
+reached the endpoint and reported two high advisories: `brace-expansion`
+(`GHSA-rgw5-rvv9-x895`) and React Router RSC mode (`GHSA-qwww-vcr4-c8h2`).
+Neither was introduced by this Phase 3A documentation pass; no dependency
+changed in Phase 3A.
+
+SR-P3A-001 remains unfixed. No live evaluation or OpenAI request has occurred;
+Phase 3B remains unstarted.

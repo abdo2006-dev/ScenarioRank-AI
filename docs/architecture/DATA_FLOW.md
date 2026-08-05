@@ -165,3 +165,65 @@ and non-streaming route tests parse the completed payload through this contract.
 Phase 2A adds a transport-validation checkpoint on both sides of this flow:
 malformed browser input stops at Express with a safe 400/error event; malformed
 server data stops before the UI renders it with a safe frontend error.
+
+## 4. Evaluation run (Phase 3A, offline by default)
+
+A path that exists only for measurement. It never involves the browser, the
+Express app, or any HTTP transport.
+
+```text
+npm run eval:fixtures
+  -> evals/cli/fixtures.mjs
+  -> loadBenchmark()            validates manifest, rubric, and all 16 cases,
+                                including each case's decision input against the
+                                production evaluationRequestSchema
+  -> runBenchmark()
+       for each case, for each repetition, for each scenario:
+         createEvalFakeProvider({ benchmarkCase, scenarioIndex })
+           -> createObservingProvider(...)   records requested candidate IDs and
+                                             canonical pair keys only — never
+                                             prompt text, response bodies, or
+                                             headers
+         -> runPipeline(provider, model, request, onUpdate, { maxCandidates })
+              ... the real production pipeline, unchanged ...
+         -> stage snapshots collected via onUpdate
+       -> runGraders(EXECUTION_GRADERS, { response, trace, stageSnapshots })
+       -> applyKnownDefects(...)             documented pre-existing defects
+       -> runGraders(CASE_GRADERS, ...)      scenario coverage
+       -> checkKnownDefectsStillReproduce()  required failure if a defect is gone
+  -> computeStability() / analysePermutations()
+  -> writeRunArtifacts()        schema-validated and policy-scanned BEFORE write
+  -> .eval-runs/<run-id>/       git-ignored
+```
+
+A case with N scenarios at R repetitions produces N x R executions. The
+production request contract takes exactly one scenario, so the harness executes
+one pipeline run per scenario rather than inventing a request shape the server
+cannot serve.
+
+### Trust boundaries specific to evaluation
+
+**Harness to pipeline.** One-way. The harness imports production; production
+imports nothing from `evals/`. Enforced by test.
+
+**Provider request to trace.** The observing provider records derived
+identifiers only. Prompt text, system text, response bodies, headers, and API
+keys are never retained, so a trace is safe to write into an artifact.
+
+**Run result to artifact.** Every artifact is schema-validated and scanned for
+secret- and absolute-path-shaped strings before it is written. A violation
+throws rather than writing — a leaked value in a run directory is worse than a
+failed run.
+
+One deliberate asymmetry: the artifact schema stores the pipeline response
+*without* enforcing `completedPipelineResponseSchema`. The `contract-validity`
+grader exists to detect a response that violates that contract; if the artifact
+schema also enforced it, the harness would crash while recording the very
+defect it exists to find. Contract validation happens in exactly one place —
+the grader — which reports the violation instead of destroying the evidence.
+
+**Live mode to network.** The only path in the harness that reaches the
+network, and only after `--live`, an API key, an explicit positive budget, a
+deliberate case selection, a non-CI environment (or `--allow-ci`), and a
+pre-flight worst-case cost check have all passed. The provider factory is
+imported lazily, so a refused invocation never constructs an OpenAI client.

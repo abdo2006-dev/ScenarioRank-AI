@@ -25,3 +25,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Evaluation run artifacts (Phase 3A). Runs are reproducible from the
+# committed benchmark plus a commit hash, and their output is large, machine-
+# specific in its timings, and — for live runs — derived from paid API calls.
+# Nothing here is ever committed; see docs/evaluation/RUNBOOK.md.
+.eval-runs/

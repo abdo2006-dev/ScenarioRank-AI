@@ -1,0 +1,113 @@
+{
+  "case_id": "case-013",
+  "schema_version": "1.0.0",
+  "title": "Semantically equivalent wording variant of case-007",
+  "description": "Each fictional candidate description from case-007 is rewritten to say the same thing in different words, with the same numbers, dates, and outcomes. The result should be unchanged.",
+  "tags": [
+    "permutation",
+    "basic-ranking"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Plant Operations Manager",
+      "description": "Runs a single fictional production site end to end, accountable for uptime, safety, and the site's ability to absorb unplanned disruption without missing customer commitments."
+    },
+    "scenarios": [
+      "Restoring plant uptime and disruption resilience after a year of unplanned downtime and one major site incident."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "dagny-holloway",
+        "name": "Dagny Holloway",
+        "description": "Over fourteen months, reduced unplanned downtime at a fictional bottling plant from 9.4% to 3.1%, achieved by reworking the preventive-maintenance schedule and putting two shift teams through retraining. In 2021 she led the plant through four days of flood recovery without a single customer order being missed."
+      },
+      {
+        "id": "esteban-rourke",
+        "name": "Esteban Rourke",
+        "description": "Spent six years running a fictional packaging line, keeping quarterly output inside 2% of plan throughout, and headed the site's transition to a replacement maintenance planning system, with the before-and-after metrics documented."
+      },
+      {
+        "id": "farrah-lindgren",
+        "name": "Farrah Lindgren",
+        "description": "Spent three years leading maintenance planning at an invented beverage site, where emergency call-outs fell by 12%. Has not led a site through a significant disruption."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "dagny-holloway",
+      "esteban-rourke",
+      "farrah-lindgren"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Restoring plant uptime and disruption resilience after a year of unplanned downtime and one major site incident."
+    ],
+    "allowed_winner_ids": [
+      "dagny-holloway"
+    ],
+    "forbidden_winner_ids": [
+      "farrah-lindgren"
+    ],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": []
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": "case-007",
+  "variant_kind": "equivalent-wording",
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "dagny-holloway": {
+        "default": 8,
+        "criteria": {
+          "operational_execution": 9,
+          "crisis_management": 9,
+          "domain_expertise": 9
+        },
+        "confidence": 0.9,
+        "evidence_quality": "specific"
+      },
+      "esteban-rourke": {
+        "default": 7,
+        "criteria": {
+          "operational_execution": 8,
+          "domain_expertise": 7
+        },
+        "confidence": 0.88,
+        "evidence_quality": "specific"
+      },
+      "farrah-lindgren": {
+        "default": 6,
+        "criteria": {
+          "crisis_management": 4
+        },
+        "confidence": 0.86,
+        "evidence_quality": "specific"
+      }
+    }
+  },
+  "notes": "Only the candidate descriptions are reworded. The role and scenario text are byte-identical to case-007, so the reworded descriptions are the single changed variable. Under the offline fake provider this case is guaranteed to match case-007, because the fixture scores by candidate ID and ignores description text. Its real value is against a live model, where wording genuinely can move scores — see the limitations section of docs/evaluation/BENCHMARK_V1.md."
+}

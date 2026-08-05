@@ -70,14 +70,29 @@ const DEFAULT_STAGE_TIMEOUT_MS = 90000;
 // and batch pairing scale with the configured maximum candidate/pair
 // count plus a fixed per-item overhead; decision explanation is a fixed
 // narrative shape regardless of run size.
-const CONTEXT_ANALYSIS_MAX_TOKENS = 3000;
-const CANDIDATE_SCORING_TOKENS_PER_CANDIDATE = 1100;
-const CANDIDATE_SCORING_FIXED_OVERHEAD = 300;
-const PAIRING_TOKENS_PER_PAIR = 380;
-const PAIRING_FIXED_OVERHEAD = 200;
-const DECISION_EXPLANATION_MAX_TOKENS = 2200;
+// Exported for conservative evaluation planning. This is policy metadata only:
+// the pipeline continues to use the same values below and has no eval import.
+export const PROVIDER_COST_POLICY = Object.freeze({
+  outputTokenBudgets: Object.freeze({
+    contextAnalysis: 3000,
+    candidateScoringPerCandidate: 1100,
+    candidateScoringOverhead: 300,
+    pairingPerPair: 380,
+    pairingOverhead: 200,
+    decisionExplanation: 2200,
+  }),
+  maxBatchIntegrityExecutions: 2,
+  maxProviderAttemptsPerRequest: 2,
+});
 
-const MAX_BATCH_INTEGRITY_ATTEMPTS = 2;
+const CONTEXT_ANALYSIS_MAX_TOKENS = PROVIDER_COST_POLICY.outputTokenBudgets.contextAnalysis;
+const CANDIDATE_SCORING_TOKENS_PER_CANDIDATE = PROVIDER_COST_POLICY.outputTokenBudgets.candidateScoringPerCandidate;
+const CANDIDATE_SCORING_FIXED_OVERHEAD = PROVIDER_COST_POLICY.outputTokenBudgets.candidateScoringOverhead;
+const PAIRING_TOKENS_PER_PAIR = PROVIDER_COST_POLICY.outputTokenBudgets.pairingPerPair;
+const PAIRING_FIXED_OVERHEAD = PROVIDER_COST_POLICY.outputTokenBudgets.pairingOverhead;
+const DECISION_EXPLANATION_MAX_TOKENS = PROVIDER_COST_POLICY.outputTokenBudgets.decisionExplanation;
+
+const MAX_BATCH_INTEGRITY_ATTEMPTS = PROVIDER_COST_POLICY.maxBatchIntegrityExecutions;
 
 // This architecture has exactly 4 logical model-backed stages by design
 // (context, scoring, pairing, decision) — a fixed fact about the pipeline,

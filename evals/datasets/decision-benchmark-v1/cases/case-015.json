@@ -1,0 +1,184 @@
+{
+  "case_id": "case-015",
+  "schema_version": "1.0.0",
+  "title": "Pairing enabled with duplicate display names and one clearly complementary pair",
+  "description": "Four fictional candidates, two of whom share a display name while having distinct IDs, with pairing enabled. One pair is clearly the strongest combination. Every expected pair must be evaluated exactly once and the duplicate names must remain unambiguous throughout.",
+  "tags": [
+    "duplicate-name",
+    "pairing"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Head of Clinical Operations",
+      "description": "Leads clinical delivery across a fictional network of outpatient sites, working as one half of a two-person leadership pairing with a clinical governance counterpart."
+    },
+    "scenarios": [
+      "Standing up a two-person operational leadership pairing to run an outpatient network through a capacity expansion."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "alex-moreau-a",
+        "name": "Alex Moreau",
+        "description": "Operational delivery lead at a fictional outpatient network, strongest on capacity planning and throughput; comfortable being the operational half of a leadership pairing."
+      },
+      {
+        "id": "alex-moreau-b",
+        "name": "Alex Moreau",
+        "description": "A different fictional candidate who happens to share a display name: a clinical governance specialist with an audit and standards background, weaker on capacity mechanics."
+      },
+      {
+        "id": "dara-lindqvist",
+        "name": "Dara Lindqvist",
+        "description": "Clinical quality lead at an invented care group, strong on governance and staff engagement, with limited capacity-planning experience."
+      },
+      {
+        "id": "esme-tanaka",
+        "name": "Esme Tanaka",
+        "description": "Operations manager at a fictional diagnostics provider, broadly similar in profile to the first Alex Moreau, with overlapping rather than complementary strengths."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": true
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "alex-moreau-a",
+      "alex-moreau-b",
+      "dara-lindqvist",
+      "esme-tanaka"
+    ],
+    "pairing_enabled": true,
+    "expected_pair_count": 6,
+    "expected_best_pair_ids": [
+      "alex-moreau-a",
+      "dara-lindqvist"
+    ],
+    "required_stage_count": 4,
+    "required_scenario_coverage": [
+      "Standing up a two-person operational leadership pairing to run an outpatient network through a capacity expansion."
+    ],
+    "allowed_winner_ids": [
+      "alex-moreau-a"
+    ],
+    "forbidden_winner_ids": [],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 10,
+    "expect_human_review_for_candidate_ids": []
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance",
+    "pairing_usefulness"
+  ],
+  "variant_of": null,
+  "variant_kind": null,
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "alex-moreau-a": {
+        "default": 7,
+        "criteria": {
+          "operational_execution": 9,
+          "domain_expertise": 8,
+          "stakeholder_management": 5
+        },
+        "confidence": 0.85,
+        "evidence_quality": "specific"
+      },
+      "alex-moreau-b": {
+        "default": 6,
+        "criteria": {
+          "stakeholder_management": 8,
+          "domain_expertise": 7,
+          "operational_execution": 4
+        },
+        "confidence": 0.84,
+        "evidence_quality": "specific"
+      },
+      "dara-lindqvist": {
+        "default": 6,
+        "criteria": {
+          "stakeholder_management": 9,
+          "transformation_leadership": 7,
+          "operational_execution": 4
+        },
+        "confidence": 0.84,
+        "evidence_quality": "specific"
+      },
+      "esme-tanaka": {
+        "default": 6,
+        "criteria": {
+          "operational_execution": 8,
+          "domain_expertise": 7,
+          "stakeholder_management": 5
+        },
+        "confidence": 0.83,
+        "evidence_quality": "specific"
+      }
+    },
+    "pair_overrides": {
+      "alex-moreau-a::dara-lindqvist": {
+        "scenario_coverage": 0.93,
+        "complementarity": 0.92,
+        "overlap_risk": 0.12,
+        "conflict_risk": 0.08,
+        "execution_cohesion": 0.9,
+        "pair_adaptability": 0.85
+      },
+      "alex-moreau-a::esme-tanaka": {
+        "scenario_coverage": 0.62,
+        "complementarity": 0.3,
+        "overlap_risk": 0.85,
+        "conflict_risk": 0.3,
+        "execution_cohesion": 0.6,
+        "pair_adaptability": 0.45
+      },
+      "alex-moreau-a::alex-moreau-b": {
+        "scenario_coverage": 0.78,
+        "complementarity": 0.72,
+        "overlap_risk": 0.3,
+        "conflict_risk": 0.2,
+        "execution_cohesion": 0.72,
+        "pair_adaptability": 0.66
+      },
+      "alex-moreau-b::dara-lindqvist": {
+        "scenario_coverage": 0.55,
+        "complementarity": 0.28,
+        "overlap_risk": 0.88,
+        "conflict_risk": 0.32,
+        "execution_cohesion": 0.55,
+        "pair_adaptability": 0.42
+      },
+      "alex-moreau-b::esme-tanaka": {
+        "scenario_coverage": 0.7,
+        "complementarity": 0.62,
+        "overlap_risk": 0.35,
+        "conflict_risk": 0.25,
+        "execution_cohesion": 0.66,
+        "pair_adaptability": 0.6
+      },
+      "dara-lindqvist::esme-tanaka": {
+        "scenario_coverage": 0.72,
+        "complementarity": 0.68,
+        "overlap_risk": 0.3,
+        "conflict_risk": 0.22,
+        "execution_cohesion": 0.68,
+        "pair_adaptability": 0.62
+      }
+    }
+  },
+  "notes": "The two candidates sharing the display name 'Alex Moreau' are the point of the case: every pair identity, pair display name, and ranking entry must stay resolvable by ID."
+}

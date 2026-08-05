@@ -22,6 +22,7 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { REASONING_EFFORT_VALUES } from "../ai/providers/openaiProvider.js";
+import { DEFAULT_OPENAI_MODEL } from "../ai/providers/openaiProvider.js";
 import { DECISION_INPUT_LIMITS, DEFAULT_RUNTIME_MAX_CANDIDATES } from "../../shared/contracts/decisionInputLimits.js";
 
 function parseEnvFile(path) {
@@ -37,6 +38,11 @@ function parseEnvFile(path) {
     result[key] = value;
   }
   return result;
+}
+
+/** Pure, non-constructing provider model resolution for live budget preflight. */
+export function resolveOpenAIModel({ env = process.env } = {}) {
+  return env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
 }
 
 /**

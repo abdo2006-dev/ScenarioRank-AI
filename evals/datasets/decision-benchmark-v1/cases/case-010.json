@@ -1,0 +1,111 @@
+{
+  "case_id": "case-010",
+  "schema_version": "1.0.0",
+  "title": "Decision-critical evidence missing for the leading candidate",
+  "description": "Two fictional candidates are close on everything that is documented, but the leading one has nothing at all on the criteria the scenario cares about most. The right behaviour is to name the gap, not to fill it.",
+  "tags": [
+    "missing-evidence",
+    "uncertainty"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Regional Safety Director",
+      "description": "Accountable for safety performance across eleven fictional sites, including incident investigation, regulator relationships, and the safety culture programme."
+    },
+    "scenarios": [
+      "Turning around safety performance across eleven sites following a serious incident and a regulator improvement notice."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "marisol-vantree",
+        "name": "Marisol Vantree",
+        "description": "Strong general leadership record at a fictional infrastructure group. The profile says nothing about incident investigation, regulator engagement, or any prior safety accountability."
+      },
+      {
+        "id": "nikolai-ashgrove",
+        "name": "Nikolai Ashgrove",
+        "description": "Led a safety turnaround across seven sites at an invented civil-engineering firm following an improvement notice, with documented incident-rate reduction and regulator sign-off."
+      },
+      {
+        "id": "orla-benedetti",
+        "name": "Orla Benedetti",
+        "description": "Site safety manager at a fictional logistics operator with solid single-site results and no multi-site or regulator-facing experience."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "marisol-vantree",
+      "nikolai-ashgrove",
+      "orla-benedetti"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Turning around safety performance across eleven sites following a serious incident and a regulator improvement notice."
+    ],
+    "allowed_winner_ids": [
+      "nikolai-ashgrove"
+    ],
+    "forbidden_winner_ids": [
+      "orla-benedetti"
+    ],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": [
+      "marisol-vantree"
+    ]
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": null,
+  "variant_kind": null,
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "marisol-vantree": {
+        "default": 7,
+        "criteria": {
+          "crisis_management": 6,
+          "domain_expertise": 5
+        },
+        "confidence": 0.5,
+        "evidence_quality": "missing"
+      },
+      "nikolai-ashgrove": {
+        "default": 7,
+        "criteria": {
+          "crisis_management": 9,
+          "domain_expertise": 8
+        },
+        "confidence": 0.87,
+        "evidence_quality": "specific"
+      },
+      "orla-benedetti": {
+        "default": 6,
+        "confidence": 0.84,
+        "evidence_quality": "specific"
+      }
+    }
+  },
+  "notes": "The candidate with the evidence gap must be flagged for human review even though their headline scores are competitive. This is the case that most directly tests whether missing evidence is treated as missing rather than neutral."
+}

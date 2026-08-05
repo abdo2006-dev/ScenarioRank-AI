@@ -75,3 +75,21 @@ For recruiter-facing documentation, describe technologies according to their act
 
 Phase 2A adds frontend API-client, SSE-parser, and workflow-hook tests. No
 browser E2E or real-provider test was added.
+
+## Evaluation technologies (Phase 3A)
+
+The evaluation harness added **no new dependency**. It uses Node built-ins
+(`node:fs/promises`, `node:path`, `node:child_process`, `node:url`) plus `zod`,
+which the application already depends on, and Vitest, which it already uses.
+
+| Considered | Decision |
+|---|---|
+| Hosted OpenAI Evals API | **Not adopted in Phase 3A.** It cannot observe the deterministic layer most of these checks target (batch-identity validation, ranking agreement, pair canonicalisation, stage accounting), requires network access and spend per run, and would couple the benchmark to one vendor. Boundaries were drawn so it can be added later as a provider factory plus a reporter — see ADR-0009. |
+| A CLI framework (`commander`, `yargs`, `minimist`) | **Not adopted.** `evals/cli/args.js` is ~60 lines of dependency-free parsing. Adding supply-chain surface for argument splitting was not justified, and a repository-protection test asserts none of these appears in `package.json`. |
+| A terminal-colour library (`chalk`) | **Not adopted.** CLI and artifact output is deliberately ANSI-free so it stays greppable and diffable; tests assert no escape codes are emitted. |
+| Python + an evaluation framework | **Not adopted**, consistent with ADR-0006. A second language and toolchain for evaluation alone would duplicate working, tested infrastructure for no product requirement. |
+| Snapshot/golden-output testing | **Not adopted** as the primary mechanism. Snapshots of model text fail on any wording change, which trains people to re-bless them without reading. |
+| LLM-as-judge grading | **Deferred to a later phase.** Layering a second unvalidated model judgment on an unvalidated first one produces numbers nobody could defend. |
+
+Configuration added: `vitest.evals.config.ts` (separate test project) and four
+`eval:*` npm scripts. `.eval-runs/` is git-ignored.

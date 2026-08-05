@@ -46,4 +46,17 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  // Evaluation harness (Phase 3A). Linted on the same terms as the backend it
+  // exercises. It is deliberately a separate config block, not an extension of
+  // the backend one: evals/ is not production code, production code never
+  // imports it, and a repository-protection test enforces that direction.
+  {
+    extends: [js.configs.recommended],
+    files: ["evals/**/*.js", "evals/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
 );

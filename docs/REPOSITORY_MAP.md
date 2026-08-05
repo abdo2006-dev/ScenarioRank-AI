@@ -117,3 +117,42 @@ The backend boundary above is now concrete
 frontend boundary equally explicit. Evaluation and results are directories of
 cohesive components rather than alternate monoliths, and all active decision
 source is guarded against lines longer than 180 characters.
+
+## Evaluation harness (Phase 3A)
+
+`evals/` is the evaluation harness. It is **not** part of the application: no
+HTTP route, frontend component, or build step touches it, and it is invoked
+only through its four CLI commands.
+
+| Path | Ownership |
+|---|---|
+| `evals/README.md` | entry point and rules the harness follows |
+| `evals/datasets/loadBenchmark.js` | strict, fail-closed benchmark loading and cross-checks |
+| `evals/datasets/decision-benchmark-v1/` | `manifest.json`, `rubric.json`, `cases/case-0NN.json` (16 synthetic cases) |
+| `evals/schemas/` | benchmark case, manifest/rubric, run-artifact, and report schemas |
+| `evals/fixtures/fakeProviderProfiles.js` | seven offline fake-provider profiles |
+| `evals/graders/` | 11 deterministic graders, human-review template, review aggregation |
+| `evals/runners/` | case/benchmark execution, comparison, variants, live gating, request observer |
+| `evals/reporters/` | JSON run artifacts and markdown summaries |
+| `evals/cli/` | `validate.mjs`, `fixtures.mjs`, `live.mjs`, `compare.mjs` |
+| `.eval-runs/` | run artifacts — git-ignored, never committed |
+
+### Dependency direction
+
+The harness imports production: `server/pipeline/runPipeline.js`,
+`server/domain/scoring.js`, `server/ai/schemas/criteriaKeys.js`,
+`server/ai/pricing/openaiPricing.js`, `server/ai/providerFactory.js` (lazily,
+live mode only), `server/config/env.js`, and `shared/contracts/`.
+
+Production imports **nothing** from `evals/`. `evals/repositoryProtection.test.js`
+enforces the direction across `server/`, `src/`, `shared/`, `scripts/`, and
+`server.mjs`.
+
+### Test configuration
+
+`vitest.evals.config.ts` runs `evals/**/*.test.js` as a separate project, so
+frontend, backend, and evaluation test counts stay independently reportable.
+`npm test` runs all three.
+
+Documentation: `docs/evaluation/` and
+`docs/decisions/ADR-0009-local-first-evaluation-harness.md`.

@@ -156,6 +156,50 @@ Default local addresses:
 
 Never commit `.env` or API keys.
 
+## Evaluating the pipeline
+
+Phase 3A added a local-first evaluation harness under [`evals/`](./evals/README.md)
+and `decision-benchmark-v1`, a versioned benchmark of 16 fully synthetic cases.
+It exists so that a future change to a prompt, model, or scoring rule can be
+shown to improve or regress something, rather than argued about.
+
+Validate the benchmark without running anything:
+
+```bash
+npm run eval:validate
+```
+
+Run the real pipeline against offline fake providers — no network, no API key,
+no cost, deterministic decision content, and a nonzero exit on any required
+failure:
+
+```bash
+npm run eval:fixtures
+```
+
+Compare two recorded runs (`improved` / `regressed` / `unchanged` /
+`inconclusive`):
+
+```bash
+npm run eval:compare -- --baseline .eval-runs/run-a --candidate .eval-runs/run-b
+```
+
+`npm run eval:live` runs against the real OpenAI API and is gated hard: it
+requires `--live`, an API key, an explicit budget limit, and a deliberate case
+selection, and it refuses to run in CI by default. Run artifacts go to
+`.eval-runs/`, which is git-ignored.
+
+**Scope.** `decision-benchmark-v1` is a *development* benchmark. It is not
+scientifically validated, not representative of real hiring decisions, not
+evidence of fairness or demographic neutrality, not a legal-compliance test,
+not a calibrated-confidence benchmark, and not a production service-level
+objective. Every candidate and company in it is invented. A passing fixture run
+proves the orchestration, deterministic computation, and graders behave as
+specified — it says nothing about prompt quality.
+
+Details: [`docs/evaluation/`](./docs/evaluation/EVALUATION_ARCHITECTURE.md) and
+[ADR-0009](./docs/decisions/ADR-0009-local-first-evaluation-harness.md).
+
 ## V2 documentation
 
 - [Phase 0 baseline audit](./docs/PHASE_0_BASELINE_AUDIT.md)
@@ -168,6 +212,10 @@ Never commit `.env` or API keys.
 - [Branch strategy](./docs/BRANCH_STRATEGY.md)
 - [V2 roadmap](./docs/V2_ROADMAP.md)
 - [Learning checkpoints](./docs/LEARNING_CHECKPOINTS.md)
+- [Evaluation architecture](./docs/evaluation/EVALUATION_ARCHITECTURE.md)
+- [Benchmark v1](./docs/evaluation/BENCHMARK_V1.md)
+- [Human review guide](./docs/evaluation/HUMAN_REVIEW_GUIDE.md)
+- [Evaluation runbook](./docs/evaluation/RUNBOOK.md)
 - [ADR-0001: main is the V2 line](./docs/decisions/ADR-0001-main-is-v2.md)
 - [ADR-0002: provider abstraction (superseded by ADR-0004)](./docs/decisions/ADR-0002-provider-abstraction.md)
 - [ADR-0003: runtime provider configuration](./docs/decisions/ADR-0003-runtime-provider-configuration.md)
@@ -176,6 +224,7 @@ Never commit `.env` or API keys.
 - [ADR-0006: retain Node and Express](./docs/decisions/ADR-0006-retain-node-express.md)
 - [ADR-0007: npm-only lockfile](./docs/decisions/ADR-0007-npm-only-lockfile.md)
 - [ADR-0008: React Router 7 migration](./docs/decisions/ADR-0008-react-router-7-migration.md)
+- [ADR-0009: local-first evaluation harness](./docs/decisions/ADR-0009-local-first-evaluation-harness.md)
 - [Dependency audit (Phase 2B-2; updated Phase 2C, Phase 2D)](./docs/security/DEPENDENCY_AUDIT.md)
 - [Accessibility checklist](./docs/testing/ACCESSIBILITY_CHECKLIST.md)
 

@@ -1,0 +1,132 @@
+{
+  "case_id": "case-012",
+  "schema_version": "1.0.0",
+  "title": "Scenario-order permutation of case-004",
+  "description": "The same two scenarios as case-004, submitted in the opposite order with their weight deltas moved with them. Each scenario's own result should be identical to its result in case-004.",
+  "tags": [
+    "permutation",
+    "multi-scenario"
+  ],
+  "synthetic": true,
+  "data_policy": "synthetic-only",
+  "input": {
+    "role": {
+      "title": "Chief Operating Officer",
+      "description": "Accountable for both day-to-day service reliability and the medium-term commercial expansion of a fictional mid-sized services group."
+    },
+    "scenarios": [
+      "Opening two new digital sales channels over eighteen months in a stable, low-incident operating environment.",
+      "Responding to a sustained service outage that has triggered regulatory attention and requires day-by-day incident command."
+    ],
+    "decision_mode": "best_fit",
+    "candidates": [
+      {
+        "id": "rowan-delacroix",
+        "name": "Rowan Delacroix",
+        "description": "Built and ran the incident command function at a fictional energy retailer, taking two major outages through to regulator sign-off. Hands-on operationally; describes himself as a poor fit for exploratory product work."
+      },
+      {
+        "id": "sable-quintero",
+        "name": "Sable Quintero",
+        "description": "Led the digital reinvention of an invented equipment-rental business, launching three new channels in two years. Has never run a live incident bridge and avoids operational firefighting."
+      },
+      {
+        "id": "tobias-nunn",
+        "name": "Tobias Nunn",
+        "description": "Steady general manager at a fictional distribution group, competent across the board without a pronounced strength or weakness in either crisis response or digital innovation."
+      }
+    ],
+    "options": {
+      "enable_pair_simulation": false
+    }
+  },
+  "deterministic_expectations": {
+    "expected_candidate_ids": [
+      "rowan-delacroix",
+      "sable-quintero",
+      "tobias-nunn"
+    ],
+    "pairing_enabled": false,
+    "expected_pair_count": null,
+    "expected_best_pair_ids": null,
+    "required_stage_count": 3,
+    "required_scenario_coverage": [
+      "Opening two new digital sales channels over eighteen months in a stable, low-incident operating environment.",
+      "Responding to a sustained service outage that has triggered regulatory attention and requires day-by-day incident command."
+    ],
+    "allowed_winner_ids": [
+      "rowan-delacroix",
+      "sable-quintero"
+    ],
+    "forbidden_winner_ids": [
+      "tobias-nunn"
+    ],
+    "required_not_measured_fields": [
+      "outcome_models[].cross_scenario_consistency",
+      "adaptability_profiles[].best_scenario",
+      "adaptability_profiles[].worst_scenario"
+    ],
+    "maximum_provider_attempts": 8,
+    "expect_human_review_for_candidate_ids": []
+  },
+  "rubric_dimensions": [
+    "evidence_grounding",
+    "scenario_relevance",
+    "tradeoff_clarity",
+    "clarity",
+    "uncertainty_handling",
+    "recommendation_consistency",
+    "unsupported_claim_avoidance"
+  ],
+  "variant_of": "case-004",
+  "variant_kind": "scenario-order",
+  "fake_provider_plan": {
+    "profile": "valid-standard",
+    "candidate_scores": {
+      "rowan-delacroix": {
+        "default": 6,
+        "criteria": {
+          "crisis_management": 9,
+          "operational_execution": 9,
+          "domain_expertise": 8,
+          "innovation_digital": 3,
+          "strategic_scalability": 4
+        },
+        "confidence": 0.84,
+        "evidence_quality": "specific"
+      },
+      "sable-quintero": {
+        "default": 6,
+        "criteria": {
+          "innovation_digital": 9,
+          "strategic_scalability": 9,
+          "transformation_leadership": 8,
+          "crisis_management": 3,
+          "operational_execution": 4
+        },
+        "confidence": 0.84,
+        "evidence_quality": "specific"
+      },
+      "tobias-nunn": {
+        "default": 6,
+        "confidence": 0.84,
+        "evidence_quality": "specific"
+      }
+    },
+    "scenario_weight_deltas": {
+      "0": {
+        "innovation_digital": 14,
+        "strategic_scalability": 10,
+        "crisis_management": -12,
+        "operational_execution": -8
+      },
+      "1": {
+        "crisis_management": 14,
+        "operational_execution": 8,
+        "innovation_digital": -10,
+        "strategic_scalability": -10
+      }
+    }
+  },
+  "notes": "Because each scenario is executed as its own pipeline run, scenario order should have no effect whatsoever. This case makes that assumption checkable rather than assumed."
+}
