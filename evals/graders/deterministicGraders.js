@@ -156,19 +156,6 @@ const contractValidity = {
     walk(response, "response");
     details.push(...malformed.map((path) => `non-finite number at ${path}`));
 
-    for (const candidate of response.candidate_evaluations ?? []) {
-      if (candidate.risk_adjusted_score < 0) {
-        findingCodes.push("negative-risk-adjusted-score");
-        observations.push({
-          kind: "schema_issue",
-          path_pattern: "candidate_evaluations.*.risk_adjusted_score",
-          code: "too_small",
-          minimum: 0,
-          subject_candidate_id: candidate.candidate_id,
-        });
-      }
-    }
-
     return details.length === 0
       ? pass("Response, run metadata, and every stage event validate against the public contract.")
       : fail(`${details.length} contract violation(s).`, details, findingCodes, observations);
@@ -303,7 +290,7 @@ const scoreIntegrity = {
   version: "1.0.0",
   severity: "required",
   scope: "execution",
-  description: "Scores stay in range and every recomputable deterministic value matches a fresh recomputation.",
+  description: "Percentage scores stay in 0-100, risk-adjusted net scores stay in -100-100, and every recomputable deterministic value matches a fresh recomputation.",
   run({ response }) {
     const details = [];
     const findingCodes = [];
@@ -326,20 +313,13 @@ const scoreIntegrity = {
           details.push(`${label}.${key}.confidence=${criterion.confidence} is outside 0-1`);
         }
       }
-      for (const field of ["weighted_fit_score", "risk_adjusted_score", "expected_outcome_score"]) {
+      for (const field of ["weighted_fit_score", "expected_outcome_score"]) {
         if (candidate[field] < 0 || candidate[field] > 100) {
           details.push(`${label}.${field}=${candidate[field]} is outside 0-100`);
-          if (field === "risk_adjusted_score" && candidate[field] < 0) {
-            findingCodes.push("negative-risk-adjusted-score");
-            observations.push({
-              kind: "score_bound_violation",
-              metric: "risk_adjusted_score",
-              operator: "lt",
-              bound: 0,
-              subject_candidate_id: label,
-            });
-          }
         }
+      }
+      if (candidate.risk_adjusted_score < -100 || candidate.risk_adjusted_score > 100) {
+        details.push(`${label}.risk_adjusted_score=${candidate.risk_adjusted_score} is outside -100-100`);
       }
 
       // Recomputation. `weighted_fit_score` is deliberately excluded: the
@@ -404,7 +384,7 @@ const scoreIntegrity = {
     }
 
     return details.length === 0
-      ? pass("All scores in range; every recomputable deterministic value matches a fresh recomputation.")
+      ? pass("All scores are in range; every recomputable deterministic value matches a fresh recomputation.")
       : fail(`${details.length} score-integrity problem(s).`, details, [...new Set(findingCodes)], observations);
   },
 };

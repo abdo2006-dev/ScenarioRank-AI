@@ -135,6 +135,15 @@ describe("contract-validity", () => {
     context.stageSnapshots = [[{ id: "input", label: "Input", status: "not-a-status" }]];
     expect(run("contract-validity", context).status).toBe("fail");
   });
+
+  it("accepts the committed signed negative score while enforcing the contract boundary", async () => {
+    const context = await contextFor("case-001");
+    expect(context.response.candidate_evaluations.some((candidate) => candidate.risk_adjusted_score === -30)).toBe(true);
+    expect(run("contract-validity", context).status).toBe("pass");
+
+    context.response.candidate_evaluations[0].risk_adjusted_score = -100.01;
+    expect(run("contract-validity", context).details.join(" ")).toContain("risk_adjusted_score");
+  });
 });
 
 describe("candidate-coverage", () => {
@@ -268,6 +277,13 @@ describe("score-integrity", () => {
     const context = await contextFor("case-007");
     context.response.candidate_evaluations[0].expected_outcome_score = 99;
     expect(run("score-integrity", context).details.join(" ")).toContain("expected_outcome_score");
+  });
+
+  it("accepts signed values and rejects risk-adjusted scores outside -100 through 100", async () => {
+    const context = await contextFor("case-001");
+    expect(run("score-integrity", context).status).toBe("pass");
+    context.response.candidate_evaluations[0].risk_adjusted_score = 100.01;
+    expect(run("score-integrity", context).details.join(" ")).toContain("outside -100-100");
   });
 });
 

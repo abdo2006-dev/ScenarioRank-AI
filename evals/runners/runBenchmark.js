@@ -343,9 +343,10 @@ export async function runBenchmark({
       signature,
     })),
   );
-  // A genuine failure is never hidden by a simultaneous XPASS/baseline
-  // change. Review still receives the disappeared observation separately.
-  const runState = requiredFailures > 0
+  // A known-defect resolution is an intentional baseline transition unless
+  // a separate required failure remains after those resolution findings are
+  // excluded. Review receives both counts so a genuine failure cannot hide.
+  const runState = unexpectedFailures > 0
     ? "unexpected_failure"
     : unexpectedDefectResolutions > 0
       ? "baseline_change_required"

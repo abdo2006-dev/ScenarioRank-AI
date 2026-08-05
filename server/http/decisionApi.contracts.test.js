@@ -291,6 +291,30 @@ describe("public decision API contracts", () => {
     ).toBe(false);
   });
 
+  it("uses a dedicated signed range only for risk-adjusted scores", () => {
+    const candidate = completedResponse.candidate_evaluations[0];
+    const responseWithSignedRisk = {
+      ...completedResponse,
+      candidate_evaluations: [{ ...candidate, risk_adjusted_score: -30 }],
+    };
+
+    expect(completedPipelineResponseSchema.safeParse(responseWithSignedRisk).success).toBe(true);
+    for (const risk_adjusted_score of [-100.01, 100.01]) {
+      expect(completedPipelineResponseSchema.safeParse({
+        ...completedResponse,
+        candidate_evaluations: [{ ...candidate, risk_adjusted_score }],
+      }).success).toBe(false);
+    }
+    expect(completedPipelineResponseSchema.safeParse({
+      ...completedResponse,
+      candidate_evaluations: [{ ...candidate, weighted_fit_score: -0.01 }],
+    }).success).toBe(false);
+    expect(completedPipelineResponseSchema.safeParse({
+      ...completedResponse,
+      candidate_evaluations: [{ ...candidate, expected_outcome_score: 100.01 }],
+    }).success).toBe(false);
+  });
+
   it("accepts a successful pairing whose best pair is in top pairs", () => {
     const bestPair = publicPair();
 

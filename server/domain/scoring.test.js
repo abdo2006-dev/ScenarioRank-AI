@@ -140,12 +140,18 @@ describe("computeRiskAdjustedScore", () => {
       computeRiskAdjustedScore({ wfs: 80, exec: 20, cult: 15, time: 10, conf: 0.85, adapt: 70, opp: 15 })
     ).toBe(63);
   });
-  it("is NOT clamped and can go negative for unfavorable inputs", () => {
-    // Deliberately pins the documented behavior (docs/architecture/SCORING_AND_ASSUMPTIONS.md:
-    // "This result can be negative. It is not clamped before ranking.")
-    const result = computeRiskAdjustedScore({ wfs: 10, exec: 90, cult: 90, time: 90, conf: 0.1, adapt: 10, opp: 90 });
-    expect(result).toBe(-80);
-    expect(result).toBeLessThan(0);
+  it("preserves signed scores and rounds before enforcing the public range", () => {
+    expect(computeRiskAdjustedScore({ wfs: 50, exec: 50, cult: 50, time: 50, conf: 0.5, adapt: 50, opp: 50 })).toBe(0);
+    expect(computeRiskAdjustedScore({ wfs: 50.1, exec: 49.9, cult: 49.92, time: 49.9, conf: 0.5, adapt: 50.1, opp: 49.91 })).toBe(0.18);
+    expect(computeRiskAdjustedScore({ wfs: 49.9, exec: 50.1, cult: 50.08, time: 50.1, conf: 0.5, adapt: 49.9, opp: 50.09 })).toBe(-0.18);
+    expect(computeRiskAdjustedScore({ wfs: 30, exec: 70, cult: 60, time: 70, conf: 0.8, adapt: 30, opp: 66.67 })).toBe(-30);
+    expect(computeRiskAdjustedScore({ wfs: 10, exec: 90, cult: 92, time: 90, conf: 0, adapt: 10, opp: 90.67 })).toBe(-82);
+  });
+
+  it("bounds values only after preserving two-decimal signed rounding", () => {
+    expect(computeRiskAdjustedScore({ wfs: -1, exec: 100, cult: 100, time: 100, conf: 0, adapt: 0, opp: 100 })).toBe(-100);
+    expect(computeRiskAdjustedScore({ wfs: 101, exec: 0, cult: 0, time: 0, conf: 1, adapt: 100, opp: 0 })).toBe(100);
+    expect(computeRiskAdjustedScore({ wfs: 50.004, exec: 0, cult: 0, time: 0, conf: 1, adapt: 100, opp: 0 })).toBe(50);
   });
 });
 
