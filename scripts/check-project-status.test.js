@@ -10,7 +10,8 @@ const scriptPath = path.join(repoRoot, "scripts", "check-project-status.mjs");
 const projectStatusPath = path.join(repoRoot, "docs", "PROJECT_STATUS.md");
 const roadmapPath = path.join(repoRoot, "docs", "V2_ROADMAP.md");
 const adrPath = path.join(repoRoot, "docs", "decisions", "ADR-0009-local-first-evaluation-harness.md");
-const statusPaths = [projectStatusPath, roadmapPath, adrPath];
+const dataFlowPath = path.join(repoRoot, "docs", "architecture", "DATA_FLOW.md");
+const statusPaths = [projectStatusPath, roadmapPath, adrPath, dataFlowPath];
 
 async function runScript() {
   return execFileAsync("node", [scriptPath], { cwd: repoRoot });
@@ -34,11 +35,15 @@ describe("scripts/check-project-status.mjs", () => {
     await writeFile(projectStatusPath, `${originals[0]}\n${text}\n`);
   }
 
-  afterEach(async () => {
+  async function restoreOriginals() {
     if (originals !== null) {
       await Promise.all(statusPaths.map((file, index) => writeFile(file, originals[index])));
       originals = null;
     }
+  }
+
+  afterEach(async () => {
+    await restoreOriginals();
   });
 
   it("passes against the committed current-state documentation", async () => {
@@ -76,6 +81,28 @@ describe("scripts/check-project-status.mjs", () => {
     expect(stdout).toContain("Project-status check passed");
   });
 
+  it("rejects a stale risk-score claim under the current monitored heading", async () => {
+    await appendProjectStatus("## Current verification details\nrisk_adjusted_score: 0–100");
+    await expect(runScript()).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("risk_adjusted_score: 0–100"),
+    });
+  });
+
+  it("rejects a stale risk-score claim under a sibling active heading", async () => {
+    await appendProjectStatus("# Active sibling status\nrisk_adjusted_score: 0–100");
+    await expect(runScript()).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("risk_adjusted_score: 0–100"),
+    });
+  });
+
+  it("allows a historical signed-score statement while requiring the current signed declaration", async () => {
+    await appendProjectStatus("## Previous baseline (superseded)\nrisk_adjusted_score: 0–100");
+    const { stdout } = await runScript();
+    expect(stdout).toContain("Project-status check passed");
+  });
+
   it("rejects a missing current run-state declaration", async () => {
     await captureOriginals();
     await Promise.all(statusPaths.map(async (file, index) =>
@@ -90,11 +117,11 @@ describe("scripts/check-project-status.mjs", () => {
   it("rejects missing current total declarations", async () => {
     await captureOriginals();
     await Promise.all(statusPaths.map(async (file, index) =>
-      writeFile(file, originals[index].replaceAll("665 total tests", "total pending")),
+      writeFile(file, originals[index].replaceAll("671 total tests", "total pending")),
     ));
     await expect(runScript()).rejects.toMatchObject({
       code: 1,
-      stderr: expect.stringContaining("665 total tests"),
+      stderr: expect.stringContaining("671 total tests"),
     });
   });
 
@@ -104,5 +131,46 @@ describe("scripts/check-project-status.mjs", () => {
       code: 1,
       stderr: expect.stringContaining("SR-P3A-001 remains unfixed"),
     });
+  });
+
+  it("requires the active declaration that Phase 3B remains unstarted", async () => {
+    await captureOriginals();
+    await Promise.all(statusPaths.map(async (file, index) =>
+      writeFile(file, originals[index].replaceAll("Phase 3B has not started", "Phase 3B status pending")),
+    ));
+    await expect(runScript()).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("Phase 3B unstarted"),
+    });
+  });
+
+  it("requires SR-P3A-002 to remain separately tracked", async () => {
+    await captureOriginals();
+    await Promise.all(statusPaths.map(async (file, index) =>
+      writeFile(file, originals[index].replaceAll("SR-P3A-002", "separate-issue-pending")),
+    ));
+    await expect(runScript()).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("separate SR-P3A-002 tracking"),
+    });
+  });
+
+  it("restores temporary documentation even when an assertion fails", async () => {
+    await captureOriginals();
+    const originalProjectStatus = originals[0];
+    await writeFile(projectStatusPath, `${originalProjectStatus}\n# Active sibling status\nrisk_adjusted_score: 0–100\n`);
+
+    let assertionFailure;
+    try {
+      const { stdout } = await runScript();
+      expect(stdout).toContain("this assertion intentionally fails");
+    } catch (error) {
+      assertionFailure = error;
+    } finally {
+      await restoreOriginals();
+    }
+
+    expect(assertionFailure).toBeDefined();
+    expect(await readFile(projectStatusPath, "utf8")).toBe(originalProjectStatus);
   });
 });

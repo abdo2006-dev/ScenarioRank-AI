@@ -169,8 +169,8 @@ cannot disappear silently.
 The committed offline baseline is `clean_pass`; fixture machinery: passed.
 There are 16 clean cases, 0 known-defect observations, 0 affected executions,
 0 unexpected failures, and 0 unexpected defect resolutions. Current
-verification totals are 105 frontend tests, 231 server tests, 329 evaluation
-tests, and 665 total tests. No live evaluation or OpenAI request occurred, and
+verification totals are 105 frontend tests, 237 server tests, 329 evaluation
+tests, and 671 total tests. No live evaluation or OpenAI request occurred, and
 Phase 3B remains unstarted.
 
 ## What this decision does not claim

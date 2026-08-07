@@ -164,7 +164,7 @@ point. The subsequent narrow SR-P3A-001 correction adopted a signed
 ranking modes, pairing, prompts, or providers. Benchmark v1.1.0 is now
 `clean_pass`: 16 clean cases, 0 known-defect observations, 0 affected
 executions, and 0 unexpected failures or resolutions. Current verification is
-665 tests (105 frontend + 231 server + 329 evaluation). Phase 3B remains
+671 tests (105 frontend + 237 server + 329 evaluation). Phase 3B remains
 unstarted. See ADR-0010 and the current status record below.
 
 ## Project objective
@@ -2127,7 +2127,7 @@ fixture machinery: passed
 0 affected executions
 0 unexpected failures
 0 unexpected defect resolutions
-105 frontend tests, 231 server tests, 329 evaluation tests, 665 total tests
+105 frontend tests, 237 server tests, 329 evaluation tests, 671 total tests
 ```
 
 No live evaluation or OpenAI request was made for this correction. Phase 3B

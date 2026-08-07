@@ -152,9 +152,11 @@ The explanation prompt includes computed metrics. The LLM should explain them wi
 
 Public transport validation also constrains final numeric output: confidence,
 risk, and normalized pair metrics are 0–1; criterion and pair scores are 1–10
-and 0–10 respectively; aggregate scores are 0–100; logical provider stages are
-0–4; decision confidence is 0–1; stage duration is a nonnegative integer;
-tokens and estimated cost cannot be negative. A successful public pairing has
+and 0–10 respectively; `weighted_fit_score` and `expected_outcome_score` are
+0–100; `risk_adjusted_score` is a `-100–100` penalty-adjusted net score where
+higher is better and a negative value means modeled penalties exceed weighted
+fit. Logical provider stages are 0–4; decision confidence is 0–1; stage
+duration is a nonnegative integer; tokens and estimated cost cannot be negative. A successful public pairing has
 at least one top pair, two distinct candidate IDs per pair, no duplicate or
 reversed ID combination, and an exact best-pair result included in `top_pairs`.
 Candidate IDs are canonical identity; names are display labels and may be

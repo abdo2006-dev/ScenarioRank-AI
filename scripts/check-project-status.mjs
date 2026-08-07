@@ -12,20 +12,24 @@ const statusDocuments = [
   "docs/PROJECT_STATUS.md",
   "docs/V2_ROADMAP.md",
   "docs/decisions/ADR-0009-local-first-evaluation-harness.md",
+  "docs/architecture/DATA_FLOW.md",
 ];
 
-const requiredCurrentStatements = [
-  "clean_pass",
-  "fixture machinery: passed",
-  "16 clean cases",
-  "0 known-defect observations",
-  "0 affected executions",
-  "0 unexpected failures",
-  "0 unexpected defect resolutions",
-  "105 frontend tests",
-  "231 server tests",
-  "329 evaluation tests",
-  "665 total tests",
+const requiredCurrentChecks = [
+  { label: "clean_pass", pattern: /\bclean_pass\b/i },
+  { label: "fixture machinery: passed", pattern: /fixture machinery:\s*passed/i },
+  { label: "16 clean cases", pattern: /\b16 clean cases\b/i },
+  { label: "0 known-defect observations", pattern: /\b0 known-defect observations\b/i },
+  { label: "0 affected executions", pattern: /\b0 affected executions\b/i },
+  { label: "0 unexpected failures", pattern: /\b0 unexpected failures\b/i },
+  { label: "0 unexpected defect resolutions", pattern: /\b0 unexpected defect resolutions\b/i },
+  { label: "105 frontend tests", pattern: /\b105 frontend tests\b/i },
+  { label: "237 server tests", pattern: /\b237 server tests\b/i },
+  { label: "329 evaluation tests", pattern: /\b329 evaluation tests\b/i },
+  { label: "671 total tests", pattern: /\b671 total tests\b/i },
+  { label: "signed risk-adjusted score", pattern: /risk_adjusted_score`?\s*(?::|is)\s*(?:a\s+)?`?-100[–-]100/i },
+  { label: "Phase 3B unstarted", pattern: /phase 3b (?:remains|has) not started/i },
+  { label: "separate SR-P3A-002 tracking", pattern: /SR-P3A-002/i },
 ];
 
 const stalePatterns = [
@@ -40,24 +44,31 @@ const stalePatterns = [
   /\b8\s+known-defect\s+observations\b/i,
   /\b4\s+affected\s+executions\b/i,
   /SR-P3A-001 remains unfixed/i,
+  /risk_adjusted_score.{0,80}\b0\s*(?:-|–|—|to)\s*100\b/i,
+  /(?:all|aggregate) scores (?:are|:)?\s*0\s*(?:-|–|—|to)\s*100\b/i,
+  /phase 3b (?:is )?(?:started|complete|completed)\b/i,
+  /SR-P3A-001 (?:is |remains )?(?:open|unfixed)\b/i,
+  /benchmark (?:version )?1\.0\.0(?:\s+is)?\s+(?:the )?current/i,
 ];
 
-function isHistoricalContext(lines, index) {
-  const line = lines[index];
-  if (/\b(historical|superseded)\b/i.test(line)) return true;
+const historicalHeading = /\b(historical|superseded|previous baseline|earlier phase)\b/i;
 
-  let childHeadingLevel = Number.POSITIVE_INFINITY;
-  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-    const heading = /^(#{1,6})\s/.exec(lines[cursor]);
-    if (heading && heading[1].length <= childHeadingLevel) {
-      if (/\b(historical|superseded)\b/i.test(lines[cursor])) return true;
-      childHeadingLevel = heading[1].length;
-      // A current top-level section cannot inherit historical context from a
-      // preceding sibling section.
-      if (childHeadingLevel === 1) return false;
+/**
+ * Classifies every line from its Markdown-heading ancestry. A sibling heading
+ * replaces the previous heading at its level, so current text never inherits
+ * historical status from an earlier sibling section.
+ */
+function classifyHistoricalLines(lines) {
+  const ancestry = [];
+  return lines.map((line) => {
+    const heading = /^(#{1,6})\s/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      ancestry.length = level - 1;
+      ancestry[level - 1] = historicalHeading.test(line);
     }
-  }
-  return false;
+    return historicalHeading.test(line) || ancestry.some(Boolean);
+  });
 }
 
 const violations = [];
@@ -67,19 +78,24 @@ const documents = await Promise.all(
     contents: await readFile(path.resolve(relativePath), "utf8"),
   })),
 );
-const allCurrentStatusText = documents.map(({ contents }) => contents).join("\n");
+const classifiedDocuments = documents.map(({ relativePath, contents }) => {
+  const lines = contents.split(/\r?\n/);
+  return { relativePath, lines, historical: classifyHistoricalLines(lines) };
+});
+const activeStatusText = classifiedDocuments
+  .flatMap(({ lines, historical }) => lines.filter((_, index) => !historical[index]))
+  .join("\n");
 
-for (const statement of requiredCurrentStatements) {
-  if (!allCurrentStatusText.toLowerCase().includes(statement)) {
-    violations.push(`Missing current Phase 3A declaration: "${statement}".`);
+for (const { label, pattern } of requiredCurrentChecks) {
+  if (!pattern.test(activeStatusText)) {
+    violations.push(`Missing current Phase 3A declaration: "${label}".`);
   }
 }
 
-for (const { relativePath, contents } of documents) {
-  const lines = contents.split(/\r?\n/);
+for (const { relativePath, lines, historical } of classifiedDocuments) {
   lines.forEach((line, index) => {
     for (const pattern of stalePatterns) {
-      if (pattern.test(line) && !isHistoricalContext(lines, index)) {
+      if (pattern.test(line) && !historical[index]) {
         violations.push(
           `${relativePath}:${index + 1} contains stale active Phase 3A status text: "${line.trim()}". Mark earlier evidence under a Historical or Superseded heading instead.`,
         );

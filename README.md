@@ -98,7 +98,7 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 | Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
 | Package manager | npm only (`package-lock.json`) | The stale `bun.lock`/`bun.lockb` lockfiles were removed in Phase 2B-2 — see [ADR-0007](./docs/decisions/ADR-0007-npm-only-lockfile.md) |
-| Automated testing | 231 server + 105 frontend + 329 evaluation tests | Schemas, the OpenAI adapter, full mocked pipeline, signed-score HTTP/SSE regression coverage, accessible results rendering, benchmark integrity, and toolchain guards |
+| Automated testing | 237 server + 105 frontend + 329 evaluation tests | Schemas, the OpenAI adapter, full mocked pipeline, signed-score HTTP/SSE regression coverage, accessible results rendering, benchmark integrity, and toolchain guards |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 

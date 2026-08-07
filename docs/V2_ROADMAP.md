@@ -409,10 +409,10 @@ known-defect mechanism, which raises a required failure if it stops
 reproducing. Deciding the fix is the first Phase 3B question, because either
 candidate fix moves the baseline the harness measures from.
 
-### SR-P3A-001 signed-score correction — complete
+### SR-P3A-001 signed-score correction — implemented in draft PR #9
 
-The narrow correction in ADR-0010 resolves the Phase 3A finding without
-starting Phase 3B. `risk_adjusted_score` is now a signed `-100…100`
+Draft PR #9 implements the narrow correction in ADR-0010 without starting
+Phase 3B; it is not merged. On this branch, `risk_adjusted_score` is a signed `-100…100`
 penalty-adjusted net score: higher is better and negative means modeled
 penalties exceed weighted fit. It preserves coefficients, ranking modes,
 pairing, prompts, models, and providers.
@@ -422,21 +422,21 @@ when all eight expected observations disappeared. It then advanced to v1.1.0
 with only those resolved annotations removed. The current offline baseline is
 `clean_pass`: 16 clean cases, 0 known-defect observations, 0 affected
 executions, 0 unexpected failures, and 0 unexpected defect resolutions. Current
-verification is 105 frontend tests, 231 server tests, 329 evaluation tests,
-and 665 total tests. No live evaluation or OpenAI request occurred.
+verification is 105 frontend tests, 237 server tests, 329 evaluation tests,
+and 671 total tests. No live evaluation or OpenAI request occurred.
 
 ### Phase 3B — not started
 
-Deliberately unstarted. The recommended next milestone is to decide and apply
-the `SR-P3A-001` fix (clamp the score, or widen the contract), re-baseline the
-benchmark, and only then begin prompt and model work with before/after
-comparison. Remaining Phase 3 items from the original plan — structured error
-classes and cancellation, and CI wiring — also belong here.
+Deliberately unstarted. PR #9 resolves SR-P3A-001 on its draft branch, but it
+must be reviewed and merged before `main` adopts the corrected baseline.
+SR-P3A-002 remains separately open and unfixed. No live evaluation has
+occurred. Prompt/model work, structured error classes and cancellation, and CI
+wiring remain future Phase 3 work, not completed Phase 3B work.
 # Phase 3A hardening status
 
 The committed fixture baseline is `clean_pass`; fixture machinery: passed.
 There are 16 clean cases, 0 known-defect observations, and 0 affected
 executions. 0 unexpected failures. 0 unexpected defect resolutions. Current
-verification totals: 105 frontend tests, 231 server tests, 329 evaluation
-tests, and 665 total tests. SR-P3A-001 is resolved; no live evaluation or
+verification totals: 105 frontend tests, 237 server tests, 329 evaluation
+tests, and 671 total tests. SR-P3A-001 is resolved; no live evaluation or
 OpenAI request has occurred; Phase 3B has not started.
