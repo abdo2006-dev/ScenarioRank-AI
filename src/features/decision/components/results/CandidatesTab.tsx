@@ -30,9 +30,12 @@ export function CandidatesTab({ response }: { response: PipelineResponse }) {
           </div>
 
           <div className="grid grid-cols-3 text-center text-xs">
-            <div>
+            <div aria-describedby={`risk-adjusted-score-description-${candidate.candidate_id}`}>
               <b>{candidate.risk_adjusted_score.toFixed(1)}</b>
-              <div className="text-white/40">Risk Adj.</div>
+              <div className="text-white/40">Risk-adjusted net score</div>
+              <span id={`risk-adjusted-score-description-${candidate.candidate_id}`} className="sr-only">
+                Range: -100 to 100. Negative means modeled penalties exceed weighted fit.
+              </span>
             </div>
             <div>
               <b>{candidate.expected_outcome_score.toFixed(1)}</b>

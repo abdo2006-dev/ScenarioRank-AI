@@ -273,6 +273,19 @@ describe("runEvaluation", () => {
     expect(onStage).toHaveBeenCalledWith(stages);
   });
 
+  it("accepts a signed risk-adjusted score in a complete event", async () => {
+    const base = pipelineResponseFixture();
+    const response = pipelineResponseFixture({
+      candidate_evaluations: base.candidate_evaluations.map((candidate, index) => ({
+        ...candidate,
+        risk_adjusted_score: index === 1 ? -30 : candidate.risk_adjusted_score,
+      })),
+    });
+    fetchMock.mockResolvedValue(streamResponse(sseEvent("complete", response)));
+
+    await expect(runEvaluation(evaluationRequest, vi.fn(), 1_000)).resolves.toEqual(response);
+  });
+
   it("parses an event divided across several stream chunks", async () => {
     const response = pipelineResponseFixture();
     const complete = sseEvent("complete", response);

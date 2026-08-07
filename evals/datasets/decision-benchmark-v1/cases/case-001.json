@@ -97,19 +97,5 @@
       }
     }
   },
-  "known_defects": [
-    {
-      "defect_id": "SR-P3A-001",
-      "title": "Negative risk-adjusted score violates public response contract",
-      "case_id": "case-001",
-      "execution_scope": { "execution_id": "case-001#s0#r1", "scenario_id": "scenario-1", "scenario_index": 0, "variant_id": null, "repetition": 1 },
-      "expected_observations": [
-        { "grader_id": "contract-validity", "signature": { "kind": "schema_issue", "path_pattern": "candidate_evaluations.*.risk_adjusted_score", "code": "too_small", "minimum": 0, "subject_candidate_id": "priya-tallow" } },
-        { "grader_id": "score-integrity", "signature": { "kind": "score_bound_violation", "metric": "risk_adjusted_score", "operator": "lt", "bound": 0, "subject_candidate_id": "priya-tallow" } }
-      ],
-      "summary": "computeRiskAdjustedScore can return a negative value for a weak candidate, but the public completed-response contract bounds risk_adjusted_score to 0-100, so server/http/routes.js rejects its own response and returns a generic 500 after the model has already been paid for.",
-      "reference": "docs/architecture/KNOWN_LIMITATIONS.md (P0.7) and docs/evaluation/BENCHMARK_V1.md"
-    }
-  ],
   "notes": "Deliberately the easiest case in the benchmark. If this one fails, the failure is structural (coverage, ranking agreement, contract validity) rather than a matter of judgment."
 }

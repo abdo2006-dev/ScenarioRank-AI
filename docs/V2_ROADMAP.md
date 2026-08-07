@@ -354,7 +354,7 @@ record: `docs/PROJECT_STATUS.md` ("Phase 2D") and
 `docs/security/DEPENDENCY_AUDIT.md` ("Phase 2D update"). Phase 3 was not
 started; React Router 8 was not introduced; no real OpenAI call was made.
 
-### Phase 3A — evaluation harness and synthetic benchmark (draft, not merged)
+### Historical: Phase 3A — evaluation harness and synthetic benchmark
 
 **Goal:** build the measurement infrastructure needed to evaluate
 ScenarioRank's AI pipeline *before* changing prompts, models,
@@ -409,19 +409,34 @@ known-defect mechanism, which raises a required failure if it stops
 reproducing. Deciding the fix is the first Phase 3B question, because either
 candidate fix moves the baseline the harness measures from.
 
+### SR-P3A-001 signed-score correction — implemented in draft PR #9
+
+Draft PR #9 implements the narrow correction in ADR-0010 without starting
+Phase 3B; it is not merged. On this branch, `risk_adjusted_score` is a signed `-100…100`
+penalty-adjusted net score: higher is better and negative means modeled
+penalties exceed weighted fit. It preserves coefficients, ranking modes,
+pairing, prompts, models, and providers.
+
+The released benchmark first reported `baseline_change_required` under v1.0.0
+when all eight expected observations disappeared. It then advanced to v1.1.0
+with only those resolved annotations removed. The current offline baseline is
+`clean_pass`: 16 clean cases, 0 known-defect observations, 0 affected
+executions, 0 unexpected failures, and 0 unexpected defect resolutions. Current
+verification is 105 frontend tests, 237 server tests, 329 evaluation tests,
+and 671 total tests. No live evaluation or OpenAI request occurred.
+
 ### Phase 3B — not started
 
-Deliberately unstarted. The recommended next milestone is to decide and apply
-the `SR-P3A-001` fix (clamp the score, or widen the contract), re-baseline the
-benchmark, and only then begin prompt and model work with before/after
-comparison. Remaining Phase 3 items from the original plan — structured error
-classes and cancellation, and CI wiring — also belong here.
+Deliberately unstarted. PR #9 resolves SR-P3A-001 on its draft branch, but it
+must be reviewed and merged before `main` adopts the corrected baseline.
+SR-P3A-002 remains separately open and unfixed. No live evaluation has
+occurred. Prompt/model work, structured error classes and cancellation, and CI
+wiring remain future Phase 3 work, not completed Phase 3B work.
 # Phase 3A hardening status
 
-Phase 3A remains measurement-only. The committed fixture baseline is
-`pass_with_known_defects`; fixture machinery: passed. 16/16 cases completed
-without unexpected failure: 12 clean cases, 8 known-defect observations, and 4
-affected executions. 0 unexpected failures. 0 unexpected defect resolutions.
-Current verification totals: 103 frontend tests, 224 server tests, 326
-evaluation tests, and 653 total tests. SR-P3A-001 remains unfixed; no live
-evaluation or OpenAI request has occurred; Phase 3B has not started.
+The committed fixture baseline is `clean_pass`; fixture machinery: passed.
+There are 16 clean cases, 0 known-defect observations, and 0 affected
+executions. 0 unexpected failures. 0 unexpected defect resolutions. Current
+verification totals: 105 frontend tests, 237 server tests, 329 evaluation
+tests, and 671 total tests. SR-P3A-001 is resolved; no live evaluation or
+OpenAI request has occurred; Phase 3B has not started.

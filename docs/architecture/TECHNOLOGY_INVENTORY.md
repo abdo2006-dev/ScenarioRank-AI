@@ -82,6 +82,10 @@ The evaluation harness added **no new dependency**. It uses Node built-ins
 (`node:fs/promises`, `node:path`, `node:child_process`, `node:url`) plus `zod`,
 which the application already depends on, and Vitest, which it already uses.
 
+ADR-0010 adds no dependency: the signed risk-adjusted-score correction uses the
+existing scoring module, Zod contract boundary, React result component, and
+offline fixture harness.
+
 | Considered | Decision |
 |---|---|
 | Hosted OpenAI Evals API | **Not adopted in Phase 3A.** It cannot observe the deterministic layer most of these checks target (batch-identity validation, ranking agreement, pair canonicalisation, stage accounting), requires network access and spend per run, and would couple the benchmark to one vendor. Boundaries were drawn so it can be added later as a provider factory plus a reporter — see ADR-0009. |

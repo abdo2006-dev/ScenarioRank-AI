@@ -80,8 +80,11 @@ export function computeExpectedOutcomeScore(p) {
 }
 
 export function computeRiskAdjustedScore(p) {
-  // All terms normalized to a roughly 0-100 scale.
-  return Math.round((p.wfs - 0.25 * p.exec - 0.20 * p.cult - 0.15 * p.time - 0.15 * (1 - p.conf) * 100 - 0.10 * (100 - p.adapt) - 0.15 * p.opp) * 100) / 100;
+  // A signed, penalty-adjusted net score. Negative values mean the modeled
+  // penalties exceed weighted fit; the public contract is [-100, 100].
+  const raw = p.wfs - 0.25 * p.exec - 0.20 * p.cult - 0.15 * p.time - 0.15 * (1 - p.conf) * 100 - 0.10 * (100 - p.adapt) - 0.15 * p.opp;
+  const rounded = Math.round(raw * 100) / 100;
+  return clamp(rounded, -100, 100);
 }
 
 export function computePairScore(m) {

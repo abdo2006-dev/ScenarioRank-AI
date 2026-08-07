@@ -253,15 +253,13 @@ Validation happens in exactly one place — the grader — which reports the
 violation instead of destroying the evidence. This was learned the hard way:
 the first fixture run crashed for precisely this reason.
 
-**What is `SR-P3A-001` and why was it not fixed?** `computeRiskAdjustedScore`
-can return a negative value for a weak candidate, but the public contract
-bounds `risk_adjusted_score` to 0-100 and `server/http/routes.js` validates its
-own response before sending — so a run with a weak enough candidate returns a
-generic 500 *after* the OpenAI calls have been paid for. It was found by the
-first fixture run. It was not fixed because Phase 3A was explicitly forbidden
-from changing scoring or contracts, and because either candidate fix moves the
-baseline the harness was built to measure from. It is tracked as a known defect
-that raises a required failure if it ever stops reproducing.
+**How was `SR-P3A-001` resolved?** The harness found that negative
+`risk_adjusted_score` values violated the old 0–100 public contract after
+provider work completed. ADR-0010 defines the field as a signed `-100…100`
+penalty-adjusted net score: higher is better, negative means penalties exceed
+weighted fit, and the formula rounds before enforcing that boundary. Benchmark
+v1.0.0 first raised `baseline_change_required`; v1.1.0 then removed only the
+resolved annotations and is clean.
 
 **Why do known defects not fail the run, and why is that safe?** Because one
 real finding leaving the baseline permanently red trains everyone to ignore it.

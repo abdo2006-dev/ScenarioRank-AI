@@ -360,20 +360,14 @@ The dependency arrow only ever points that way. Production imports nothing from
 - **A four-verdict comparison** (`improved`/`regressed`/`unchanged`/
   `inconclusive`) in which only deterministic invariants can move the verdict.
 
-### What it changed in the application
+### Post-Phase-3A correction
 
-Nothing. Phase 3A altered no prompt, model, structured-output schema, scoring
-formula, ranking rule, pairing behaviour, HTTP contract, or frontend component.
-The pipeline stages, run metadata, and communication model documented above are
-unchanged.
-
-The one architecturally interesting consequence is a **defect the harness found
-in the existing system**: `computeRiskAdjustedScore` can return a negative
-value while `completedPipelineResponseSchema` bounds `risk_adjusted_score` to
-0-100, so `server/http/routes.js` rejects its own response for a sufficiently
-weak candidate. Recorded as `SR-P3A-001` /
-`docs/architecture/KNOWN_LIMITATIONS.md` P0.7, deliberately unfixed in this
-phase, and tracked by the benchmark's known-defect mechanism.
+ADR-0010 resolves the defect the harness found without changing prompts,
+models, coefficients, ranking modes, or pairing. `risk_adjusted_score` is now
+a signed `-100…100` penalty-adjusted net score. The pipeline rounds it to two
+decimals, enforces the signed contract boundary, ranks on that same value, and
+serializes it through JSON and SSE. The results UI labels it accordingly and
+provides an accessible signed-range description.
 
 Detail: `docs/evaluation/EVALUATION_ARCHITECTURE.md` and
 `docs/decisions/ADR-0009-local-first-evaluation-harness.md`.

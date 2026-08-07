@@ -213,7 +213,7 @@ describe("CLI ergonomics", () => {
     const result = runCli([commands.fixtures, "--no-write"]);
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain("fixture machinery: PASSED");
-    expect(result.stdout).toContain("production baseline: PASS WITH KNOWN DEFECTS");
+    expect(result.stdout).toContain("production baseline: CLEAN PASS");
   });
 
   it("eval:fixtures exits nonzero when a required invariant fails", () => {

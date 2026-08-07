@@ -154,5 +154,6 @@ enforces the direction across `server/`, `src/`, `shared/`, `scripts/`, and
 frontend, backend, and evaluation test counts stay independently reportable.
 `npm test` runs all three.
 
-Documentation: `docs/evaluation/` and
-`docs/decisions/ADR-0009-local-first-evaluation-harness.md`.
+Documentation: `docs/evaluation/`,
+`docs/decisions/ADR-0009-local-first-evaluation-harness.md`, and
+`docs/decisions/ADR-0010-signed-risk-adjusted-score.md`.

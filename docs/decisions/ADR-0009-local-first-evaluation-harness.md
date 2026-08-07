@@ -24,7 +24,7 @@ would mean less code to maintain.
 as more than it is becomes a liability: it invites "our system was evaluated
 and passed" from a set of sixteen invented cases.
 
-## Current Phase 3A status (2026-08-05)
+## Historical Phase 3A status (superseded by benchmark v1.1.0)
 
 The committed offline baseline is `pass_with_known_defects`; fixture machinery:
 passed. 16/16 cases completed without unexpected failure. There are 12 clean
@@ -158,16 +158,20 @@ cases are a development benchmark, not evidence about real decisions. Every one
 of these limits is recorded in `docs/evaluation/BENCHMARK_V1.md` and carried
 inside the run artifacts themselves.
 
-**A real defect was found and deliberately not fixed.** `SR-P3A-001`:
-`computeRiskAdjustedScore` can return a negative value for a weak candidate,
-while `completedPipelineResponseSchema` bounds `risk_adjusted_score` to 0-100,
-so `server/http/routes.js` rejects its own response and returns a generic 500
-*after* the model has been paid for. Phase 3A is explicitly forbidden from
-changing scoring or contracts, so the benchmark records it as a documented
-known defect on the four cases that reproduce it. Known defects do not gate the
-exit status, but a case-level check raises a **required** failure if a known
-defect stops reproducing — so the record cannot outlive the defect, and a fix
-cannot land silently. See `docs/architecture/KNOWN_LIMITATIONS.md` (P0.7).
+**The recorded defect was resolved after Phase 3A.** ADR-0010 adopted the
+signed `-100…100` risk-adjusted net-score contract. The v1.0.0 known-defect
+records first produced the required baseline-change signal, then were removed
+in benchmark v1.1.0. This preserves the harness proof that a documented defect
+cannot disappear silently.
+
+## Current post-Phase-3A status
+
+The committed offline baseline is `clean_pass`; fixture machinery: passed.
+There are 16 clean cases, 0 known-defect observations, 0 affected executions,
+0 unexpected failures, and 0 unexpected defect resolutions. Current
+verification totals are 105 frontend tests, 237 server tests, 329 evaluation
+tests, and 671 total tests. No live evaluation or OpenAI request occurred, and
+Phase 3B remains unstarted.
 
 ## What this decision does not claim
 

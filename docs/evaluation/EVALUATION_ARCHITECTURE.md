@@ -171,9 +171,10 @@ The reproduction check is evaluated per declared execution, because a defect
 can legitimately reproduce in one scenario and not another — `case-006` is
 exactly that shape.
 
-One known defect exists today: `SR-P3A-001`, found by the very first fixture
-run. See [`BENCHMARK_V1.md`](BENCHMARK_V1.md) and
-`docs/architecture/KNOWN_LIMITATIONS.md` (P0.7).
+The known-defect mechanism remains available and its suppression-hardening
+tests remain active. `SR-P3A-001`, found by the first fixture run, was resolved
+through ADR-0010 and deliberately removed only after v1.0.0 reported the
+required baseline-change signal. Benchmark v1.1.0 has no active known defects.
 
 ## Fixture mode
 
@@ -253,4 +254,4 @@ is harder than doing it now, and doing it now would have coupled the benchmark
 to a vendor before it had proven itself locally.
 # Final Phase 3A hardening
 
-Every failure detail is derived from a structured finding. A known defect is suppressible only when all and only the scoped findings match its declared observations; an unrelated failure cannot be hidden. Run-state precedence is `unexpected_failure`, `baseline_change_required`, `pass_with_known_defects`, then `clean_pass`. Comparison Markdown reports unchanged, disappeared, new, changed-signature, moved, and count-change observations with repetition-preserving identity.
+Every failure detail is derived from a structured finding. A known defect is suppressible only when all and only the scoped findings match its declared observations; an unrelated failure cannot be hidden. Run-state precedence is `unexpected_failure` for failures beyond resolutions, then `baseline_change_required`, `pass_with_known_defects`, then `clean_pass`. Comparison Markdown reports unchanged, disappeared, new, changed-signature, moved, and count-change observations with repetition-preserving identity.

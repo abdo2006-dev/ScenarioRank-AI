@@ -12,6 +12,7 @@ const nonEmptyString = z.string().trim().min(1);
 const finiteNumber = z.number().finite();
 const unitInterval = finiteNumber.min(0).max(1);
 const percentage = finiteNumber.min(0).max(100);
+export const signedRiskAdjustedScoreSchema = finiteNumber.min(-100).max(100);
 const criterionScore = finiteNumber.min(1).max(10);
 
 export const safeErrorSchema = z
@@ -143,7 +144,7 @@ const outcomeModelSchema = z.object({
 }).strict();
 export const candidateEvaluationSchema = z.object({
   candidate_id: nonEmptyString, candidate_name: nonEmptyString, rank: z.number().int().positive(),
-  weighted_fit_score: percentage, risk_adjusted_score: percentage, expected_outcome_score: percentage,
+  weighted_fit_score: percentage, risk_adjusted_score: signedRiskAdjustedScoreSchema, expected_outcome_score: percentage,
   overall_confidence: unitInterval, strategic_labels: z.array(z.string()), winner_reason: z.string().optional(),
   trade_off_note: z.string().optional(), criteria_scores: z.record(criterionScoreSchema),
   strengths: z.array(z.string()), weaknesses: z.array(z.string()), risk_profile: riskProfileSchema,

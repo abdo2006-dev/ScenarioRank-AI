@@ -98,7 +98,7 @@ Every LLM-backed stage is schema-validated (Zod) before its output is used. Ever
 | Validation | Zod public HTTP/SSE contracts and provider schemas | `shared/contracts/` validates browser/server transport; `server/ai/schemas/` validates provider output before deterministic code runs |
 | Persistence | None | Runs are not stored |
 | Package manager | npm only (`package-lock.json`) | The stale `bun.lock`/`bun.lockb` lockfiles were removed in Phase 2B-2 — see [ADR-0007](./docs/decisions/ADR-0007-npm-only-lockfile.md) |
-| Automated testing | 217 backend + 103 frontend tests | Schemas, the OpenAI adapter, full mocked pipeline (batching, logical-stage vs. attempt-count accounting, complete pair-coverage validation), SSE routes, focused accessible component rendering, React Router 7 route regression coverage, the Phase 2B-2 cleanup-reintroduction guard, and the combined Phase 2C/2D `npm run check:toolchain` guard (Vite + React Router policy) |
+| Automated testing | 237 server + 105 frontend + 329 evaluation tests | Schemas, the OpenAI adapter, full mocked pipeline, signed-score HTTP/SSE regression coverage, accessible results rendering, benchmark integrity, and toolchain guards |
 
 Full inventory: [`docs/architecture/TECHNOLOGY_INVENTORY.md`](./docs/architecture/TECHNOLOGY_INVENTORY.md)
 
@@ -200,6 +200,9 @@ specified — it says nothing about prompt quality.
 Details: [`docs/evaluation/`](./docs/evaluation/EVALUATION_ARCHITECTURE.md) and
 [ADR-0009](./docs/decisions/ADR-0009-local-first-evaluation-harness.md).
 
+`risk_adjusted_score` is a signed `-100…100` penalty-adjusted net score, not a
+percentage or probability. See [ADR-0010](./docs/decisions/ADR-0010-signed-risk-adjusted-score.md).
+
 ## V2 documentation
 
 - [Phase 0 baseline audit](./docs/PHASE_0_BASELINE_AUDIT.md)
@@ -225,6 +228,7 @@ Details: [`docs/evaluation/`](./docs/evaluation/EVALUATION_ARCHITECTURE.md) and
 - [ADR-0007: npm-only lockfile](./docs/decisions/ADR-0007-npm-only-lockfile.md)
 - [ADR-0008: React Router 7 migration](./docs/decisions/ADR-0008-react-router-7-migration.md)
 - [ADR-0009: local-first evaluation harness](./docs/decisions/ADR-0009-local-first-evaluation-harness.md)
+- [ADR-0010: signed risk-adjusted net score](./docs/decisions/ADR-0010-signed-risk-adjusted-score.md)
 - [Dependency audit (Phase 2B-2; updated Phase 2C, Phase 2D)](./docs/security/DEPENDENCY_AUDIT.md)
 - [Accessibility checklist](./docs/testing/ACCESSIBILITY_CHECKLIST.md)
 

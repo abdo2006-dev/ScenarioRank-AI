@@ -139,15 +139,15 @@ explicitly. See [`HUMAN_REVIEW_GUIDE.md`](HUMAN_REVIEW_GUIDE.md).
 
 ## Current baseline
 
-`npm run eval:fixtures`, at benchmark version 1.0.0:
+`npm run eval:fixtures`, at benchmark version 1.1.0:
 
 ```text
 cases: 16/16 passed   executions: 21   repetitions: 1
-required failures: 0   advisory failures: 0   known defects: 8
+required failures: 0   advisory failures: 0   known defects: 0
 stages: 65   attempts: 65   tokens: 0   cost: unavailable
 fixture machinery: PASSED
-production baseline: PASS WITH KNOWN DEFECTS
-known defect observations: 8 across 4 scoped executions
+production baseline: CLEAN PASS
+known defect observations: 0 across 0 scoped executions
 unexpected failures: 0
 unexpected defect resolutions: 0
 ```
@@ -163,36 +163,14 @@ Tokens are zero and cost is `unavailable` because the fixture provider reports
 no usage and its model name is not in the pricing table. That is correct
 behaviour: `estimateCostUsd` returns `null` rather than guessing.
 
-## Known defect found by this benchmark
+## Resolved defect found by this benchmark
 
-**`SR-P3A-001` — negative `risk_adjusted_score` violates the public contract.**
-
-Found by the first fixture run ever executed against this benchmark.
-
-`computeRiskAdjustedScore` (`server/domain/scoring.js`) can legitimately return
-a negative value for a sufficiently weak candidate. `completedPipelineResponseSchema`
-(`shared/contracts/decisionApi.js`) bounds `risk_adjusted_score` to 0-100. And
-`server/http/routes.js:80` calls `completedPipelineResponseSchema.parse(result)`
-before responding.
-
-The consequence is real: an evaluation containing a weak enough candidate
-throws inside the route handler, and the user receives a generic
-`500 Pipeline failed. Please try again.` — **after** the OpenAI calls have
-already been made and paid for.
-
-Observed values in the benchmark: `-30` (case-001, case-011), `-11.94`
-(case-006 second scenario), `-0.4` (case-008).
-
-Phase 3A is explicitly forbidden from changing scoring, ranking, or public
-contracts, so this was **not fixed**. It is recorded only for the four scoped
-scenario executions that reproduce its stable semantic signature. It does not
-gate the baseline, but a required failure fires if it ever stops reproducing in
-that exact scope, so the fix cannot land silently.
-Also recorded in `docs/architecture/KNOWN_LIMITATIONS.md` (P0.7).
-
-Deciding between the two candidate fixes — clamping the score, or widening the
-contract — is a Phase 3B question, because either choice changes behaviour the
-harness is supposed to be measuring from a fixed baseline.
+`SR-P3A-001` exposed a negative risk-adjusted score that the old public
+contract rejected after provider work completed. ADR-0010 adopted the signed
+`-100…100` net-score contract. Before changing the benchmark, fixed production
+code against v1.0.0 produced `baseline_change_required` with all eight expected
+observations resolved and no unrelated failures. Version 1.1.0 removes only
+those four case annotations and is the clean current baseline.
 
 ## Known limitations of this benchmark
 

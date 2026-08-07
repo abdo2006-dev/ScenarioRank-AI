@@ -84,6 +84,29 @@ describe("/health", () => {
 });
 
 describe("POST /api/decision/stream", () => {
+  it("emits a valid complete event for a signed negative score after offline provider work completes", async () => {
+    const provider = createFakePipelineProvider({
+      handlers: defaultHandlers({ scoreByCandidateId: { strong: 6, weak: 3 } }),
+    });
+    activeServer = await startServer({ provider, aiEnabled: true });
+    const port = activeServer.address().port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(defaultInput({ candidateIds: ["strong", "weak"] })),
+    });
+    const events = parseSseEvents(await res.text());
+
+    expect(provider.calls.map(({ promptId }) => promptId)).toEqual([
+      "context-analysis", "batch-candidate-scoring", "decision-explanation",
+    ]);
+    expect(events.some((event) => event.event === "error")).toBe(false);
+    expect(events.at(-1).event).toBe("complete");
+    expect(completedPipelineResponseSchema.safeParse(events.at(-1).data).success).toBe(true);
+    expect(events.at(-1).data.candidate_evaluations.find((candidate) => candidate.candidate_id === "weak").risk_adjusted_score).toBe(-30);
+  });
+
   it("emits stage_update events in order, then a complete event, and closes the response", async () => {
     const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
     activeServer = await startServer({ provider, aiEnabled: true });
@@ -195,6 +218,29 @@ describe("POST /api/decision/stream", () => {
 });
 
 describe("POST /api/decision (non-streaming)", () => {
+  it("returns a valid signed negative score after offline provider work completes", async () => {
+    const provider = createFakePipelineProvider({
+      handlers: defaultHandlers({ scoreByCandidateId: { strong: 6, weak: 3 } }),
+    });
+    activeServer = await startServer({ provider, aiEnabled: true });
+    const port = activeServer.address().port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(defaultInput({ candidateIds: ["strong", "weak"] })),
+    });
+
+    expect(provider.calls.map(({ promptId }) => promptId)).toEqual([
+      "context-analysis", "batch-candidate-scoring", "decision-explanation",
+    ]);
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(completedPipelineResponseSchema.safeParse(body).success).toBe(true);
+    expect(body.candidate_evaluations.find((candidate) => candidate.candidate_id === "weak").risk_adjusted_score).toBe(-30);
+    expect(body.decision_result.recommended_candidate_id).toBe("strong");
+  });
+
   it("returns the full pipeline result as JSON", async () => {
     const provider = createFakePipelineProvider({ handlers: defaultHandlers() });
     activeServer = await startServer({ provider, aiEnabled: true });

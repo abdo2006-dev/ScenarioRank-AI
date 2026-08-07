@@ -39,4 +39,20 @@ describe("DecisionResults accessibility", () => {
     render(<DecisionResults response={pipelineResponseFixture()} />);
     expect(screen.queryByRole("tab", { name: /pairing/i })).not.toBeInTheDocument();
   });
+
+  it("renders signed risk-adjusted scores with an accessible scale description", () => {
+    const response = pipelineResponseFixture({
+      candidate_evaluations: pipelineResponseFixture().candidate_evaluations.map((candidate, index) => ({
+        ...candidate,
+        risk_adjusted_score: index === 1 ? -30 : candidate.risk_adjusted_score,
+      })),
+    });
+    render(<DecisionResults response={response} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Candidates" }));
+    expect(screen.getByText("-30.0")).toBeInTheDocument();
+    expect(screen.getAllByText("Risk-adjusted net score")).toHaveLength(2);
+    expect(screen.getAllByText(/Range: -100 to 100\. Negative means modeled penalties exceed weighted fit\./)).toHaveLength(2);
+    expect(screen.queryByText(/-30\.0%/)).not.toBeInTheDocument();
+  });
 });
